@@ -5,6 +5,8 @@
 #include "paving/paving_interface.hpp"
 #include "set/function_set.hpp"
 #include "set/affine_set.hpp"
+#include "solving/linear_simplex_algorithm.hpp"
+#include "utility/array.hpp"
 #include "solving/linear_interior_point_method.hpp"
 #include "logging/logging.hpp"
 #include "numeric/numeric.hpp"
