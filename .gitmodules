@@ -1,9 +1,9 @@
-[submodule "ss/configuration"]
-	path = ss/configuration
+[submodule "cfg"]
+	path = ss/cfg
 	url = https://github.com/ariadne-cps/configuration
-[submodule "ss/set"]
+[submodule "set"]
 	path = ss/set
 	url = https://github.com/ariadne-cps/set
-[submodule "ss/bdd"]
+[submodule "bdd"]
 	path = ss/bdd
 	url = https://github.com/ariadne-cps/bdd
