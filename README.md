@@ -21,10 +21,11 @@ Ariadne Paving is the standalone C++20 discrete paving layer of Ariadne. It prov
 
 Paving depends directly on:
 
-- [ariadne-cps/set](https://github.com/ariadne-cps/set) (Git submodule `ss/set`).
-- [ariadne-cps/configuration](https://github.com/ariadne-cps/configuration) (Git submodule `ss/configuration`).
+- [ariadne-cps/set](https://github.com/ariadne-cps/set) (Git submodule `ss/set`), providing set representations and numerical solving dependencies.
+- [ariadne-cps/bdd](https://github.com/ariadne-cps/bdd) (Git submodule `ss/bdd`), providing binary decision diagrams.
+- [ariadne-cps/configuration](https://github.com/ariadne-cps/configuration) (Git submodule `ss/configuration`), providing shared CMake infrastructure.
 
-Set provides Solving, Function, Geometry and the lower layers transitively.
+Set provides Linear Programming, Constraint Solving, Function, Geometry and the lower layers transitively. BDD provides its Threading and other lower dependencies transitively. The CMake build includes and links both Set and BDD; existing paving binary-tree algorithms are not replaced by the BDD implementation.
 
 ## Build
 
@@ -46,7 +47,7 @@ cmake --install build-release --prefix /path/to/install
 
 ## Python bindings
 
-Python 3.11 or newer and a compatible development environment are required for the Python extension. Paving contributes grid and paving operations to `pyariadne` through the Set Python module and its dependencies.
+Python 3.11 or newer and a compatible development environment are required for the Python extension. Paving contributes grid and paving operations to `pyariadne` alongside the Set and BDD Python modules and their dependencies.
 
 ## Tutorials
 

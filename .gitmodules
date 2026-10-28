@@ -4,3 +4,6 @@
 [submodule "ss/set"]
 	path = ss/set
 	url = https://github.com/ariadne-cps/set
+[submodule "ss/bdd"]
+	path = ss/bdd
+	url = https://github.com/ariadne-cps/bdd

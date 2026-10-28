@@ -21,7 +21,10 @@ if(EXISTS "${PROJECT_SOURCE_DIR}/.git")
         CHAINS
             "configuration"
             "set|configuration"
-            "set|solving|configuration"
+            "set|linear-programming|configuration"
+            "set|constraint-solving|configuration"
+            "bdd|configuration"
+            "bdd|threading|configuration"
     )
 endif()
 
@@ -35,7 +38,7 @@ target_include_directories(paving INTERFACE
     $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/include>
     $<INSTALL_INTERFACE:include/ariadne-paving>
 )
-target_link_libraries(paving INTERFACE set)
+target_link_libraries(paving INTERFACE set bdd)
 
 add_subdirectory(src)
 target_link_libraries(PAVING_SRC PRIVATE paving)

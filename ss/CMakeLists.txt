@@ -1,4 +1,7 @@
 if(NOT TARGET set)
-    ensure_submodule_initialized(set)
-    add_subdirectory(set)
+    ariadne_add_submodule(set)
+endif()
+
+if(NOT TARGET bdd)
+    ariadne_add_submodule(bdd)
 endif()
