@@ -2,7 +2,7 @@
 #include "set/affine_set.hpp"
 #include "paving/set_approximation.hpp"
 #include "paving/grid_paving.hpp"
-#include "macro/testing.hpp"
+#include "ariadne-testing.hpp"
 #include <type_traits>
 #include <utility>
 
@@ -17,7 +17,11 @@ using AffinePavingResult = decltype(outer_approximation(
 static_assert(std::is_same_v<ConstrainedPavingResult,GridTreePaving>);
 static_assert(std::is_same_v<AffinePavingResult,GridTreePaving>);
 
-Void test_effective_set_approximation() {
+class TestSetApproximation : public Ariadne::Testing::ContextFixture {
+  public:
+    using ContextFixture::ContextFixture;
+
+    Void test_effective_set_approximation() {
         List<EffectiveScalarMultivariateFunction> s=EffectiveScalarMultivariateFunction::coordinates(3);
         List<EffectiveScalarMultivariateFunction> x=EffectiveScalarMultivariateFunction::coordinates(2);
 
@@ -25,7 +29,7 @@ Void test_effective_set_approximation() {
         EffectiveConstrainedImageSet set(d,{s[0],s[0]*s[0]/4+s[1]+s[2]/2});
         set.new_parameter_constraint(0<=s[0]+s[1]<=1);
         set.new_space_constraint(x[0]+x[1]<=2.0_x);
-        ARIADNE_TEST_PRINT(set);
+        ARIADNE_TESTING_NOTE("set = " << (set));
         GridTreePaving paving(2);
         Nat depth=2;
         paving.adjoin_outer_approximation(set,depth);
@@ -36,14 +40,17 @@ Void test_validated_set_approximation() {
     ValidatedConstrainedImageSet box_set(domain);
     Grid grid(2u);
     auto outer=outer_approximation(box_set,grid,0u);
-    ARIADNE_TEST_ASSERT(!outer.is_empty());
+    ARIADNE_TESTING_PROVE(!outer.is_empty());
     GridTreePaving another_outer(grid);
     adjoin_outer_approximation_to(another_outer,box_set,0u);
-    ARIADNE_TEST_ASSERT(!another_outer.is_empty());
+    ARIADNE_TESTING_PROVE(!another_outer.is_empty());
 }
 
-Int main() {
-    ARIADNE_TEST_CALL(test_effective_set_approximation());
-    ARIADNE_TEST_CALL(test_validated_set_approximation());
-    return ARIADNE_TEST_FAILURES;
+};
+
+int main(int argc, char** argv) {
+    ARIADNE_TESTING_SUITE("test_set_approximation");
+    ARIADNE_TESTING_ADD_TEST(TestSetApproximation, test_effective_set_approximation);
+    ARIADNE_TESTING_ADD_TEST(TestSetApproximation, test_validated_set_approximation);
+    return ARIADNE_TESTING_RUN_TESTS_WITH_ARGS(argc, argv);
 }

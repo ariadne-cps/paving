@@ -13,7 +13,7 @@ Ariadne Paving is the standalone C++20 discrete paving layer of Ariadne. It prov
 
 - Public headers: `include/paving/`, with umbrella header `include/ariadne-paving.hpp`.
 - C++ implementations: `src/`.
-- C++ tests: `tests/`.
+- C++ tests: `tests/` (66 independently registered fixture cases across eight executables).
 - Python bindings, tests and tutorial: `python/bindings/`, `python/tests/` and `python/tutorials/`.
 - Standalone installed C++ example: `tutorials/tutorial_paving/`.
 
@@ -24,6 +24,7 @@ Paving depends directly on:
 - [ariadne-cps/set](https://github.com/ariadne-cps/set) (Git submodule `ss/set`), providing set representations and numerical solving dependencies.
 - [ariadne-cps/bdd](https://github.com/ariadne-cps/bdd) (Git submodule `ss/bdd`), providing binary decision diagrams.
 - [ariadne-cps/configuration](https://github.com/ariadne-cps/configuration) (Git submodule `ss/cfg`), providing shared CMake infrastructure.
+- [ariadne-cps/testing](https://github.com/ariadne-cps/testing) (Git submodule `ss/tst`), providing independent `ContextFixture` regression cases and diagnostics.
 
 Set provides Linear Programming, Constraint Solving, Function, Geometry and the lower layers transitively. BDD provides its Threading and other lower dependencies transitively. The CMake build includes and links both Set and BDD; existing paving binary-tree algorithms are not replaced by the BDD implementation.
 

@@ -25,6 +25,9 @@ if(EXISTS "${PROJECT_SOURCE_DIR}/.git")
             "set|constraint-solving|configuration"
             "bdd|configuration"
             "bdd|threading|configuration"
+            "testing|configuration"
+            "set|testing|configuration"
+            "bdd|testing|configuration"
     )
     require_same_dependency_commit(Logging
         CHAINS
@@ -35,6 +38,15 @@ if(EXISTS "${PROJECT_SOURCE_DIR}/.git")
         CHAINS
             "set|linear-programming|algebra|interval|numeric|foundation|python-common"
             "bdd|python-common"
+    )
+    require_same_dependency_commit(Testing
+        CHAINS
+            "testing"
+            "set|testing"
+            "bdd|testing"
+            "set|linear-programming|testing"
+            "set|constraint-solving|testing"
+            "bdd|threading|testing"
     )
 endif()
 

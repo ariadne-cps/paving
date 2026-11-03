@@ -26,7 +26,7 @@
 #include "paving/paver.hpp"
 #include "paving/set_approximation.hpp"
 
-#include "macro/general.hpp"
+#include "utility/macros.hpp"
 #include "logging/logging.hpp"
 #include "algebra/polynomial.hpp"
 #include "function/function.hpp"

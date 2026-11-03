@@ -26,7 +26,7 @@
 #include <iostream>
 #include <iomanip>
 #include "function/functional.hpp"
-#include "macro/general.hpp"
+#include "utility/macros.hpp"
 #include "utility/exceptions.hpp"
 #include "utility/stlio.hpp"
 #include "set/list_set.hpp"
