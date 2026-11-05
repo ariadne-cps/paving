@@ -1,7 +1,7 @@
 # Copyright 2026 Luca Geretti
 # Ariadne is licensed under the GNU GPL version 3 or later.
 
-from pyariadne import *
+from pyariadne_paving import *
 
 def test_grid_paving():
     grid = Grid(2)

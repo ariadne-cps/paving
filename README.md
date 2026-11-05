@@ -49,7 +49,7 @@ cmake --install build-release --prefix /path/to/install
 
 ## Python bindings
 
-Python 3.11 or newer and a compatible development environment are required for the Python extension. Paving contributes grid and paving operations to `pyariadne` alongside the Set and BDD Python modules and their dependencies.
+Python 3.11 or newer and a compatible development environment are required for the Python extension. Paving contributes grid and paving operations to `pyariadne_paving` alongside the Set and BDD Python modules and their dependencies.
 
 ## Tutorials
 
@@ -59,7 +59,3 @@ Python 3.11 or newer and a compatible development environment are required for t
 ## Contribution guidelines
 
 Please contact the developer: Luca Geretti <luca.geretti@univr.it>.
-
-## License
-
-Ariadne Paving is released under the GNU General Public License v3.0 (or later where individual source files specify it).

@@ -26,4 +26,4 @@ target_include_directories(pyariadne-paving INTERFACE
     $<TARGET_PROPERTY:pyariadne-bdd,INTERFACE_INCLUDE_DIRECTORIES>
 )
 target_link_libraries(pyariadne-paving INTERFACE pyariadne-set pyariadne-bdd)
-ariadne_add_python_module(NAME paving MODULE_SOURCE paving_module.cpp)
+ariadne_add_python_module(NAME paving MODULE_IMPORT_NAME pyariadne_paving MODULE_SOURCE paving_module.cpp)

@@ -86,18 +86,6 @@ jobs:
       working-directory: ${{ runner.workspace }}/build
       run: cmake --install . --prefix ${{ runner.workspace }}/install
 
-    - name: Check Python Paving Tutorial
-      if: matrix.build_type == 'Release'
-      working-directory: ${{ github.workspace }}/python/tutorials
-      env:
-        PYTHONPATH: ${{ runner.workspace }}/install/lib/python3.13/site-packages
-        LD_LIBRARY_PATH: ${{ runner.workspace }}/install/lib
-        DYLD_LIBRARY_PATH: ${{ runner.workspace }}/install/lib
-      run: |
-        python -c "import os, pathlib, pyariadne; p=pathlib.Path(pyariadne.__file__).resolve(); root=pathlib.Path(os.environ['PYTHONPATH']).resolve(); assert p.is_relative_to(root), (p, root)"
-        python tutorial_paving.py
-
-
     - name: Prepare C++ Paving Tutorial
       if: matrix.build_type == 'Release'
       run: cmake -E copy_directory $GITHUB_WORKSPACE/tutorials/tutorial_paving ${{ runner.workspace }}/tutorial_paving
@@ -111,6 +99,18 @@ jobs:
         export LD_LIBRARY_PATH=${{ runner.workspace }}/install/lib:${LD_LIBRARY_PATH:-}
         export DYLD_LIBRARY_PATH=${{ runner.workspace }}/install/lib:${DYLD_LIBRARY_PATH:-}
         ./build/tutorial_paving
+
+
+    - name: Check Python Paving Tutorial
+      if: matrix.build_type == 'Release'
+      working-directory: ${{ github.workspace }}/python/tutorials
+      env:
+        PYTHONPATH: ${{ runner.workspace }}/install/lib/python3.13/site-packages
+        LD_LIBRARY_PATH: ${{ runner.workspace }}/install/lib
+        DYLD_LIBRARY_PATH: ${{ runner.workspace }}/install/lib
+      run: |
+        python -c "import os, pathlib, pyariadne_paving; p=pathlib.Path(pyariadne_paving.__file__).resolve(); root=pathlib.Path(os.environ['PYTHONPATH']).resolve(); assert p.is_relative_to(root), (p, root)"
+        python tutorial_paving.py
 
 
     - name: Verify Uninstallation
