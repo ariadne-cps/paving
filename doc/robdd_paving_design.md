@@ -1542,3 +1542,90 @@ The benchmark is intended to be measured in Release mode on the
 same hardware; the resulting relative speedups are not claimed
 until measured. It does not compare against an external process or
 claim precise heap allocation counts.
+
+## 2026-11-06 - Concurrency policy decision: common safe paving, then ROBDD parallelism
+
+**Status: design decision and implementation roadmap, NOT implemented.**
+The public PavingInterface contract must eventually be safe for concurrent
+operations on the same paving object for both GridTreePaving (BinaryTreePaving)
+and RobddPaving. Once this contract passes concurrent stress tests and TSan,
+optimize RobddManager for parallel internal BDD operations, using the existing
+Ariadne ThreadManager and work stealing. Do not introduce a separate scheduler
+or claim that the present manager-level mutex protects paving metadata.
+
+### Common correctness contract
+
+- Mutating paving operations (adjoin(single cell), adjoin(vector of cells),
+  same-backend adjoin, remove, restrict, set_root_cell, mince, recombine,
+  geometric adjoin approximations) must be linearizable with respect to
+  each other and to coherent read operations on the same paving.
+- A bulk adjoin is a single atomic change, not a sequence of separately
+  visible per-cell updates. Concurrent unions may appear in any serial
+  order, but no update may be lost. Noncommuting remove/restrict operations
+  must have a well-defined serial order.
+- Readers such as superset, size, root_cell, geometry checks and snapshot
+  construction must never observe partially updated geometry/root metadata.
+- Iterators and read-only snapshots must remain valid while an unrelated
+  worker changes the owning paving; especially the tree backend cannot
+  expose raw mutable node traversal without an ownership/snapshot policy.
+  An iterator pair must refer to one consistent logical traversal state.
+- Live child views must retain their documented live semantics; their
+  operations have to synchronize with the owner. They must not silently
+  become detached snapshots. Lifetime of the owning paving remains a
+  separate API contract; the current borrowed-view ownership cannot be
+  made safe against owner destruction merely with a mutex.
+- Returning internal references, notably RobddPaving::robdd() const&,
+  is unsafe under concurrent root replacement. Replace such exposure
+  with a safe immutable value/snapshot or an explicitly scoped read view
+  before advertising the full contract. Grid references are immutable
+  but require documented owner lifetime.
+- Multi-paving operations must avoid lock-order deadlocks. When feasible,
+  snapshot each source independently, then synchronize the destination
+  only for the atomic update; aliasing and self-operations require tests.
+- Strong exception safety: failed validation and failed transactions must
+  not leave a half-updated paving. Existing value semantics of copied
+  pavings must remain intact.
+
+### Backend implementations
+
+PavingInterface specifies the semantic guarantee but should not carry
+a universal mutex, since the synchronization/ownership strategies differ.
+GridTreePaving initially uses synchronized mutable state and detached,
+stable iterator snapshots; copying a tree may be costly and should be
+measured. RobddPaving initially uses synchronized coherent triples
+(root cell, canonical ROBDD handle, logical depth) while manager-owned
+decision nodes stay immutable; a later atomic publication strategy can
+replace the per-paving mutex if contention justifies it. Avoid holding
+a paving write lock during slow independent geometry classification,
+nested work scheduling, or waits for workers.
+
+RobddManager's mutexes remain independently necessary for concurrent
+shared-manager operations. A paving's mutex cannot guard other pavings
+using the same manager, nor public manager operations called directly.
+
+### Verification and sequencing
+
+1. Specify lifetime, iterator/view and concurrent-operation semantics
+   precisely, including existing live PavingCellViewAdapter behavior.
+2. Implement the common contract on GridTreePaving and RobddPaving.
+   Do not label PavingInterface thread-safe while some public methods
+   still return unguarded references to mutable state.
+3. Add the *same* multiworker correctness workload for both backends:
+   disjoint/overlapping single-cell and batch adjoins; reader/writer
+   snapshots; iterator validity during updates; mixed operations with
+   explicit linearizable histories; exception and copy semantics.
+   Verify under ThreadSanitizer on all supported configurations and
+   check no incorrect results or lost updates.
+4. Measure end-to-end update throughput, snapshot costs and lock
+   contention with 1, 2, 4 and 8 workers, using realistic geometry
+   computations followed by writes to one origin paving.
+5. Only then optimize parallel ROBDD manager operations (concurrent
+   unique table, computed table and bounded fork/join through
+   ThreadManager). Keep the existing correct manager synchronized
+   until its replacement is validated under the same stress suite.
+
+Do not confuse thread safety with representation-independent
+performance: ROBDD snapshots can share immutable canonical nodes;
+tree snapshots currently imply node copying. Parallel work should
+accumulate local batches when algorithmically allowed, while
+single-cell adjoin must remain independently safe.
