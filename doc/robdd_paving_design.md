@@ -616,3 +616,28 @@ out-of-view membership, independent sibling regions, invalid
 grid/root requests, and unchanged behavior of both backends.
 No changes were made to `bdd`, `drawing` or `reasoning`.
 CI validation is required before treating this as verified.
+
+## 2026-11-06 - Read-only traversal of generic writable cell views
+
+Extended the existing `PavingCellView<Paving>` with
+`for_each_enabled_leaf(visitor)` and `size()`, using only the
+common constant `begin()/end()` iterator and `GridCell` geometry.
+For every enabled owner leaf contained in the view, traversal emits
+that leaf; when an enabled owner leaf contains the entire view,
+traversal emits exactly the view's root cell. This geometric
+clipping is required for a subpaving view of an unsplit enabled
+ancestor. It does not construct or clone a new paving, and
+results reflect the owner's current value at each traversal.
+The owner must not be mutated during traversal.
+
+The new exhaustive reference test constructs both backends
+independently from all 256 three-bit truth tables, normalizes
+the binary tree, and compares the clipped enabled-cell sequences
+and counts over eight view root paths. A separate full-terminal
+case verifies that an unsplit enabled ancestor is clipped to one
+descendant cell and that subsequently removing that cell
+changes the visible count in both backends. Neither
+`SubPavingInterface` nor `PavingHandle` has changed.
+These generic cell views remain non-owning and their copies
+remain aliases; they are not polymorphic cloned subpavings.
+CI verification is pending.

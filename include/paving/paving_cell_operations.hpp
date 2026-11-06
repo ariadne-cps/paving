@@ -16,6 +16,8 @@
 #ifndef ARIADNE_PAVING_CELL_OPERATIONS_HPP
 #define ARIADNE_PAVING_CELL_OPERATIONS_HPP
 
+#include <limits>
+
 #include "utility/macros.hpp"
 #include "paving/grid_cell.hpp"
 
@@ -73,6 +75,39 @@ class PavingCellView {
         ARIADNE_PRECONDITION_MSG(grid() == cell.grid(),
             "Cannot compare a cell view to a different grid");
         return cell.box().subset(_root.box()) and _paving->superset(cell);
+    }
+
+    //! \brief Visit the owner's enabled leaves clipped to this view.
+    //! \details In a binary grid, two cells with overlapping interiors
+    //! are either nested or equal. An owning leaf containing the view's
+    //! root contributes precisely that root; otherwise only enabled
+    //! leaves contained in the view contribute. This avoids materializing
+    //! a new paving and works with either backend's constant iterators.
+    //! \note Do not mutate the owner while this visit is in progress.
+    template<class Visitor>
+    Void for_each_enabled_leaf(Visitor&& visitor) const {
+        for (auto it=_paving->begin(), end=_paving->end(); it!=end; ++it) {
+            if (_root.box().subset(it->box())) {
+                visitor(_root);
+            } else if (it->box().subset(_root.box())) {
+                visitor(*it);
+            }
+        }
+    }
+
+    //! \brief Number of enabled leaves in the restricted region.
+    //! \details Reflects the owner's current stored leaf decomposition.
+    //! An explicitly minced tree may have more leaves than a canonical
+    //! ROBDD representing the same set until the tree is recombined.
+    SizeType size() const {
+        SizeType count=0u;
+        for_each_enabled_leaf([&](GridCell const&) {
+            ARIADNE_PRECONDITION_MSG(
+                count < std::numeric_limits<SizeType>::max(),
+                "Cell-view enabled-leaf count exceeds SizeType capacity");
+            ++count;
+        });
+        return count;
     }
 
     //! \brief Update the owner at this view's root, not at its entire root.

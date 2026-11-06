@@ -1005,6 +1005,73 @@ class TestRobddPaving : public Ariadne::Testing::ContextFixture {
         ARIADNE_TESTING_PROVE(parent.robdd().is_true());
     }
 
+    Void test_common_view_enabled_leaf_traversal() {
+        RobddManager manager;
+        Grid grid(1u);
+        GridCell root(grid,0u,BinaryWord{});
+        for (unsigned table=0u; table<256u; ++table) {
+            BinaryTreePaving tree(grid);
+            PavingInterface& tree_interface=tree;
+            RobddPaving robdd(manager,root,manager.constant(false),0u);
+            for (unsigned mask=0u; mask<8u; ++mask) {
+                if ((table & (1u << mask)) == 0u) { continue; }
+                BinaryWord word;
+                word.push_back((mask & 4u) != 0u);
+                word.push_back((mask & 2u) != 0u);
+                word.push_back((mask & 1u) != 0u);
+                GridCell cell(grid,0u,word);
+                tree.adjoin(cell);
+                robdd.adjoin(cell);
+            }
+            tree.recombine();
+            for (BinaryWord const& word : {
+                     BinaryWord{},make_binary_word("0"),
+                     make_binary_word("1"),make_binary_word("00"),
+                     make_binary_word("01"),make_binary_word("10"),
+                     make_binary_word("11"),make_binary_word("101")}) {
+                GridCell region(grid,0u,word);
+                auto tree_view=paving_cell_view(tree_interface,region);
+                auto robdd_view=paving_cell_view(robdd,region);
+                std::vector<GridCell> tree_cells;
+                std::vector<GridCell> robdd_cells;
+                tree_view.for_each_enabled_leaf([&](GridCell const& cell) {
+                    tree_cells.push_back(cell);
+                });
+                robdd_view.for_each_enabled_leaf([&](GridCell const& cell) {
+                    robdd_cells.push_back(cell);
+                });
+                ARIADNE_TESTING_EXPECT_EQUAL(tree_view.size(),tree_cells.size());
+                ARIADNE_TESTING_EXPECT_EQUAL(robdd_view.size(),robdd_cells.size());
+                ARIADNE_TESTING_EXPECT_EQUAL(tree_cells.size(),robdd_cells.size());
+                for (SizeType i=0u; i<tree_cells.size(); ++i) {
+                    ARIADNE_TESTING_PROVE(tree_cells[i] == robdd_cells[i]);
+                    ARIADNE_TESTING_PROVE(tree_cells[i].box().subset(region.box()));
+                }
+            }
+        }
+        // A single enabled parent leaf must be clipped to the view root.
+        Grid grid2(1u);
+        GridCell root2(grid2,0u,BinaryWord{});
+        BinaryTreePaving tree(grid2,true);
+        RobddPaving robdd(manager,root2,manager.constant(true),0u);
+        GridCell deep(grid2,0u,make_binary_word("101"));
+        auto tree_view=paving_cell_view(tree,deep);
+        auto robdd_view=paving_cell_view(robdd,deep);
+        ARIADNE_TESTING_EXPECT_EQUAL(tree_view.size(),1u);
+        ARIADNE_TESTING_EXPECT_EQUAL(robdd_view.size(),1u);
+        tree_view.for_each_enabled_leaf([&](GridCell const& cell) {
+            ARIADNE_TESTING_PROVE(cell==deep);
+        });
+        robdd_view.for_each_enabled_leaf([&](GridCell const& cell) {
+            ARIADNE_TESTING_PROVE(cell==deep);
+        });
+        // A view reflects subsequent changes in the owning paving.
+        tree.remove(deep);
+        robdd.remove(deep);
+        ARIADNE_TESTING_EXPECT_EQUAL(tree_view.size(),0u);
+        ARIADNE_TESTING_EXPECT_EQUAL(robdd_view.size(),0u);
+    }
+
     Void test_common_writable_cell_views() {
         RobddManager manager;
         Grid grid(1u);
@@ -1095,5 +1162,6 @@ int main(int argc, char** argv) {
     ARIADNE_TESTING_ADD_TEST(TestRobddPaving, test_generic_cell_updates_across_backends);
     ARIADNE_TESTING_ADD_TEST(TestRobddPaving, test_detached_subpaving_for_descendants);
     ARIADNE_TESTING_ADD_TEST(TestRobddPaving, test_common_writable_cell_views);
+    ARIADNE_TESTING_ADD_TEST(TestRobddPaving, test_common_view_enabled_leaf_traversal);
     return ARIADNE_TESTING_RUN_TESTS_WITH_ARGS(argc,argv);
 }
