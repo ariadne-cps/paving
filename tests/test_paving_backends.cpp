@@ -1903,20 +1903,20 @@ class TestPavingBackends : public Ariadne::Testing::ContextFixture {
             GridCell fine=root.split(false).split(false);
             partial.adjoin(fine);
             partial_robdd.adjoin(fine);
-            PavingInterface const& pi=partial;
+            PavingInterface const& partial_tree_interface=partial;
             PavingInterface const& ri=partial_robdd;
             SizeType visited=0u;
             ARIADNE_TESTING_EXPECT_EXCEPTION(
-                pi.for_each_enabled_cell_at_exact_fineness(
+                partial_tree_interface.for_each_enabled_cell_at_exact_fineness(
                     0u,[&](GridCell const&) { ++visited; }));
             ARIADNE_TESTING_EXPECT_EQUAL(visited,0u);
             ARIADNE_TESTING_EXPECT_EXCEPTION(
                 ri.for_each_enabled_cell_at_exact_fineness(
                     0u,[&](GridCell const&) { ++visited; }));
             ARIADNE_TESTING_EXPECT_EQUAL(visited,0u);
-            ARIADNE_TESTING_EXPECT_EXCEPTION(pi.uniform_cell_paving(0u));
+            ARIADNE_TESTING_EXPECT_EXCEPTION(partial_tree_interface.uniform_cell_paving(0u));
             ARIADNE_TESTING_EXPECT_EXCEPTION(ri.uniform_cell_paving(0u));
-            PavingHandle p_exact=pi.uniform_cell_paving(2u);
+            PavingHandle p_exact=partial_tree_interface.uniform_cell_paving(2u);
             PavingHandle r_exact=ri.uniform_cell_paving(2u);
             SizeType refined_count=SizeType{1u}<<(2u*dimensions-2u);
             ARIADNE_TESTING_EXPECT_EQUAL(p_exact.size(),refined_count);
@@ -1926,7 +1926,7 @@ class TestPavingBackends : public Ariadne::Testing::ContextFixture {
 
             // A non-primary view cannot be represented exactly by
             // cells wider than the view root unless it is empty.
-            SubPavingHandle t_child=pi.branch(false);
+            SubPavingHandle t_child=partial_tree_interface.branch(false);
             SubPavingHandle r_child=ri.branch(false);
             SubPavingInterface const& tv=t_child;
             SubPavingInterface const& rv=r_child;
