@@ -1036,6 +1036,152 @@ class TestPavingBackends : public Ariadne::Testing::ContextFixture {
         ARIADNE_TESTING_PROVE(empty.is_empty());
     }
 
+    Void test_polymorphic_pure_algebra_with_isolated_backends() {
+        RobddManager manager;
+        for (Nat dimensions : {1u,2u}) {
+            Grid grid(dimensions);
+            GridCell root(grid,0u,BinaryWord{});
+            std::vector<GridCell> cells;
+            for (unsigned bit=0u; bit<8u; ++bit) {
+                BinaryWord word;
+                word.push_back((bit & 4u)!=0u);
+                word.push_back((bit & 2u)!=0u);
+                word.push_back((bit & 1u)!=0u);
+                cells.emplace_back(grid,0u,word);
+            }
+
+            auto check_mask=[&](PavingHandle const& tree,
+                                PavingHandle const& robdd,
+                                unsigned expected) {
+                for (unsigned bit=0u; bit<8u; ++bit) {
+                    Bool enabled=(expected & (1u<<bit))!=0u;
+                    ARIADNE_TESTING_EXPECT_EQUAL(
+                        tree.superset(cells[bit]),enabled);
+                    ARIADNE_TESTING_EXPECT_EQUAL(
+                        robdd.superset(cells[bit]),enabled);
+                }
+            };
+
+            for (unsigned lhs : {0u,1u,0x0Fu,0x33u,
+                                 0x5Au,0xA5u,0xF0u,0xFFu}) {
+                for (unsigned rhs : {0u,0x0Fu,0x55u,0xA6u,0xFFu}) {
+                    PavingHandle tree_left(new BinaryTreePaving(grid));
+                    PavingHandle tree_right(new BinaryTreePaving(grid));
+                    PavingHandle robdd_left(new RobddPaving(
+                        manager,root,manager.constant(false),0u));
+                    PavingHandle robdd_right(new RobddPaving(
+                        manager,root,manager.constant(false),0u));
+
+                    for (unsigned bit=0u; bit<8u; ++bit) {
+                        if ((lhs & (1u<<bit))!=0u) {
+                            tree_left.adjoin(cells[bit]);
+                            robdd_left.adjoin(cells[bit]);
+                        }
+                        if ((rhs & (1u<<bit))!=0u) {
+                            tree_right.adjoin(cells[bit]);
+                            robdd_right.adjoin(cells[bit]);
+                        }
+                    }
+                    PavingInterface const& tl=tree_left;
+                    PavingInterface const& tr=tree_right;
+                    PavingInterface const& rl=robdd_left;
+                    PavingInterface const& rr=robdd_right;
+
+                    // Free operations preserve backend identity: neither
+                    // operand comes from another backend or is converted.
+                    PavingHandle tree_join=Ariadne::join(tl,tr);
+                    PavingHandle robdd_join=Ariadne::join(rl,rr);
+                    PavingHandle tree_union=Ariadne::geometric_union(tl,tr);
+                    PavingHandle robdd_union=Ariadne::geometric_union(rl,rr);
+                    PavingHandle tree_intersection=Ariadne::intersection(tl,tr);
+                    PavingHandle robdd_intersection=Ariadne::intersection(rl,rr);
+                    PavingHandle tree_difference=Ariadne::difference(tl,tr);
+                    PavingHandle robdd_difference=Ariadne::difference(rl,rr);
+
+                    check_mask(tree_join,robdd_join,lhs|rhs);
+                    check_mask(tree_union,robdd_union,lhs|rhs);
+                    check_mask(tree_intersection,robdd_intersection,lhs&rhs);
+                    check_mask(tree_difference,robdd_difference,lhs & ~rhs);
+                    check_mask(tree_left,robdd_left,lhs);
+                    check_mask(tree_right,robdd_right,rhs);
+
+                    // Every result has independent writable state.
+                    tree_join.remove(cells[0]);
+                    robdd_join.remove(cells[0]);
+                    check_mask(tree_left,robdd_left,lhs);
+                    check_mask(tree_right,robdd_right,rhs);
+                    check_mask(tree_union,robdd_union,lhs|rhs);
+                }
+            }
+
+            // A child view is a valid *same-backend* operand. Its clone
+            // must be detached even when the owner root is a true leaf.
+            BinaryTreePaving full_tree(grid,true);
+            RobddPaving full_robdd(
+                manager,root,manager.constant(true),0u);
+            GridCell left=root.split(false);
+            GridCell right=root.split(true);
+            {
+                SubPavingHandle tree_view=
+                    static_cast<SubPavingInterface const&>(full_tree)
+                        .branch(false);
+                SubPavingHandle robdd_view=
+                    static_cast<SubPavingInterface const&>(full_robdd)
+                        .branch(false);
+                SubPavingInterface const& tv=tree_view;
+                SubPavingInterface const& rv=robdd_view;
+                PavingInterface const& ft=full_tree;
+                PavingInterface const& fr=full_robdd;
+
+                PavingHandle tree_union=Ariadne::join(tv,ft);
+                PavingHandle robdd_union=Ariadne::join(rv,fr);
+                PavingHandle tree_intersection=Ariadne::intersection(ft,tv);
+                PavingHandle robdd_intersection=Ariadne::intersection(fr,rv);
+                PavingHandle tree_difference=Ariadne::difference(ft,tv);
+                PavingHandle robdd_difference=Ariadne::difference(fr,rv);
+                ARIADNE_TESTING_PROVE(tree_union.superset(root));
+                ARIADNE_TESTING_PROVE(robdd_union.superset(root));
+                ARIADNE_TESTING_PROVE(
+                    tree_intersection.superset(left));
+                ARIADNE_TESTING_PROVE(
+                    robdd_intersection.superset(left));
+                ARIADNE_TESTING_PROVE(
+                    not tree_intersection.superset(right));
+                ARIADNE_TESTING_PROVE(
+                    not robdd_intersection.superset(right));
+                ARIADNE_TESTING_PROVE(tree_difference.superset(right));
+                ARIADNE_TESTING_PROVE(robdd_difference.superset(right));
+                ARIADNE_TESTING_PROVE(
+                    not tree_difference.superset(left));
+                ARIADNE_TESTING_PROVE(
+                    not robdd_difference.superset(left));
+
+                tree_intersection.set_root_cell(false);
+                robdd_intersection.set_root_cell(false);
+                ARIADNE_TESTING_PROVE(full_tree.superset(root));
+                ARIADNE_TESTING_PROVE(full_robdd.superset(root));
+                ARIADNE_TESTING_PROVE(tree_view.superset(left));
+                ARIADNE_TESTING_PROVE(robdd_view.superset(left));
+
+                // Same-backend operations may accept a view, but mixed
+                // backend operations must fail before changing the owner.
+                ARIADNE_TESTING_EXPECT_EXCEPTION(Ariadne::join(ft,fr));
+                ARIADNE_TESTING_EXPECT_EXCEPTION(Ariadne::join(fr,ft));
+                ARIADNE_TESTING_EXPECT_EXCEPTION(
+                    Ariadne::geometric_union(ft,fr));
+                ARIADNE_TESTING_EXPECT_EXCEPTION(
+                    Ariadne::intersection(ft,fr));
+                ARIADNE_TESTING_EXPECT_EXCEPTION(
+                    Ariadne::difference(fr,ft));
+                ARIADNE_TESTING_EXPECT_EXCEPTION(Ariadne::join(tv,fr));
+                ARIADNE_TESTING_EXPECT_EXCEPTION(
+                    Ariadne::intersection(rv,ft));
+                ARIADNE_TESTING_PROVE(full_tree.superset(root));
+                ARIADNE_TESTING_PROVE(full_robdd.superset(root));
+            }
+        }
+    }
+
     Void test_polymorphic_alignment_across_primary_extents() {
         RobddManager manager;
         for (Nat dimensions : {1u,2u,3u}) {
@@ -1533,5 +1679,6 @@ int main(int argc, char** argv) {
     ARIADNE_TESTING_ADD_TEST(TestPavingBackends, test_polymorphic_paving_handle_and_subpaving_views);
     ARIADNE_TESTING_ADD_TEST(TestPavingBackends, test_polymorphic_sequences_backend_isolation);
     ARIADNE_TESTING_ADD_TEST(TestPavingBackends, test_polymorphic_alignment_across_primary_extents);
+    ARIADNE_TESTING_ADD_TEST(TestPavingBackends, test_polymorphic_pure_algebra_with_isolated_backends);
     return ARIADNE_TESTING_RUN_TESTS_WITH_ARGS(argc,argv);
 }

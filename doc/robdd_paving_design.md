@@ -991,3 +991,37 @@ difference. No test scenario was removed or weakened. The
 fix preserves the agreed same-backend restriction for all
 paving set operations. CI validation is required before
 declaring the regression repaired.
+
+## 2026-11-06 - Polymorphic pure set-algebra regression
+
+Added `test_polymorphic_pure_algebra_with_isolated_backends` to
+`tests/test_paving_backends.cpp`. It exercises the four free
+operations provided by `paving_interface.hpp`:
+`join`, `geometric_union`, `intersection` and
+`difference`. Each operation is executed independently
+on `PavingHandle` operands of one backend, with an
+identically constructed pair of the other backend acting
+only as an external geometric oracle. The test checks
+all eight depth-three cell membership decisions against
+Boolean truth-table algebra for selected empty, full,
+regular and irregular patterns in one and two dimensions.
+
+Unlike the existing tests of in-place set operations, this
+checks that free functions create independently owned
+results: mutating a returned paving does not change either
+original operand or another returned result. It also covers
+cloning a live child `SubPavingInterface` as the first
+operand of a pure operation, including a uniform enabled
+tree root (the scenario that exposed the previous null
+child-node bug). Same-backend set operands include views;
+foreign backends are explicitly rejected for all pure
+operations, including a foreign operand paired with a
+same-backend child view.
+
+This test does not change the interface or allow
+cross-backend `subset`/`equals`/`intersects` or mixed
+set operations. It uses only independent geometric
+queries to compare the two outcomes. CI is required to
+validate the new scenarios. The `mince`/`recombine`
+representation-versus-interface contract remains separate
+from this regression.
