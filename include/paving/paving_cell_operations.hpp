@@ -17,9 +17,13 @@
 #define ARIADNE_PAVING_CELL_OPERATIONS_HPP
 
 #include <limits>
+#include <memory>
+#include <utility>
+#include <vector>
 
 #include "utility/macros.hpp"
 #include "paving/grid_cell.hpp"
+#include "paving/paving_interface.hpp"
 
 namespace Ariadne {
 
@@ -43,6 +47,63 @@ Void set_paving_cell(Paving& paving, GridCell const& cell, Bool enabled) {
         paving.remove(cell);
     }
 }
+
+//! \brief A snapshot-based iterator over cells clipped to a subpaving view.
+//! \details A cloned iterator shares its immutable cell snapshot. End
+//! comparisons work across independently created iterator snapshots of
+//! the same owning paving and view root.
+class PavingCellViewIterator final
+    : public ForwardConstantIteratorInterface<GridCell> {
+  public:
+    PavingCellViewIterator(
+            void const* owner, GridCell const& root,
+            std::shared_ptr<std::vector<GridCell> const> cells,
+            Bool past_end)
+        : _owner(owner),_root(root),_cells(std::move(cells)),
+          _position(past_end ? _cells->size() : 0u) { }
+
+    PavingCellViewIterator* clone() const override {
+        return new PavingCellViewIterator(*this);
+    }
+
+    Void increment() override {
+        ARIADNE_PRECONDITION_MSG(_position < _cells->size(),
+            "Cannot advance a past-the-end cell-view iterator");
+        ++_position;
+    }
+
+    GridCell const& dereference() const override {
+        ARIADNE_PRECONDITION_MSG(_position < _cells->size(),
+            "Cannot dereference a past-the-end cell-view iterator");
+        return (*_cells)[_position];
+    }
+
+    Bool equals(ForwardConstantIteratorInterface<GridCell> const& other)
+            const override {
+        auto const* rhs=dynamic_cast<PavingCellViewIterator const*>(&other);
+        if (rhs==nullptr or _owner!=rhs->_owner or _root!=rhs->_root) {
+            return false;
+        }
+        Bool ended=_position==_cells->size();
+        Bool other_ended=rhs->_position==rhs->_cells->size();
+        if (ended or other_ended) { return ended and other_ended; }
+        return _position==rhs->_position and
+            (*_cells)[_position]==(*rhs->_cells)[rhs->_position];
+    }
+
+    OutputStream& _write(OutputStream& os) const override {
+        os << "PavingCellViewIterator(";
+        if (_position==_cells->size()) { os << "end"; }
+        else { os << (*_cells)[_position]; }
+        return os << ")";
+    }
+
+  private:
+    void const* _owner;
+    GridCell _root;
+    std::shared_ptr<std::vector<GridCell> const> _cells;
+    SizeType _position;
+};
 
 //! \brief A non-owning, backend-neutral mutable view rooted at a grid cell.
 //! \details Supports cell membership, root-cell mutation and nested branch
@@ -93,6 +154,27 @@ class PavingCellView {
                 visitor(*it);
             }
         }
+    }
+
+    //! \brief Standard forward iterator over a cell snapshot of this view.
+    //! \details The returned iterator retains the cells it observed at
+    //! creation, even if the owner later changes. The owner and view
+    //! must not be destroyed during comparisons with fresh iterators.
+    using ConstIterator=ForwardConstantIteratorHandle<GridCell>;
+
+    ConstIterator begin() const {
+        auto cells=std::make_shared<std::vector<GridCell>>();
+        for_each_enabled_leaf([&](GridCell const& cell) {
+            cells->push_back(cell);
+        });
+        return ConstIterator(new PavingCellViewIterator(
+            _paving,_root,cells,false));
+    }
+
+    ConstIterator end() const {
+        auto cells=std::make_shared<std::vector<GridCell>>();
+        return ConstIterator(new PavingCellViewIterator(
+            _paving,_root,cells,true));
     }
 
     //! \brief Number of enabled leaves in the restricted region.

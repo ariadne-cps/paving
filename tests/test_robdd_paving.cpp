@@ -1166,6 +1166,81 @@ class TestRobddPaving : public Ariadne::Testing::ContextFixture {
         ARIADNE_TESTING_EXPECT_EXCEPTION(robdd_view.overlaps(wrong_dimension.box()));
     }
 
+    Void test_common_view_forward_iterator() {
+        RobddManager manager;
+        Grid grid(1u);
+        GridCell root(grid,0u,BinaryWord{});
+        for (unsigned table=0u; table<256u; ++table) {
+            BinaryTreePaving tree(grid);
+            PavingInterface& tree_interface=tree;
+            RobddPaving robdd(manager,root,manager.constant(false),0u);
+            for (unsigned mask=0u; mask<8u; ++mask) {
+                if ((table & (1u<<mask))==0u) { continue; }
+                BinaryWord word;
+                word.push_back((mask & 4u)!=0u);
+                word.push_back((mask & 2u)!=0u);
+                word.push_back((mask & 1u)!=0u);
+                GridCell cell(grid,0u,word);
+                tree.adjoin(cell);
+                robdd.adjoin(cell);
+            }
+            tree.recombine();
+            for (BinaryWord const& prefix : {
+                     BinaryWord{},make_binary_word("0"),
+                     make_binary_word("1"),make_binary_word("00"),
+                     make_binary_word("01"),make_binary_word("10"),
+                     make_binary_word("11"),make_binary_word("101")}) {
+                GridCell region(grid,0u,prefix);
+                auto tree_view=paving_cell_view(tree_interface,region);
+                auto robdd_view=paving_cell_view(robdd,region);
+                std::vector<GridCell> tree_cells;
+                std::vector<GridCell> robdd_cells;
+                auto tree_it=tree_view.begin(),tree_end=tree_view.end();
+                auto robdd_it=robdd_view.begin(),robdd_end=robdd_view.end();
+                while (tree_it != tree_end and robdd_it != robdd_end) {
+                    ARIADNE_TESTING_PROVE(*tree_it==*robdd_it);
+                    tree_cells.push_back(*tree_it);
+                    robdd_cells.push_back(*robdd_it);
+                    auto tree_saved=tree_it++;
+                    auto robdd_saved=robdd_it++;
+                    ARIADNE_TESTING_PROVE(*tree_saved==tree_cells.back());
+                    ARIADNE_TESTING_PROVE(*robdd_saved==robdd_cells.back());
+                }
+                ARIADNE_TESTING_PROVE(tree_it==tree_end);
+                ARIADNE_TESTING_PROVE(robdd_it==robdd_end);
+                ARIADNE_TESTING_EXPECT_EQUAL(tree_cells.size(),tree_view.size());
+                ARIADNE_TESTING_EXPECT_EQUAL(robdd_cells.size(),robdd_view.size());
+                auto empty_tree_end=tree_view.end();
+                auto empty_robdd_end=robdd_view.end();
+                ARIADNE_TESTING_PROVE(empty_tree_end==tree_end);
+                ARIADNE_TESTING_PROVE(empty_robdd_end==robdd_end);
+            }
+        }
+
+        // Iterators own their cell snapshots even after the owner mutates.
+        BinaryTreePaving tree(grid,true);
+        RobddPaving robdd(manager,root,manager.constant(true),0u);
+        GridCell region(grid,0u,make_binary_word("10"));
+        auto tree_view=paving_cell_view(tree,region);
+        auto robdd_view=paving_cell_view(robdd,region);
+        auto tree_old=tree_view.begin(),robdd_old=robdd_view.begin();
+        auto tree_old_copy=tree_old,robdd_old_copy=robdd_old;
+        ARIADNE_TESTING_PROVE(*tree_old==region);
+        ARIADNE_TESTING_PROVE(*robdd_old==region);
+        tree.remove(region);
+        robdd.remove(region);
+        ARIADNE_TESTING_PROVE(*tree_old==region);
+        ARIADNE_TESTING_PROVE(*robdd_old==region);
+        ARIADNE_TESTING_PROVE(tree_old==tree_old_copy);
+        ARIADNE_TESTING_PROVE(robdd_old==robdd_old_copy);
+        ARIADNE_TESTING_PROVE(tree_view.begin()==tree_view.end());
+        ARIADNE_TESTING_PROVE(robdd_view.begin()==robdd_view.end());
+        ++tree_old;
+        ++robdd_old;
+        ARIADNE_TESTING_PROVE(tree_old==tree_view.end());
+        ARIADNE_TESTING_PROVE(robdd_old==robdd_view.end());
+    }
+
     Void test_common_writable_cell_views() {
         RobddManager manager;
         Grid grid(1u);
@@ -1258,5 +1333,6 @@ int main(int argc, char** argv) {
     ARIADNE_TESTING_ADD_TEST(TestRobddPaving, test_common_writable_cell_views);
     ARIADNE_TESTING_ADD_TEST(TestRobddPaving, test_common_view_enabled_leaf_traversal);
     ARIADNE_TESTING_ADD_TEST(TestRobddPaving, test_common_view_geometric_queries);
+    ARIADNE_TESTING_ADD_TEST(TestRobddPaving, test_common_view_forward_iterator);
     return ARIADNE_TESTING_RUN_TESTS_WITH_ARGS(argc,argv);
 }

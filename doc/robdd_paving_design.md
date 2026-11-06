@@ -670,3 +670,29 @@ interface step still requires an explicit independent
 
 No changes were made to `bdd`, `drawing` or
 `reasoning`. CI validation is pending.
+
+## 2026-11-06 - Standard constant iterators on generic cell views
+
+Extended `PavingCellView<Paving>` with the conventional
+`ConstIterator`, `begin()` and `end()` interface.
+The iterators use the existing `ForwardConstantIteratorHandle<GridCell>`
+and a concrete `PavingCellViewIterator` implementing the associated
+`ForwardConstantIteratorInterface<GridCell>`. On `begin()`,
+the view enumerates its clipped enabled cells into an immutable
+shared snapshot. This makes iterator copying safe and keeps saved
+iterators valid across later mutations of the owning paving.
+A fresh `begin()` observes the new owner state. End iterators
+compare using the identity of the owner and view root, not the
+identity of a separately allocated snapshot; independently
+constructed `begin()` and `end()` therefore interoperate.
+
+The test builds the binary-tree and ROBDD backends independently
+for every three-bit Boolean function, traverses eight clipped
+view regions through the generic iterators and compares cells,
+postincrement snapshots and end behavior. It also checks
+iterator copies, independently created past-the-end iterators,
+and retained snapshots after modifying the owner. The views
+remain non-owning, and this change does not add an incomplete
+`SubPavingInterface` implementation. `PavingHandle`, `bdd`,
+`drawing` and `reasoning` are unchanged. CI verification
+is pending.
