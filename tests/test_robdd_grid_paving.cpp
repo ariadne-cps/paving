@@ -236,7 +236,44 @@ class TestRobddGridPaving : public Ariadne::Testing::ContextFixture {
         GridCell distant_cell(grid,1u,make_binary_word("0"));
         RobddGridPaving distant(manager,distant_cell,enabled,0u);
         ARIADNE_TESTING_PROVE(not distant.intersects(lhs));
-        ARIADNE_TESTING_EXPECT_EQUAL(distant.join(lhs).enabled_cell_count(),2u);
+        auto separated_union = distant.join(lhs);
+        ARIADNE_TESTING_PROVE(
+            separated_union.root_cell() == GridCell(grid,1u,BinaryWord{}));
+        ARIADNE_TESTING_EXPECT_EQUAL(separated_union.depth(),2u);
+
+        // The coarser extent-1 cell covers both "00" and "01",
+        // whereas the extent-0 cell contributes "10".
+        BinaryTreeNode explicit_oracle(false);
+        explicit_oracle.add_enabled(make_binary_word("0"));
+        explicit_oracle.add_enabled(make_binary_word("10"));
+        auto reconstructed = separated_union.to_binary_tree();
+        SizeType satisfying = 0u;
+        for (unsigned mask=0u; mask!=4u; ++mask) {
+            BinaryWord path;
+            path.push_back((mask & 2u) != 0u);
+            path.push_back((mask & 1u) != 0u);
+            Bool expected = explicit_oracle.is_enabled(path);
+            ARIADNE_TESTING_EXPECT_EQUAL(
+                separated_union.is_enabled(path),expected);
+            ARIADNE_TESTING_EXPECT_EQUAL(
+                reconstructed->is_enabled(path),expected);
+            if (expected) { ++satisfying; }
+        }
+        ARIADNE_TESTING_EXPECT_EQUAL(satisfying,3u);
+        ARIADNE_TESTING_EXPECT_EQUAL(
+            separated_union.enabled_cell_count(),satisfying);
+        std::vector<BinaryWord> enumerated;
+        separated_union.for_each_enabled_cell([&](GridCell const& cell) {
+            ARIADNE_TESTING_EXPECT_EQUAL(cell.root_extent(),1u);
+            enumerated.push_back(cell.word());
+        });
+        ARIADNE_TESTING_EXPECT_EQUAL(enumerated.size(),3u);
+        ARIADNE_TESTING_PROVE(
+            enumerated[0u] == make_binary_word("00"));
+        ARIADNE_TESTING_PROVE(
+            enumerated[1u] == make_binary_word("01"));
+        ARIADNE_TESTING_PROVE(
+            enumerated[2u] == make_binary_word("10"));
 
         // An independent grid is never silently aligned.
         Grid other_grid(2u);

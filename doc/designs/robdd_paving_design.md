@@ -133,3 +133,26 @@ Tests add same-grid differing roots, adjacent/disjoint roots,
 ancestor/descendant containment, cross-extent path alignment, and
 grid incompatibility. CI execution is required to confirm the C++
 build, test oracle and sanitizer results.
+
+## 2026-11-06 - Correct cross-extent union test oracle
+
+The new `test_distinct_roots_and_extents` initially expected two
+enabled cells from the union of an extent-1 root with word `0`
+and an extent-0 root with word `0` on a one-dimensional grid.
+The test expectation was wrong: relative to their common extent-1
+root, the fine root has path `10`, whereas the coarse root has
+path `0`. The merged logical depth is two. Consequently, the
+coarse root accounts for the two paths `00` and `01`, and
+the finer root accounts for `10`: exactly three satisfying
+full-depth paths, with `11` disabled.
+
+The test now checks the common root and depth, all four membership
+values against an independently constructed `BinaryTreeNode`
+reference, round-trip conversion to an explicit tree, and the
+ordered enumeration of `00`, `01`, `10`. The asserted cell
+count is derived from the explicit reference rather than merely
+changed from two to three.
+
+No change was made to the ROBDD root-alignment implementation or
+to the `bdd` repository. CI results for the amended test remain
+to be confirmed.
