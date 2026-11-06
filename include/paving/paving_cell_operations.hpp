@@ -103,6 +103,16 @@ Void for_each_enabled_cell_at_fineness(
     }
 }
 
+//! \brief Forward the uniform-cell enumeration of the common interface.
+//! \details Unlike minimum-fineness enumeration, this produces cells all
+//! at one exact depth or rejects incompatible coarsening before visiting.
+template<class Visitor>
+Void for_each_enabled_cell_at_exact_fineness(
+        SubPavingInterface const& paving, Nat fineness, Visitor&& visitor) {
+    paving.for_each_enabled_cell_at_exact_fineness(
+        fineness,std::forward<Visitor>(visitor));
+}
+
 //! \brief A snapshot-based iterator over cells clipped to a subpaving view.
 //! \details A cloned iterator shares its immutable cell snapshot. End
 //! comparisons work across independently created iterator snapshots of

@@ -43,6 +43,19 @@
 
 namespace Ariadne {
 
+PavingHandle SubPavingInterface::uniform_cell_paving(Nat fineness) const {
+    // Materialize the common exact-depth cell stream in an owned, explicit
+    // tree. The source and its backend-specific representation are untouched.
+    auto result=std::make_unique<GridTreePaving>(
+        this->grid(),this->root_cell().root_extent(),
+        new BinaryTreeNode(false));
+    this->for_each_enabled_cell_at_exact_fineness(
+        fineness,[&](GridCell const& cell) {
+            result->adjoin(cell);
+        });
+    return PavingHandle(result.release());
+}
+
 Bool subset( const GridCell& theCellOne, const GridCell& theCellTwo,
              BinaryWord * pPathPrefixOne, BinaryWord * pPathPrefixTwo, Nat * pPrimaryCellExtent);
 

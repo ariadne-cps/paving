@@ -1104,3 +1104,41 @@ No mixed-backend paving operands are enabled. No changes to BDD manager,
 ROBDD canonicalization, Python API, or virtual method signatures.
 The CI matrix must validate this change.
 
+
+## 2026-11-06 - Uniform-cell paving is a geometric interface capability
+
+After introducing a minimum-fineness enumerator, clarified the distinct
+need to resume continuous evolution from a spatial discretization whose
+enabled cells have identical resolution. That is an interface-level
+algorithmic capability, rather than an obligation for every backend to
+store one physical node per cell.
+
+Added SubPavingInterface::for_each_enabled_cell_at_exact_fineness(f,visitor),
+which visits only cells with word length
+(root_extent + f) * grid.dimension(). Canonical ROBDDs retain their
+reduced DAG and explicit-tree input nodes are untouched. If a tree is
+minced more finely than requested, the enumerator can coalesce fully
+covered target-level cells using the virtual superset(GridCell) test.
+Incompatible partial target cells raise a precondition failure before
+visiting anything; no inner/outer rounding is implicit. A nonempty
+non-primary view whose root lies deeper than the target cannot be
+represented by complete cells at that depth, and is rejected.
+Iteration order is left-to-right as in the existing backend iterators.
+
+SubPavingInterface::uniform_cell_paving(f) materializes a detached
+PavingHandle carrying an explicit GridTreePaving with exactly the same
+geometric region and uniformly sized enabled leaves; it can therefore
+be consumed by algorithms requiring a regular-cell partition, including
+restarting continuous evolution from a fixed spatial discretization.
+Its root is the primary cell of the same extent as the input root;
+for a child view this can be larger than the view root, although the
+enabled geometry is preserved exactly. The materialization can require
+exponential storage, in contrast with streaming and a compact ROBDD.
+Legacy mince/recombine remain representation-management operations.
+
+Added same-backend isolated tests for exact tree/ROBDD cell sequences,
+uniform detached paving leaf counts and shape, coalescing redundant
+tree refinements, rejecting geometry-losing coarsening before any
+callback, valid exact fine-grid conversion, and non-primary child views.
+All tests preserve the source paving.
+

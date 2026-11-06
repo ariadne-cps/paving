@@ -30,6 +30,9 @@
 #define ARIADNE_PAVING_INTERFACE_HPP
 
 #include <iosfwd>
+#include <limits>
+#include <utility>
+#include <vector>
 #include "geometry/declarations.hpp"
 #include "paving/grid_cell.hpp"
 #include "geometry/set_interface.hpp"
@@ -137,6 +140,31 @@ class SubPavingInterface
     inline ForwardConstantIteratorHandle<GridCell> end() const { return this->_end(); }
     //! \brief A sub-paving obtained by considering one of the immediate subcells of the root cell.
     inline SubPavingHandle branch(Bool left_or_right) const;
+
+    //! \brief Visit enabled cells at exactly the requested grid-relative fineness.
+    //! \details Each emitted GridCell has word length
+    //! (root_extent + fineness) * dimension. When the set contains finer
+    //! detail, adjacent enabled leaves are coalesced only if they fully
+    //! cover their parent target cell. An incompletely covered target cell
+    //! is an error: silently rounding would alter the represented geometry.
+    //! This method never alters the stored representation or logical depth.
+    //! It works through the virtual set/iterator APIs in any backend,
+    //! including borrowed child views; callbacks must not modify the owner.
+    //! \note The output may be exponentially large. In particular, a
+    //! requested depth above a non-primary view's root cannot describe
+    //! that nonempty view as whole cells, and is rejected.
+    template<class Visitor>
+    Void for_each_enabled_cell_at_exact_fineness(
+        Nat fineness, Visitor&& visitor) const;
+
+    //! \brief Materialize a detached paving with enabled leaves at one
+    //! exact grid-relative fineness.
+    //! \details Returns a PavingHandle owning an explicit binary-tree
+    //! snapshot, even when the source is an ROBDD; the source is unmodified.
+    //! The returned root is the primary cell of the source's root extent,
+    //! which may be larger than a child-view root. Throws if exact
+    //! coarsening would alter the set.
+    PavingHandle uniform_cell_paving(Nat fineness) const;
   public:
     //! \brief A dynamically-allocated copy.
     virtual SubPavingInterface* clone() const = 0;
@@ -196,6 +224,89 @@ class SubPavingInterface
     virtual OutputStream& _write(OutputStream&) const = 0;
 };
 
+template<class Visitor>
+Void SubPavingInterface::for_each_enabled_cell_at_exact_fineness(
+        Nat fineness, Visitor&& visitor) const {
+    const GridCell root=this->root_cell();
+    const SizeType extent=static_cast<SizeType>(root.root_extent());
+    const SizeType requested=static_cast<SizeType>(fineness);
+    const SizeType dimensions=static_cast<SizeType>(this->dimension());
+    constexpr SizeType limit=std::numeric_limits<SizeType>::max();
+    ARIADNE_PRECONDITION_MSG(extent<=limit-requested,
+        "Exact cell enumeration exceeds the supported grid level");
+    const SizeType levels=extent+requested;
+    ARIADNE_PRECONDITION_MSG(
+        dimensions==0u or levels<=limit/dimensions,
+        "Exact cell enumeration exceeds the supported subdivision depth");
+    const SizeType target=levels*dimensions;
+    const SizeType max_word=
+        static_cast<SizeType>(std::numeric_limits<Int>::max());
+    ARIADNE_PRECONDITION_MSG(
+        dimensions<=max_word and target<=max_word-dimensions,
+        "Exact cell enumeration exceeds the valid cell word depth");
+
+    // A non-primary subview may begin below the requested cell size.
+    // A nonempty clipped region cannot be represented by a larger
+    // target cell without adding geometry outside its own root.
+    if (root.word().size()>target) {
+        ARIADNE_PRECONDITION_MSG(this->begin()==this->end(),
+            "Exact cell fineness is coarser than the nonempty view root");
+        return;
+    }
+
+    auto ancestor_at_target=[&](GridCell const& cell) {
+        BinaryWord word=cell.word();
+        while (word.size()>target) { word.pop_back(); }
+        return GridCell(cell.grid(),cell.root_extent(),word);
+    };
+
+    // Prevalidate all fine cells so that a rejected coarsening does not
+    // call the visitor with a partially emitted result. A full target
+    // cell can be reconstructed from multiple smaller enabled cells.
+    Bool validated=false;
+    GridCell previous=root;
+    for (auto it=this->begin(), end=this->end(); it!=end; ++it) {
+        if (it->word().size()<=target) { continue; }
+        GridCell parent=ancestor_at_target(*it);
+        if (not validated or parent!=previous) {
+            ARIADNE_PRECONDITION_MSG(this->superset(parent),
+                "Requested exact fineness would discard finer set geometry");
+            previous=parent;
+            validated=true;
+        }
+    }
+
+    // Leaf traversal in both backends follows left-to-right depth-first
+    // order, so descendants of the same target cell are consecutive.
+    Bool emitted=false;
+    GridCell last=root;
+    std::vector<GridCell> pending;
+    for (auto it=this->begin(), end=this->end(); it!=end; ++it) {
+        if (it->word().size()>target) {
+            GridCell parent=ancestor_at_target(*it);
+            if (not emitted or parent!=last) {
+                visitor(parent);
+                last=parent;
+                emitted=true;
+            }
+        } else {
+            pending.push_back(*it);
+            while (not pending.empty()) {
+                GridCell cell=std::move(pending.back());
+                pending.pop_back();
+                if (cell.word().size()==target) {
+                    visitor(cell);
+                    last=cell;
+                    emitted=true;
+                } else {
+                    pending.push_back(cell.split(true));
+                    pending.push_back(cell.split(false));
+                }
+            }
+        }
+    }
+}
+
 inline Bool operator==(const SubPavingInterface& p1, const SubPavingInterface& p2) { return p1.equals(p2); }
 inline Bool subset(const SubPavingInterface& p1, const SubPavingInterface& p2) { return p1.subset(p2); }
 inline Bool intersect(const SubPavingInterface& p1, const SubPavingInterface& p2) { return p1.intersects(p2); }
@@ -237,6 +348,7 @@ class SubPavingHandle
 
     Void mince(Nat fineness) { this->_ptr->mince(fineness); }
     Void recombine() { this->_ptr->recombine(); }
+    PavingHandle uniform_cell_paving(Nat fineness) const;
   private:
     OutputStream& _write(OutputStream& os) const { return this->_ptr->_write(os); }
   public:
@@ -307,9 +419,16 @@ class PavingHandle
     Void remove(const SubPavingInterface& paving) { return this->_ptr->remove(paving); }
     Void adjoin(const GridCell& cell) { return this->_ptr->adjoin(cell); }
     Void remove(const GridCell& cell) { return this->_ptr->remove(cell); }
+    PavingHandle uniform_cell_paving(Nat fineness) const {
+        return this->_ptr->uniform_cell_paving(fineness);
+    }
 
     friend OutputStream& operator<<(OutputStream& os, const PavingHandle& self) { return os << *self._ptr; }
 };
+
+inline PavingHandle SubPavingHandle::uniform_cell_paving(Nat fineness) const {
+    return this->_ptr->uniform_cell_paving(fineness);
+}
 
 inline PavingHandle join(const SubPavingInterface& p1, const SubPavingInterface& p2) {
     PavingHandle r(p1); r.adjoin(p2); return r; }

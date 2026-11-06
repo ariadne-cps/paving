@@ -100,6 +100,18 @@ In particular, a tree may retain redundant subdivisions while ROBDD
 iteration remains canonical. The number of leaves exposed by `size()`
 therefore need not match between backends before tree recombination.
 
+For exact, homogeneous cells the polymorphic SubPavingInterface exposes
+`for_each_enabled_cell_at_exact_fineness(fineness,visitor)`, and
+`uniform_cell_paving(fineness)` returns an independent PavingHandle with
+those cells materialized as an explicit binary-tree paving. This works for
+both binary-tree and ROBDD sources and does not change either source.
+In contrast to minimum-fineness enumeration, every returned enabled
+leaf has exactly the selected depth. If the requested grid is too coarse
+to represent the set exactly, the operation throws rather than silently
+performing an outer/inner approximation. A subview cannot use cells
+coarser than its own nonempty root. The detached result uses the primary
+root cell at the source's root extent, even for child views.
+
 ## Build
 
 ```bash
