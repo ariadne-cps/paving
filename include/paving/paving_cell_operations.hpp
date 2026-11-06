@@ -283,7 +283,7 @@ PavingCellView<Paving> paving_cell_view(
 //! SubPavingInterface. In particular, copied SubPavingHandles are independent,
 //! while branch() continues to refer to the current owner.
 //! \tparam Paving A PavingInterface implementation with a detached
-//! subpaving(GridCell) operation and canonical, representation-only mincing.
+//! subpaving(GridCell) operation and canonical leaf interpretation.
 //! \warning The owner must outlive this live adapter and its child views.
 template<class Paving>
 class PavingCellViewAdapter final : public SubPavingInterface {
@@ -341,16 +341,15 @@ class PavingCellViewAdapter final : public SubPavingInterface {
     }
 
     Void mince(Nat fineness) override {
-        // A canonical ROBDD already represents arbitrary refinement of
-        // each enabled terminal without modifying the DAG. The view has
-        // no persistent depth metadata: mincing it is geometrically a
-        // no-op, unlike physically splitting a binary-tree subpaving.
+        // A canonical subview has no persistent refinement state.
+        // Changing the owner's global logical depth would not be local.
+        // Unlike a tree view, no artificial subdivisions are stored.
         (void)fineness;
     }
 
     Void recombine() override {
-        // The BDD manager already canonicalizes the DAG. Recombining
-        // this view cannot change the owner or any of its sibling cells.
+        // A canonical subview has no redundant nodes to recombine.
+        // Never change the owner's global depth or sibling representation.
     }
 
   protected:

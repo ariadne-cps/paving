@@ -1025,3 +1025,38 @@ queries to compare the two outcomes. CI is required to
 validate the new scenarios. The `mince`/`recombine`
 representation-versus-interface contract remains separate
 from this regression.
+
+## 2026-11-06 - Representation-neutral polymorphic refinement contract
+
+SubPavingInterface represents a geometric set, not an explicit tree
+decomposition. The legacy mince(fineness) and recombine() operations
+preserve geometry but may change backend-specific representation state.
+size() counts enabled leaves returned by the backend's current iteration;
+it is not a geometric invariant. Trees can retain artificially split
+enabled leaves, whereas canonical ROBDDs compact these away. A live child
+view may only modify representation in that region; a canonical ROBDD
+view has no local depth metadata, so its mince/recombine are no-ops.
+Fineness is relative to the zero-level grid cell.
+
+Virtual equals(SubPavingInterface) now performs representation-independent
+geometric equality for same-backend operands. The tree implementation
+uses two geometric subset checks instead of structural operator==.
+The concrete GridTreeSubpaving::operator== deliberately stays structural.
+Cross-backend paving operands remain forbidden.
+
+The new polymorphic refinement regression covers full 1D and 2D roots,
+explicit tree mincing versus ROBDD logical mincing, differing leaf counts,
+same-backend geometric equality without recombination, and the
+preservation of sibling coverage after local view mince/recombine.
+It also checks comparisons against independent same-backend pavings
+with differing root cells and destroys borrowed tree views before
+owner-wide recombination. No assertions are removed or weakened.
+
+Keep the legacy virtual operations available for source compatibility;
+adding a compiler deprecation attribute could fail warning-as-error
+builds. Portable fixed-fineness enumeration must eventually be a
+separate, explicit, lazily evaluated API, rather than a side effect of
+mince(). Audit existing callers before introducing or migrating that API.
+No BDD manager or concrete tree mincing changes are made here.
+CI validation of this increment is required.
+

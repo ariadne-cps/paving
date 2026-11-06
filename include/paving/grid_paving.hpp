@@ -240,10 +240,10 @@ class GridTreeSubpaving
     //! \brief Computes a bounding box for a grid set.
     virtual UpperBoxType bounding_box() const override;
 
-    //! \brief Allows to test if the two subpavings are "equal". The method returns true if
-    //! the grida are equal and the binary trees are equal. Note that, only in case both
-    //! GridTreeSubset objects are recombines, this method is guaranteed to tell you that
-    //! the two GridTreeSubset represent equal sets.
+    //! \brief Structural comparison of root cells and binary-tree nodes.
+    //! \details Unlike the virtual equals(SubPavingInterface), this concrete
+    //! operator compares stored subdivisions rather than just geometry.
+    //! Use equals() for representation-independent equality.
     Bool operator==(const GridTreeSubpaving& anotherGridTreeSubset) const;
 
     //!@}

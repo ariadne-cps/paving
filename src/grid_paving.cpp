@@ -1113,7 +1113,10 @@ ForwardConstantIteratorInterface<GridCell>* GridTreeSubpaving::_end() const {
 }
 
 Bool GridTreeSubpaving::equals(const SubPavingInterface& paving) const {
-    return (*this) == dynamic_cast<const GridTreeSubpaving&>(paving);
+    auto const& other=dynamic_cast<const GridTreeSubpaving&>(paving);
+    // Geometric equality is invariant under redundant node subdivisions.
+    // The concrete GridTreeSubpaving::operator== remains structural.
+    return Ariadne::subset(*this,other) and Ariadne::subset(other,*this);
 }
 
 Bool GridTreeSubpaving::superset(const GridCell& theCell) const {

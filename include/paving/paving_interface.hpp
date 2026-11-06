@@ -147,7 +147,9 @@ class SubPavingInterface
     //! \brief The underlying grid of the paving.
     virtual const Grid& grid() const = 0;
 
-    //! \brief The number of activated cells in the set.
+    //! \brief Number of enabled cells in this backend's current leaf iteration.
+    //! \details A representation-dependent count, not a geometric invariant:
+    //! a minced tree can expose more leaves than a canonical ROBDD.
     virtual SizeType size() const = 0;
 
     //! \brief The root cell of the (sub)paving. All enabled cells are subcells of the root cell.
@@ -155,7 +157,9 @@ class SubPavingInterface
     //! \brief Tests if the cell \a c is contained in one of the cells of the subpaving.
     virtual Bool superset(const GridCell& c) const = 0; // Could also be called "contains"
 
-    //! \brief Tests if the paving equals another paving on the same Grid.
+    //! \brief Tests geometric equality with a subpaving of the same backend.
+    //! \details Equality is independent of redundant subdivisions. Set
+    //! operands from different backends are not interchangeable.
     virtual Bool equals(const SubPavingInterface&) const = 0;
     //! \brief Tests if the paving is a subset of another paving on the same Grid.
     virtual Bool subset(const SubPavingInterface&) const = 0;
@@ -171,8 +175,18 @@ class SubPavingInterface
     virtual ValidatedLowerKleenean separated(const ExactBoxType& bx) const = 0; // Inherited from ClosedSetInterface
     virtual ValidatedLowerKleenean overlaps(const ExactBoxType& bx) const = 0; // Inherited from OvertSetInterface
 
-    virtual Void mince(Nat fineness) = 0; // Deprecated?
-    virtual Void recombine() = 0; // Deprecated?
+    //! \brief Optional representation refinement preserving the geometric set.
+    //! \details Explicit trees split stored enabled leaves, while a reduced
+    //! backend may only adjust logical depth or leave a child view unchanged.
+    //! The resulting size() and iterator granularity are backend-dependent.
+    //! Fineness is relative to the grid's zero-level cell, not this root.
+    //! \note Legacy operation; use explicit-resolution iteration when needed.
+    virtual Void mince(Nat fineness) = 0;
+    //! \brief Remove redundant representation subdivisions where supported.
+    //! \details Preserves geometry. Recombining a child view must not change
+    //! sibling geometry. Canonical views may have nothing to recombine.
+    //! \note Legacy representation operation, not geometric normalization.
+    virtual Void recombine() = 0;
   protected:
     virtual SubPavingInterface* _branch(Bool left_or_right) const = 0; // Could also be called "child" or "subpaving"
     virtual ForwardConstantIteratorInterface<GridCell>* _begin() const = 0;
