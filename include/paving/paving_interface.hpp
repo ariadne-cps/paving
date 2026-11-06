@@ -348,6 +348,12 @@ class SubPavingHandle
 
     Void mince(Nat fineness) { this->_ptr->mince(fineness); }
     Void recombine() { this->_ptr->recombine(); }
+    template<class Visitor>
+    Void for_each_enabled_cell_at_exact_fineness(
+            Nat fineness, Visitor&& visitor) const {
+        this->_ptr->for_each_enabled_cell_at_exact_fineness(
+            fineness,std::forward<Visitor>(visitor));
+    }
     PavingHandle uniform_cell_paving(Nat fineness) const;
   private:
     OutputStream& _write(OutputStream& os) const { return this->_ptr->_write(os); }
@@ -419,6 +425,12 @@ class PavingHandle
     Void remove(const SubPavingInterface& paving) { return this->_ptr->remove(paving); }
     Void adjoin(const GridCell& cell) { return this->_ptr->adjoin(cell); }
     Void remove(const GridCell& cell) { return this->_ptr->remove(cell); }
+    template<class Visitor>
+    Void for_each_enabled_cell_at_exact_fineness(
+            Nat fineness, Visitor&& visitor) const {
+        this->_ptr->for_each_enabled_cell_at_exact_fineness(
+            fineness,std::forward<Visitor>(visitor));
+    }
     PavingHandle uniform_cell_paving(Nat fineness) const {
         return this->_ptr->uniform_cell_paving(fineness);
     }

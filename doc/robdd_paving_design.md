@@ -1142,3 +1142,17 @@ tree refinements, rejecting geometry-losing coarsening before any
 callback, valid exact fine-grid conversion, and non-primary child views.
 All tests preserve the source paving.
 
+
+## 2026-11-06 - Forward exact-fineness cell traversal through handles
+
+The exact-fineness visiting operation added to SubPavingInterface must
+also be directly available through PavingHandle and SubPavingHandle:
+both already exposed uniform_cell_paving(), but initially required
+explicit interface conversion for the visitor. Added matching forwarding
+member templates without introducing new virtual methods or changing
+backend storage. The full paving and a borrowed child view are now
+covered by a dedicated polymorphic handle test for both backends in
+1D and 2D, including equal output, correct depth, uniform detached
+results and unchanged sibling geometry. These tests do not change
+existing geometric assertions or legacy mince/recombine behavior.
+

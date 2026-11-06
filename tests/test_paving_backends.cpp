@@ -1943,6 +1943,76 @@ class TestPavingBackends : public Ariadne::Testing::ContextFixture {
         }
     }
 
+    Void test_polymorphic_handle_uniform_cell_enumeration() {
+        RobddManager manager;
+        for (Nat dimension : {1u,2u}) {
+            Grid grid(dimension);
+            GridCell root(grid,0u,BinaryWord{});
+            PavingHandle tree_handle(new BinaryTreePaving(grid,true));
+            PavingHandle robdd_handle(new RobddPaving(
+                manager,root,manager.constant(true),0u));
+
+            std::vector<GridCell> tree_cells;
+            std::vector<GridCell> robdd_cells;
+            tree_handle.for_each_enabled_cell_at_exact_fineness(
+                2u,[&](GridCell const& cell) {
+                    tree_cells.push_back(cell);
+                });
+            robdd_handle.for_each_enabled_cell_at_exact_fineness(
+                2u,[&](GridCell const& cell) {
+                    robdd_cells.push_back(cell);
+                });
+            ARIADNE_TESTING_PROVE(tree_cells==robdd_cells);
+            SizeType full_count=SizeType{1u}<<(2u*dimension);
+            ARIADNE_TESTING_EXPECT_EQUAL(tree_cells.size(),full_count);
+            for (GridCell const& cell : tree_cells) {
+                ARIADNE_TESTING_EXPECT_EQUAL(
+                    cell.word().size(),2u*dimension);
+            }
+            ARIADNE_TESTING_EXPECT_EQUAL(tree_handle.size(),1u);
+            ARIADNE_TESTING_EXPECT_EQUAL(robdd_handle.size(),1u);
+
+            PavingHandle uniform_from_tree=tree_handle.uniform_cell_paving(2u);
+            PavingHandle uniform_from_robdd=robdd_handle.uniform_cell_paving(2u);
+            ARIADNE_TESTING_EXPECT_EQUAL(uniform_from_tree.size(),full_count);
+            ARIADNE_TESTING_EXPECT_EQUAL(uniform_from_robdd.size(),full_count);
+            ARIADNE_TESTING_PROVE(uniform_from_tree.superset(root));
+            ARIADNE_TESTING_PROVE(uniform_from_robdd.superset(root));
+
+            // The handle forwards the exact-depth visitor even for a
+            // borrowed child. Its sibling and owning paving remain enabled.
+            PavingInterface const& tree_interface=tree_handle;
+            PavingInterface const& robdd_interface=robdd_handle;
+            SubPavingHandle tree_left=tree_interface.branch(false);
+            SubPavingHandle robdd_left=robdd_interface.branch(false);
+            tree_cells.clear();
+            robdd_cells.clear();
+            tree_left.for_each_enabled_cell_at_exact_fineness(
+                2u,[&](GridCell const& cell) {
+                    tree_cells.push_back(cell);
+                });
+            robdd_left.for_each_enabled_cell_at_exact_fineness(
+                2u,[&](GridCell const& cell) {
+                    robdd_cells.push_back(cell);
+                });
+            ARIADNE_TESTING_PROVE(tree_cells==robdd_cells);
+            ARIADNE_TESTING_EXPECT_EQUAL(
+                tree_cells.size(),full_count/2u);
+            PavingHandle tree_left_uniform=tree_left.uniform_cell_paving(2u);
+            PavingHandle robdd_left_uniform=robdd_left.uniform_cell_paving(2u);
+            ARIADNE_TESTING_EXPECT_EQUAL(
+                tree_left_uniform.size(),full_count/2u);
+            ARIADNE_TESTING_EXPECT_EQUAL(
+                robdd_left_uniform.size(),full_count/2u);
+            ARIADNE_TESTING_PROVE(
+                tree_handle.superset(root.split(true)));
+            ARIADNE_TESTING_PROVE(
+                robdd_handle.superset(root.split(true)));
+            ARIADNE_TESTING_PROVE(tree_handle.superset(root));
+            ARIADNE_TESTING_PROVE(robdd_handle.superset(root));
+        }
+    }
+
     Void test_common_writable_cell_views() {
         RobddManager manager;
         Grid grid(1u);
@@ -2041,5 +2111,6 @@ int main(int argc, char** argv) {
     ARIADNE_TESTING_ADD_TEST(TestPavingBackends, test_polymorphic_enumeration_at_fineness);
     ARIADNE_TESTING_ADD_TEST(TestPavingBackends, test_polymorphic_child_enumeration_at_fineness);
     ARIADNE_TESTING_ADD_TEST(TestPavingBackends, test_uniform_cell_paving_contract);
+    ARIADNE_TESTING_ADD_TEST(TestPavingBackends, test_polymorphic_handle_uniform_cell_enumeration);
     return ARIADNE_TESTING_RUN_TESTS_WITH_ARGS(argc,argv);
 }
