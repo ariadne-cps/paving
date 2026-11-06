@@ -13,7 +13,8 @@
 #include "set/function_set.hpp"
 #include "function/functional.hpp"
 #include "logging/logging.hpp"
-#include "logging/logging_command_line_interface.hpp"
+#include "threading/threading_command_line_interface.hpp"
+#include "threading/thread_manager.hpp"
 #include "benchmark_command_line.hpp"
 
 #include <algorithm>
@@ -393,7 +394,10 @@ void report(std::vector<Datum> const& data, Selection const& selection,
     LOGGING_PRINTLN("BinaryTree / ROBDD compact-set benchmark")
     LOGGING_PRINTLN("Iterations="<<selection.iterations
         <<"  samples="<<selection.samples
-        <<"  manager=warm/shared  skipped_budget="<<skipped)
+        <<"  manager=warm/shared  skipped_budget="<<skipped
+        <<"  concurrency="<<ThreadManager::instance().concurrency()) 
+    LOGGING_PRINTLN("BDDs are still sequential: --concurrency configures"
+                   " the threading runtime but does not parallelize BDD operations.")
     LOGGING_PRINTLN("Node column: tree = physical nodes; ROBDD = manager total"
                    " at baseline (not exclusive memory).")
     if (not selection.summary_only) {
@@ -479,10 +483,12 @@ void report(std::vector<Datum> const& data, Selection const& selection,
 } // namespace
 
 int main(int argc,char const* argv[]) {
-    CLI::initialize_logging();
+    // ThreadingCommandLineInterface initializes ThreadManager and its
+    // Logger thread registry. The measured BDD work remains sequential.
     try {
+        Logger::instance().configuration().set_verbosity(1u);
         Selection selection;
-        LoggingCommandLineInterface command_line;
+        ThreadingCommandLineInterface command_line;
         command_line.add(CommandLineContribution(
             "paving-backends-benchmark",parsers(selection)));
         List<String> args;

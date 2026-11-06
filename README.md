@@ -122,11 +122,17 @@ Build explicitly with:
 cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
 cmake --build build --target benchmark_paving_backends
 ./build/benchmarks/benchmark_paving_backends --help
-./build/benchmarks/benchmark_paving_backends --dimensions 2,3 --finenesses 1,2 --shapes aligned-box,rotated-box,aligned-ellipsoid,rotated-ellipsoid,ball --iterations 1 --samples 5
+./build/benchmarks/benchmark_paving_backends --dimensions 2,3 --finenesses 1,2 --shapes aligned-box,rotated-box,aligned-ellipsoid,rotated-ellipsoid,ball --iterations 1 --samples 5 --concurrency 0
 ```
 
 The CLI, logger, fixed-width result table, median timing and
 geometric-mean speed ratio follow ariadne-cps/numeric benchmarks.
+ThreadingCommandLineInterface provides all logging options and
+--concurrency/-c (0 or max or a numeric concurrency setting). The BDD
+algorithms in this benchmark are currently sequential; a nonzero
+concurrency setting configures ThreadManager but does not enable
+parallel BDD operations. Timings therefore must not be interpreted
+as multithreaded speedups.
 Results identify geometry, dimension, grid-relative fineness, backend,
 operation, compact leaf count and node count. The ratio is ROBDD/tree:
 above 1 means the tree is faster. The --max-depth-bits option skips

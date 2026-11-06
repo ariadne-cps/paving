@@ -1188,9 +1188,9 @@ before these checks begin. No implementation behavior was changed.
 
 The paving benchmark intentionally follows the established
 ariadne-cps/numeric/benchmarks CLI and reporting conventions:
-LoggingCommandLineInterface, CommandLineContribution, validated unsigned
+ThreadingCommandLineInterface, CommandLineContribution, validated unsigned
 named options with optional short aliases, Ariadne logger initialization
-with a single-thread registry, LOGGING_PRINTLN for progress/results,
+via ThreadManager's real thread registry, LOGGING_PRINTLN for progress/results,
 one unmeasured warm-up sample, odd measured sample counts, median sample
 time per invocation, aligned detailed tables and geometric-mean speed
 ratios. The executable is benchmark_paving_backends in benchmarks/.
@@ -1210,8 +1210,10 @@ quadratic forms. Domain [0,1]^d contains all five compact families.
 
 CLI options: --dimensions/-d (list), --finenesses/-f (list),
 --shapes/-g (list), --iterations/-i, --samples/-n, --max-depth-bits/-m,
---summary-only, plus shared logging flags (verbosity, theme, scheduler)
-and --help. A conservative (d+f)*d bit budget skips impractical
+--summary-only, plus shared threading/logging flags (--concurrency,
+verbosity, theme, scheduler) and --help. ThreadingCommandLineInterface
+configures the runtime now but the current BDD kernels still execute
+sequentially. Nonzero concurrency is not evidence of parallel BDD speedup. A conservative (d+f)*d bit budget skips impractical
 cartesian-product combinations and reports the skip count. Results
 include shape, space dimension, fineness, backend, operation, median
 milliseconds, compact leaf count and node count, followed by

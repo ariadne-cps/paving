@@ -2,7 +2,7 @@
  *            benchmark_command_line.hpp
  *
  *  Shared conventions with ariadne-cps/numeric/benchmarks:
- *  Ariadne logging CLI, validated unsigned values, odd sample counts.
+ *  Ariadne threading/logging CLI, validated values and odd sample counts.
  *
  *  This file is part of Ariadne Paving, GPL-3.0-or-later.
  ****************************************************************************/
@@ -10,7 +10,6 @@
 #define ARIADNE_PAVING_BENCHMARK_COMMAND_LINE_HPP
 
 #include "utility/command_line_interface.hpp"
-#include "logging/logging.hpp"
 #include <algorithm>
 #include <limits>
 #include <stdexcept>
@@ -19,20 +18,8 @@
 
 namespace Ariadne::PavingBenchmarkCommandLine {
 
-class BenchmarkThreadRegistry : public ThreadRegistryInterface {
-  public:
-    Bool has_threads_registered() const override { return false; }
-};
-
-inline void initialize_logging() {
-    static BenchmarkThreadRegistry registry;
-    auto& logger=Logger::instance();
-    if (not logger.has_thread_registry_attached()) {
-        logger.attach_thread_registry(&registry);
-    }
-    logger.configuration().set_verbosity(1u);
-}
-
+// ThreadingCommandLineInterface initializes ThreadManager and attaches
+// the real thread registry to Logger; do not install a separate registry.
 // Follow numeric's parse_unsigned: the logging CLI owns error reporting.
 template<class UInt>
 UInt parse_unsigned(String const& value) {
