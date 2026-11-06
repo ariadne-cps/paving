@@ -29,6 +29,22 @@ Paving depends directly on:
 
 Set provides Linear Programming, Constraint Solving, Function, Geometry and the lower layers transitively. BDD provides its Threading and other lower dependencies transitively. The CMake build includes and links both Set and BDD; existing paving binary-tree algorithms are not replaced by the BDD implementation.
 
+## Experimental ROBDD paving snapshot
+
+`RobddGridTreePaving` is an additive prototype for comparing immutable
+ROBDD storage with the current explicit binary-tree backend. It imports a
+`GridTreeSubpaving`, retains the geometric `GridCell` root and a logical
+subdivision depth, and stores membership in a shared `RobddManager`.
+It supports finite-depth membership, counting and visiting cells, immutable
+union/intersection/difference, inclusion/intersection predicates, logical
+mincing and recombination, and re-materialization as a `BinaryTreeNode`.
+
+The manager must outlive snapshots. Both operands in a set operation must
+have identical root cells and share one manager; alignment between different
+geometric roots, projection, geometry queries and integration with
+`GridTreeCursor` are deliberately deferred. Existing paving APIs and
+representation choices remain unchanged.
+
 ## Build
 
 ```bash
