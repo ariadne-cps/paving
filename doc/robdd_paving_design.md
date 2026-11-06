@@ -526,3 +526,54 @@ This increment does not make `RobddPaving` a
 semantics and geometric approximation routines still require
 careful implementation. `bdd`, `drawing` and `reasoning`
 remain unchanged. CI must validate this increment.
+
+## 2026-11-06 - Representation-neutral cell mutations and detached subpaving slices
+
+Revisited the mutable branch-view design before adding a backend-specific
+`RobddSubpaving` type. Existing `GridTreeSubpaving` borrows the
+parent's mutable `BinaryTreeNode`, whereas an ROBDD paving is a
+value-like holder of an immutable canonical DAG root. A writable branch
+view cannot simply reuse `RobddPaving::branch(Bool)`, since that
+returns a detached snapshot. Nor should it be implemented by mutating
+the shared BDD nodes. The general writable-view abstraction and
+associated ownership/lifetime contract remain to be established.
+**No `RobddSubpaving` class or pretend interface implementation
+was added.**
+
+As a shared building block for both backends, introduced the
+header-only `paving/paving_cell_operations.hpp` utility:
+`set_paving_cell(paving,cell,enabled)`. It uses only the common
+`grid()`, `root_cell()`, `adjoin(GridCell)` and
+`remove(GridCell)` operations. The helper validates equal grids
+and verifies that the modified cell lies within the owning paving's
+geometric root, then delegates to the selected backend's native
+update operation. It is callable with `PavingInterface&`, the
+concrete binary-tree backend, or `RobddPaving&` without introducing
+an intermediate class hierarchy. The helper cannot replace a
+subpaving view by itself; it only implements the cell mutation
+primitive needed by one.
+
+Also introduced `RobddPaving::subpaving(GridCell const&)`. It
+validates the ancestor/descendant geometry with
+`relative_cell_path`, then repeatedly uses the canonical Boolean
+cofactor/shift logic of `branch(Bool)` to return a detached
+value-like slice at an arbitrary descendant root, including
+across primary-cell extents. Each slice retains the manager but
+owns its own root metadata; mutating it does not alter the source.
+The existing single-bit `branch(Bool)` behavior is unchanged.
+
+The new regression tests apply the generic cell-update primitive
+through both `PavingInterface&` (on the tree backend) and
+`RobddPaving&`, checking equality of enabled membership and
+normalized leaf counts. They reject off-root and incompatible-grid
+updates without mutating the paving. Another regression tests
+subpaving extraction on all 256 three-bit truth tables and
+multiple descendant root paths, independently reconstructs an
+expected paving from the cells contained by each descendant,
+compares inclusion and compact-leaf counts, and checks
+detachment, invalid roots and cross-extent extraction.
+
+The remaining work for `PavingHandle` is a well-defined
+mutable subpaving view and full `PavingInterface` approximation
+support, not another class name alias. No changes were made to
+`bdd`, `drawing` or `reasoning`. CI validation is pending.

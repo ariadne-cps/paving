@@ -19,6 +19,7 @@
 #include "paving/binary_tree_paving.hpp"
 #include "paving/grid_paving.hpp"
 #include "paving/robdd_paving.hpp"
+#include "paving/paving_cell_operations.hpp"
 #include "ariadne-testing.hpp"
 
 using namespace Ariadne;
@@ -880,6 +881,130 @@ class TestRobddPaving : public Ariadne::Testing::ContextFixture {
                 GridCell(Grid(2u),0u,BinaryWord{}).box()));
     }
 
+    Void test_generic_cell_updates_across_backends() {
+        RobddManager manager;
+        Grid grid(1u);
+        GridCell root(grid,0u,BinaryWord{});
+        BinaryTreePaving explicit_paving(grid);
+        PavingInterface& generic_explicit=explicit_paving;
+        RobddPaving robdd(manager,root,manager.constant(false),0u);
+
+        for (BinaryWord const& word : {
+                 make_binary_word("010"),make_binary_word("011"),
+                 make_binary_word("101"),make_binary_word("111")}) {
+            GridCell cell(grid,0u,word);
+            set_paving_cell(generic_explicit,cell,true);
+            set_paving_cell(robdd,cell,true);
+        }
+        explicit_paving.recombine();
+        ARIADNE_TESTING_PROVE(
+            robdd.root_cell() == explicit_paving.root_cell());
+        ARIADNE_TESTING_EXPECT_EQUAL(
+            robdd.size(),explicit_paving.size());
+        for (unsigned mask=0u; mask<8u; ++mask) {
+            BinaryWord word;
+            word.push_back((mask & 4u)!=0u);
+            word.push_back((mask & 2u)!=0u);
+            word.push_back((mask & 1u)!=0u);
+            GridCell cell(grid,0u,word);
+            ARIADNE_TESTING_EXPECT_EQUAL(
+                robdd.superset(cell),explicit_paving.superset(cell));
+        }
+
+        GridCell remove_cell(grid,0u,make_binary_word("011"));
+        set_paving_cell(generic_explicit,remove_cell,false);
+        set_paving_cell(robdd,remove_cell,false);
+        explicit_paving.recombine();
+        ARIADNE_TESTING_EXPECT_EQUAL(
+            robdd.size(),explicit_paving.size());
+        ARIADNE_TESTING_PROVE(not robdd.superset(remove_cell));
+        ARIADNE_TESTING_PROVE(not explicit_paving.superset(remove_cell));
+
+        // Both backends reject cells outside their root, without mutation.
+        GridCell outside(grid,1u,make_binary_word("0"));
+        RobddPaving saved(robdd);
+        ARIADNE_TESTING_EXPECT_EXCEPTION(
+            set_paving_cell(robdd,outside,true));
+        ARIADNE_TESTING_EXPECT_EXCEPTION(
+            set_paving_cell(generic_explicit,outside,true));
+        ARIADNE_TESTING_PROVE(robdd.robdd() == saved.robdd());
+        ARIADNE_TESTING_PROVE(robdd.root_cell() == saved.root_cell());
+        Grid other_grid(2u);
+        GridCell incompatible(other_grid,0u,BinaryWord{});
+        ARIADNE_TESTING_EXPECT_EXCEPTION(
+            set_paving_cell(robdd,incompatible,false));
+        ARIADNE_TESTING_EXPECT_EXCEPTION(
+            set_paving_cell(generic_explicit,incompatible,false));
+    }
+
+    Void test_detached_subpaving_for_descendants() {
+        RobddManager manager;
+        Grid grid(1u);
+        GridCell root(grid,0u,BinaryWord{});
+        for (unsigned table=0u; table<256u; ++table) {
+            RobddPaving original(
+                manager,root,manager.constant(false),0u);
+            for (unsigned mask=0u; mask<8u; ++mask) {
+                if ((table & (1u<<mask))==0u) { continue; }
+                BinaryWord word;
+                word.push_back((mask & 4u)!=0u);
+                word.push_back((mask & 2u)!=0u);
+                word.push_back((mask & 1u)!=0u);
+                original.adjoin(GridCell(grid,0u,word));
+            }
+            original.mince_to_depth(3u);
+            for (BinaryWord const& prefix : {
+                     BinaryWord{},make_binary_word("0"),
+                     make_binary_word("1"),make_binary_word("00"),
+                     make_binary_word("01"),make_binary_word("10"),
+                     make_binary_word("11"),make_binary_word("101")}) {
+                GridCell descendant(grid,0u,prefix);
+                RobddPaving sliced=original.subpaving(descendant);
+                RobddPaving expected(
+                    manager,descendant,manager.constant(false),0u);
+                for (unsigned mask=0u; mask<8u; ++mask) {
+                    if ((table & (1u<<mask))==0u) { continue; }
+                    BinaryWord word;
+                    word.push_back((mask & 4u)!=0u);
+                    word.push_back((mask & 2u)!=0u);
+                    word.push_back((mask & 1u)!=0u);
+                    GridCell enabled(grid,0u,word);
+                    if (enabled.box().subset(descendant.box())) {
+                        expected.adjoin(enabled);
+                    }
+                }
+                ARIADNE_TESTING_PROVE(
+                    sliced.root_cell() == descendant);
+                ARIADNE_TESTING_PROVE(sliced.subset(expected));
+                ARIADNE_TESTING_PROVE(expected.subset(sliced));
+                ARIADNE_TESTING_EXPECT_EQUAL(
+                    sliced.size(),expected.size());
+                // A subpaving snapshot must not alias mutable root state.
+                sliced.set_root_cell(false);
+                ARIADNE_TESTING_PROVE(sliced.is_empty());
+                ARIADNE_TESTING_EXPECT_EQUAL(original.depth(),3u);
+            }
+        }
+
+        GridCell raised(grid,1u,BinaryWord{});
+        GridCell fine(grid,0u,make_binary_word("01"));
+        RobddPaving parent(manager,raised,manager.constant(true),0u);
+        RobddPaving child=parent.subpaving(fine);
+        ARIADNE_TESTING_PROVE(child.root_cell() == fine);
+        ARIADNE_TESTING_PROVE(child.robdd().is_true());
+        ARIADNE_TESTING_EXPECT_EQUAL(child.depth(),0u);
+        child.clear();
+        ARIADNE_TESTING_PROVE(parent.robdd().is_true());
+        ARIADNE_TESTING_PROVE(child.is_empty());
+
+        ARIADNE_TESTING_EXPECT_EXCEPTION(parent.subpaving(
+            GridCell(grid,2u,BinaryWord{})));
+        Grid different_grid(2u);
+        ARIADNE_TESTING_EXPECT_EXCEPTION(parent.subpaving(
+            GridCell(different_grid,0u,BinaryWord{})));
+        ARIADNE_TESTING_PROVE(parent.robdd().is_true());
+    }
+
 };
 
 int main(int argc, char** argv) {
@@ -896,5 +1021,7 @@ int main(int argc, char** argv) {
     ARIADNE_TESTING_ADD_TEST(TestRobddPaving, test_native_branch_cofactors);
     ARIADNE_TESTING_ADD_TEST(TestRobddPaving, test_geometric_queries_between_backends);
     ARIADNE_TESTING_ADD_TEST(TestRobddPaving, test_grid_relative_mince_and_primary_cell_query);
+    ARIADNE_TESTING_ADD_TEST(TestRobddPaving, test_generic_cell_updates_across_backends);
+    ARIADNE_TESTING_ADD_TEST(TestRobddPaving, test_detached_subpaving_for_descendants);
     return ARIADNE_TESTING_RUN_TESTS_WITH_ARGS(argc,argv);
 }

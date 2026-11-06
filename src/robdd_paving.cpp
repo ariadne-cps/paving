@@ -558,6 +558,15 @@ Bool RobddPaving::superset(GridCell const& cell) const {
     return required.subset(*this);
 }
 
+RobddPaving RobddPaving::subpaving(GridCell const& cell) const {
+    BinaryWord path=relative_cell_path(_root_cell,cell);
+    RobddPaving restricted(*this);
+    for (SizeType i=0u; i<path.size(); ++i) {
+        restricted=restricted.branch(path[i]);
+    }
+    return restricted;
+}
+
 RobddPaving RobddPaving::branch(Bool right) const {
     Robdd restricted = _root;
     SizeType child_depth = 0u;

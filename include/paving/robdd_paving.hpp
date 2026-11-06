@@ -223,10 +223,18 @@ class RobddPaving {
     //! \brief Test whether the paving covers a geometric cell completely.
     Bool superset(GridCell const& cell) const;
 
+    //! \brief Return a detached subpaving restricted to a descendant cell.
+    //! \details Repeatedly cofactoring each binary subdivision bit avoids
+    //! materializing an explicit tree. The result has its own root metadata
+    //! and shares only immutable ROBDD nodes with the original. A child
+    //! with no remaining supported variables is represented by a terminal.
+    //! \pre The requested cell is contained in root_cell() on the same grid.
+    RobddPaving subpaving(GridCell const& cell) const;
+
     //! \brief Return a value-like snapshot restricted to one child cell.
-    //! \details Cofactors the first subdivision decision and shifts every
-    //! subsequent variable down by one. The source is unchanged, and the
-    //! returned paving is rooted at the selected child, not the parent.
+    //! \details Delegates to subpaving(root_cell().split(right)).
+    //! This is intentionally detached, unlike a writable SubPavingInterface
+    //! branch view whose mutations must propagate to the parent.
     RobddPaving branch(Bool right) const;
 
   private:
