@@ -174,10 +174,78 @@ class TestRobddGridPaving : public Ariadne::Testing::ContextFixture {
         ARIADNE_TESTING_EXPECT_EXCEPTION(lhs.subset(other_manager));
         GridCell different_root(grid,0u,make_binary_word("0"));
         RobddGridPaving wrong_cell(manager,different_root,manager.variable(0u),1u);
-        ARIADNE_TESTING_EXPECT_EXCEPTION(lhs.difference(wrong_cell));
+        // Different geometric roots are aligned rather than rejected.
+        ARIADNE_TESTING_PROVE(not lhs.intersects(wrong_cell));
         ARIADNE_TESTING_EXPECT_EXCEPTION(lhs.for_each_enabled_cell(
             std::function<void(GridCell const&)>{}));
     }
+    Void test_distinct_roots_and_extents() {
+        RobddManager manager;
+        Grid grid(1u);
+        auto enabled = manager.constant(true);
+        auto disabled = manager.constant(false);
+
+        GridCell left_cell(grid,0u,make_binary_word("0"));
+        GridCell right_cell(grid,0u,make_binary_word("1"));
+        RobddGridPaving lhs(manager,left_cell,enabled,0u);
+        RobddGridPaving rhs(manager,right_cell,enabled,0u);
+
+        auto united = lhs.join(rhs);
+        ARIADNE_TESTING_PROVE(united.root_cell() == GridCell(grid,0u,BinaryWord{}));
+        ARIADNE_TESTING_EXPECT_EQUAL(united.depth(),1u);
+        ARIADNE_TESTING_EXPECT_EQUAL(united.enabled_cell_count(),2u);
+        ARIADNE_TESTING_PROVE(united.is_enabled(make_binary_word("0")));
+        ARIADNE_TESTING_PROVE(united.is_enabled(make_binary_word("1")));
+        ARIADNE_TESTING_PROVE(not lhs.intersects(rhs));
+        ARIADNE_TESTING_PROVE(lhs.intersection(rhs).is_empty());
+        ARIADNE_TESTING_PROVE(not lhs.subset(rhs));
+        ARIADNE_TESTING_PROVE(lhs.subset(united));
+        ARIADNE_TESTING_EXPECT_EQUAL(lhs.difference(rhs).enabled_cell_count(),1u);
+
+        GridCell ancestor(grid,0u,BinaryWord{});
+        auto parent = RobddGridPaving(manager,ancestor,enabled,0u);
+        ARIADNE_TESTING_PROVE(lhs.subset(parent));
+        ARIADNE_TESTING_PROVE(parent.intersects(lhs));
+        ARIADNE_TESTING_PROVE(parent.join(lhs).robdd().is_true());
+        auto parent_minus_left = parent.difference(lhs);
+        ARIADNE_TESTING_EXPECT_EQUAL(parent_minus_left.enabled_cell_count(),1u);
+        ARIADNE_TESTING_PROVE(parent_minus_left.is_enabled(make_binary_word("1")));
+
+        GridCell deep_cell(grid,0u,make_binary_word("010"));
+        RobddGridPaving deep(manager,deep_cell,enabled,0u);
+        auto shared = lhs.join(deep);
+        ARIADNE_TESTING_PROVE(shared.root_cell() == left_cell);
+        ARIADNE_TESTING_PROVE(shared.robdd().is_true());
+        ARIADNE_TESTING_PROVE(deep.subset(lhs));
+        ARIADNE_TESTING_EXPECT_EQUAL(
+            deep.intersection(lhs).depth(),2u);
+
+        // Extent 1 has primary path '1' to extent 0 in dimension 1.
+        GridCell raised_cell(grid,1u,BinaryWord{});
+        auto raised = RobddGridPaving(manager,raised_cell,enabled,0u);
+        auto across_extent = raised.intersection(lhs);
+        ARIADNE_TESTING_PROVE(across_extent.root_cell() == raised_cell);
+        ARIADNE_TESTING_EXPECT_EQUAL(across_extent.depth(),2u);
+        ARIADNE_TESTING_EXPECT_EQUAL(across_extent.enabled_cell_count(),1u);
+        ARIADNE_TESTING_PROVE(
+            across_extent.is_enabled(make_binary_word("10")));
+        ARIADNE_TESTING_PROVE(lhs.subset(raised));
+        ARIADNE_TESTING_PROVE(not raised.subset(lhs));
+
+        // Disjoint paving roots at different extents are still legal.
+        GridCell distant_cell(grid,1u,make_binary_word("0"));
+        RobddGridPaving distant(manager,distant_cell,enabled,0u);
+        ARIADNE_TESTING_PROVE(not distant.intersects(lhs));
+        ARIADNE_TESTING_EXPECT_EQUAL(distant.join(lhs).enabled_cell_count(),2u);
+
+        // An independent grid is never silently aligned.
+        Grid other_grid(2u);
+        RobddGridPaving incompatible(
+            manager,GridCell(other_grid,0u,BinaryWord{}),disabled,0u);
+        ARIADNE_TESTING_EXPECT_EXCEPTION(lhs.join(incompatible));
+        ARIADNE_TESTING_EXPECT_EXCEPTION(lhs.subset(incompatible));
+    }
+
 };
 
 int main(int argc, char** argv) {
@@ -185,5 +253,6 @@ int main(int argc, char** argv) {
     ARIADNE_TESTING_ADD_TEST(TestRobddGridPaving, test_import_and_explicit_tree_oracle);
     ARIADNE_TESTING_ADD_TEST(TestRobddGridPaving, test_terminals_and_complemented_roots);
     ARIADNE_TESTING_ADD_TEST(TestRobddGridPaving, test_set_operations_and_preconditions);
+    ARIADNE_TESTING_ADD_TEST(TestRobddGridPaving, test_distinct_roots_and_extents);
     return ARIADNE_TESTING_RUN_TESTS_WITH_ARGS(argc,argv);
 }

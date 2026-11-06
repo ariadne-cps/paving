@@ -99,3 +99,37 @@ confirms the intended tree-backend alias.
 No change was made to `ariadne-cps/bdd`, the pinned BDD version, or
 the semantics of grid paving operations. Build and regression validation
 are pending the CI for the naming commit.
+
+## 2026-11-06 - M5: align ROBDD paving roots for set operations
+
+Set operations now support different root cells on the same grid. Both
+pavings must share the same `RobddManager`; grid mismatches remain a
+precondition violation. The common geometric root is the longest common
+prefix of both root paths after expressing them from the higher of the
+two primary-cell extents. Extent alignment uses
+`GridCell::primary_cell_path` and preserves the established alternating
+primary-cell subdivision convention.
+
+To express a source paving from that common root, its ROBDD variable
+indices are uniformly shifted by the length of its root-path suffix;
+that suffix is encoded as a chain of canonical decision nodes with a
+false sibling at each step. Missing Boolean variables remain don't-care
+choices. This makes union, intersection, difference, subset and
+intersection detection available on roots that coincide, are nested,
+or are disjoint, even across primary-cell extents, without expanding
+the explicit tree.
+
+The logical depth of a combined snapshot is the maximum of the two
+adjusted depths. Its cells are defined relative to the new common root.
+The geometric interpretation remains entirely in the paving layer:
+no BDD API or implementation changes.
+
+Also fixed MSVC /W4 /WX C4267 in `expand_tree` by checking that the
+remaining SizeType logical depth is representable by Nat before
+calling `BinaryTreeNode::mince` with an explicit cast. No lossy cast
+is permitted on overflow.
+
+Tests add same-grid differing roots, adjacent/disjoint roots,
+ancestor/descendant containment, cross-extent path alignment, and
+grid incompatibility. CI execution is required to confirm the C++
+build, test oracle and sanitizer results.

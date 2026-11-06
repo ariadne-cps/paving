@@ -18,6 +18,7 @@
 
 #include <functional>
 #include <memory>
+#include <utility>
 
 #include "bdd/robdd.hpp"
 #include "paving/binary_tree.hpp"
@@ -83,13 +84,13 @@ class RobddGridPaving {
     //! \details Expands all enabled paths to depth() and may be exponential.
     std::unique_ptr<BinaryTreeNode> to_binary_tree() const;
 
-    //! \brief Return an immutable union with a compatible paving.
+    //! \brief Return an immutable union with a paving on the same grid and manager.
     RobddGridPaving join(RobddGridPaving const& other) const;
 
-    //! \brief Return an immutable intersection with a compatible paving.
+    //! \brief Return an immutable intersection with a paving on the same grid and manager.
     RobddGridPaving intersection(RobddGridPaving const& other) const;
 
-    //! \brief Return an immutable set difference with a compatible paving.
+    //! \brief Return an immutable set difference with a paving on the same grid and manager.
     RobddGridPaving difference(RobddGridPaving const& other) const;
 
     //! \brief Test subset inclusion for compatible roots.
@@ -100,6 +101,8 @@ class RobddGridPaving {
 
   private:
     Void _check_compatible(RobddGridPaving const& other) const;
+    GridCell _common_root(RobddGridPaving const& other) const;
+    std::pair<Robdd,SizeType> _lift_to(GridCell const& ancestor) const;
 
     RobddManager* _manager;
     GridCell _root_cell;

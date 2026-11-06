@@ -48,7 +48,11 @@ std::unique_ptr<BinaryTreeNode> expand_tree(
     }
     if (root.is_true()) {
         auto node = std::make_unique<BinaryTreeNode>(true);
-        node->mince(depth-level);
+        SizeType remaining = depth-level;
+        ARIADNE_PRECONDITION_MSG(
+            remaining <= static_cast<SizeType>(std::numeric_limits<Nat>::max()),
+            "Explicit binary-tree expansion depth exceeds Nat capacity");
+        node->mince(static_cast<Nat>(remaining));
         return node;
     }
 
@@ -131,46 +135,114 @@ Void RobddGridPaving::_check_compatible(
         RobddGridPaving const& other) const {
     ARIADNE_PRECONDITION_MSG(_manager == other._manager,
         "ROBDD paving set operations require the same manager");
-    ARIADNE_PRECONDITION_MSG(_root_cell == other._root_cell,
-        "ROBDD paving set operations require an identical root cell");
+    ARIADNE_PRECONDITION_MSG(_root_cell.grid() == other._root_cell.grid(),
+        "ROBDD paving set operations require identical grids");
+}
+
+GridCell RobddGridPaving::_common_root(
+        RobddGridPaving const& other) const {
+    _check_compatible(other);
+    Nat extent = std::max(
+        _root_cell.root_extent(),other._root_cell.root_extent());
+    auto align_path = [extent](GridCell const& cell) {
+        BinaryWord prefix = GridCell::primary_cell_path(
+            cell.grid().dimension(),extent,cell.root_extent());
+        prefix.append(cell.word());
+        return prefix;
+    };
+    BinaryWord first = align_path(_root_cell);
+    BinaryWord second = align_path(other._root_cell);
+    BinaryWord prefix;
+    SizeType limit = std::min(first.size(),second.size());
+    for (SizeType i=0u; i<limit and first[i]==second[i]; ++i) {
+        prefix.push_back(first[i]);
+    }
+    return GridCell(_root_cell.grid(),extent,prefix);
+}
+
+std::pair<Robdd,SizeType> RobddGridPaving::_lift_to(
+        GridCell const& ancestor) const {
+    ARIADNE_PRECONDITION_MSG(ancestor.grid() == _root_cell.grid(),
+        "Cannot lift an ROBDD paving to another grid");
+    ARIADNE_PRECONDITION_MSG(
+        ancestor.root_extent() >= _root_cell.root_extent(),
+        "Common root extent must enclose the source primary cell");
+
+    BinaryWord path = GridCell::primary_cell_path(
+        _root_cell.grid().dimension(),
+        ancestor.root_extent(),_root_cell.root_extent());
+    path.append(_root_cell.word());
+    ARIADNE_PRECONDITION_MSG(
+        ancestor.word().is_prefix(path),
+        "Common root must contain the source paving root");
+    SizeType offset = path.size() - ancestor.word().size();
+    ARIADNE_PRECONDITION_MSG(
+        offset < std::numeric_limits<SizeType>::max() - _depth,
+        "Aligned paving depth exceeds the valid ROBDD variable range");
+    ARIADNE_PRECONDITION_MSG(
+        offset <= static_cast<SizeType>(std::numeric_limits<std::ptrdiff_t>::max()),
+        "Aligned paving prefix exceeds the BDD shift-offset range");
+
+    Robdd lifted = _manager->shift(
+        _root,static_cast<std::ptrdiff_t>(offset));
+    Robdd disabled = _manager->constant(false);
+    for (SizeType i=offset; i!=0u; ) {
+        --i;
+        Bool right = path[ancestor.word().size()+i];
+        lifted = right
+            ? _manager->make_node(BddVariable(i),disabled,lifted)
+            : _manager->make_node(BddVariable(i),lifted,disabled);
+    }
+    return std::make_pair(lifted,offset+_depth);
 }
 
 RobddGridPaving RobddGridPaving::join(
         RobddGridPaving const& other) const {
-    _check_compatible(other);
+    GridCell common = _common_root(other);
+    auto first = _lift_to(common);
+    auto second = other._lift_to(common);
     return RobddGridPaving(
-        *_manager,_root_cell,_manager->disjunction(_root,other._root),
-        std::max(_depth,other._depth));
+        *_manager,common,_manager->disjunction(first.first,second.first),
+        std::max(first.second,second.second));
 }
 
 RobddGridPaving RobddGridPaving::intersection(
         RobddGridPaving const& other) const {
-    _check_compatible(other);
+    GridCell common = _common_root(other);
+    auto first = _lift_to(common);
+    auto second = other._lift_to(common);
     return RobddGridPaving(
-        *_manager,_root_cell,_manager->conjunction(_root,other._root),
-        std::max(_depth,other._depth));
+        *_manager,common,_manager->conjunction(first.first,second.first),
+        std::max(first.second,second.second));
 }
 
 RobddGridPaving RobddGridPaving::difference(
         RobddGridPaving const& other) const {
-    _check_compatible(other);
+    GridCell common = _common_root(other);
+    auto first = _lift_to(common);
+    auto second = other._lift_to(common);
     return RobddGridPaving(
-        *_manager,_root_cell,
-        _manager->conjunction(_root,_manager->negation(other._root)),
-        std::max(_depth,other._depth));
+        *_manager,common,
+        _manager->conjunction(first.first,_manager->negation(second.first)),
+        std::max(first.second,second.second));
 }
 
 Bool RobddGridPaving::subset(
         RobddGridPaving const& other) const {
-    _check_compatible(other);
+    GridCell common = _common_root(other);
+    auto first = _lift_to(common);
+    auto second = other._lift_to(common);
     return _manager->conjunction(
-        _root,_manager->negation(other._root)).is_false();
+        first.first,_manager->negation(second.first)).is_false();
 }
 
 Bool RobddGridPaving::intersects(
         RobddGridPaving const& other) const {
-    _check_compatible(other);
-    return not _manager->conjunction(_root,other._root).is_false();
+    GridCell common = _common_root(other);
+    auto first = _lift_to(common);
+    auto second = other._lift_to(common);
+    return not _manager->conjunction(
+        first.first,second.first).is_false();
 }
 
 } // namespace Ariadne
