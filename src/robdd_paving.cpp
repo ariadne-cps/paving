@@ -15,6 +15,9 @@
 
 #include <algorithm>
 #include <limits>
+#include <optional>
+#include <utility>
+#include <vector>
 
 #include "utility/macros.hpp"
 #include "paving/grid_paving.hpp"
@@ -100,6 +103,113 @@ void visit_enabled_leaf_paths(
     path.pop_back();
 }
 
+// Incremental depth-first iterator for the compact ordered tree represented
+// by a semantic ROBDD. The frontier contains only pending subproblems and
+// never materializes the expanded decision tree or its complete cell set.
+class RobddPavingLeafIterator final
+    : public ForwardConstantIteratorInterface<GridCell> {
+    struct Pending {
+        Robdd root;
+        BinaryWord path;
+        SizeType level;
+    };
+
+    RobddManager* _manager;
+    GridCell _root_cell;
+    Robdd _root;
+    SizeType _depth;
+    std::vector<Pending> _pending;
+    std::optional<GridCell> _current;
+
+  public:
+    RobddPavingLeafIterator(
+            RobddManager& manager, GridCell const& cell,
+            Robdd const& root, SizeType depth, Bool past_end)
+        : _manager(&manager), _root_cell(cell), _root(root), _depth(depth) {
+        if (not past_end) {
+            _pending.push_back(Pending{root,BinaryWord{},0u});
+            _advance();
+        }
+    }
+
+  private:
+    Void _advance() {
+        _current.reset();
+        while (not _pending.empty()) {
+            Pending next = std::move(_pending.back());
+            _pending.pop_back();
+            if (next.root.is_false()) { continue; }
+            if (next.root.is_true()) {
+                BinaryWord word = _root_cell.word();
+                word.append(next.path);
+                _current.emplace(
+                    _root_cell.grid(),_root_cell.root_extent(),word);
+                return;
+            }
+
+            ARIADNE_PRECONDITION_MSG(next.level < _depth,
+                "ROBDD iterator encountered a variable past its depth");
+            auto top = _manager->top_variable(next.root);
+            ARIADNE_PRECONDITION_MSG(
+                top.has_value() and top->index() >= next.level,
+                "ROBDD iterator requires increasing variable indices");
+
+            Robdd low = top->index() == next.level
+                ? _manager->low(next.root) : next.root;
+            Robdd high = top->index() == next.level
+                ? _manager->high(next.root) : next.root;
+
+            BinaryWord right_path = next.path;
+            right_path.push_back(true);
+            _pending.push_back(Pending{
+                high,std::move(right_path),next.level+1u});
+            next.path.push_back(false);
+            _pending.push_back(Pending{
+                low,std::move(next.path),next.level+1u});
+        }
+    }
+
+    RobddPavingLeafIterator* clone() const override {
+        return new RobddPavingLeafIterator(*this);
+    }
+
+    Void increment() override {
+        ARIADNE_PRECONDITION_MSG(_current.has_value(),
+            "Cannot increment a past-the-end ROBDD paving iterator");
+        _advance();
+    }
+
+    GridCell const& dereference() const override {
+        ARIADNE_PRECONDITION_MSG(_current.has_value(),
+            "Cannot dereference a past-the-end ROBDD paving iterator");
+        return *_current;
+    }
+
+    Bool equals(
+            ForwardConstantIteratorInterface<GridCell> const& other) const override {
+        auto const* rhs = dynamic_cast<RobddPavingLeafIterator const*>(&other);
+        if (rhs == nullptr) { return false; }
+        if (_manager != rhs->_manager or _root != rhs->_root
+                or _root_cell != rhs->_root_cell or _depth != rhs->_depth) {
+            return false;
+        }
+        if (not _current.has_value() or not rhs->_current.has_value()) {
+            return not _current.has_value() and not rhs->_current.has_value();
+        }
+        return *_current == *rhs->_current;
+    }
+
+    OutputStream& _write(OutputStream& os) const override {
+        os << "RobddPavingLeafIterator(";
+        if (_current.has_value()) {
+            os << *_current;
+        } else {
+            os << "end";
+        }
+        return os << ")";
+    }
+};
+
 } // anonymous namespace
 
 RobddPaving::RobddPaving(
@@ -154,6 +264,16 @@ SizeType RobddPaving::enabled_leaf_count() const {
             ++count;
         });
     return count;
+}
+
+RobddPaving::ConstIterator RobddPaving::begin() const {
+    return ConstIterator(new RobddPavingLeafIterator(
+        *_manager,_root_cell,_root,_depth,false));
+}
+
+RobddPaving::ConstIterator RobddPaving::end() const {
+    return ConstIterator(new RobddPavingLeafIterator(
+        *_manager,_root_cell,_root,_depth,true));
 }
 
 Void RobddPaving::for_each_enabled_leaf(

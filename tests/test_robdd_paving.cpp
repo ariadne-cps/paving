@@ -292,7 +292,22 @@ class TestRobddPaving : public Ariadne::Testing::ContextFixture {
         RobddPaving empty(manager,root,manager.constant(false),4u);
         ARIADNE_TESTING_EXPECT_EQUAL(full.enabled_cell_count(),16u);
         ARIADNE_TESTING_EXPECT_EQUAL(full.enabled_leaf_count(),1u);
+        ARIADNE_TESTING_EXPECT_EQUAL(full.size(),1u);
+        ARIADNE_TESTING_EXPECT_EQUAL(full.dimension(),1u);
+        ARIADNE_TESTING_PROVE(full.grid() == grid);
         ARIADNE_TESTING_EXPECT_EQUAL(empty.enabled_leaf_count(),0u);
+        ARIADNE_TESTING_EXPECT_EQUAL(empty.size(),0u);
+        ARIADNE_TESTING_PROVE(empty.begin() == empty.end());
+        ARIADNE_TESTING_PROVE(full.begin() != full.end());
+        ARIADNE_TESTING_PROVE(full.begin()->word() == BinaryWord{});
+        auto full_iter = full.begin();
+        auto full_copy = full_iter;
+        ARIADNE_TESTING_PROVE(full_copy == full_iter);
+        auto full_old = full_iter++;
+        ARIADNE_TESTING_PROVE(full_old == full_copy);
+        ARIADNE_TESTING_PROVE(full_iter == full.end());
+        ++full_copy;
+        ARIADNE_TESTING_PROVE(full_copy == full_iter);
         SizeType empty_visits=0u;
         empty.for_each_enabled_leaf([&](GridCell const&) { ++empty_visits; });
         ARIADNE_TESTING_EXPECT_EQUAL(empty_visits,0u);
@@ -317,6 +332,11 @@ class TestRobddPaving : public Ariadne::Testing::ContextFixture {
             either_leaves.push_back(cell.word());
         });
         ARIADNE_TESTING_EXPECT_EQUAL(either_leaves.size(),2u);
+        std::vector<BinaryWord> either_from_iterator;
+        for (auto it=either.begin(), stop=either.end(); it!=stop; ++it) {
+            either_from_iterator.push_back(it->word());
+        }
+        ARIADNE_TESTING_PROVE(either_from_iterator == either_leaves);
         ARIADNE_TESTING_PROVE(either_leaves[0u] == make_binary_word("01"));
         ARIADNE_TESTING_PROVE(either_leaves[1u] == make_binary_word("1"));
 
@@ -386,6 +406,23 @@ class TestRobddPaving : public Ariadne::Testing::ContextFixture {
             });
             ARIADNE_TESTING_EXPECT_EQUAL(actual.size(),expected.size());
             ARIADNE_TESTING_EXPECT_EQUAL(snapshot.enabled_leaf_count(),expected.size());
+            ARIADNE_TESTING_EXPECT_EQUAL(snapshot.size(),expected.size());
+            std::vector<BinaryWord> incrementally_visited;
+            for (auto it=snapshot.begin(), end=snapshot.end(); it!=end; ++it) {
+                incrementally_visited.push_back(it->word());
+            }
+            ARIADNE_TESTING_PROVE(incrementally_visited == actual);
+            // Copying the iterator copies its pending search frontier,
+            // and post-increment retains the old position.
+            if (snapshot.begin() != snapshot.end()) {
+                auto iterator=snapshot.begin();
+                auto copy=iterator;
+                ARIADNE_TESTING_PROVE(iterator == copy);
+                auto old=iterator++;
+                ARIADNE_TESTING_PROVE(old == copy);
+                ++copy;
+                ARIADNE_TESTING_PROVE(copy == iterator);
+            }
             for (SizeType i=0u; i<expected.size(); ++i) {
                 ARIADNE_TESTING_PROVE(actual[i] == expected[i]);
             }

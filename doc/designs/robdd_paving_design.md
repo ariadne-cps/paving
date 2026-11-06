@@ -257,3 +257,45 @@ This commit does *not* rename `PavingHandle`, modify
 `PavingInterface`, change `Reasoning`, or claim that `RobddPaving`
 is already interchangeable with `BinaryTreePaving`. No change is
 made to `ariadne-cps/bdd`. CI validation is required.
+
+## 2026-11-06 - M5 incremental compact-leaf iterator
+
+`RobddPaving` now exposes the `ForwardConstantIteratorHandle<GridCell>`
+iterator protocol used in the paving interfaces, through `begin()`,
+`end()` and a `ConstIterator` typedef. Its `size()` returns
+`enabled_leaf_count()`; `grid()` and `dimension()` provide the
+ordinary geometric metadata accessors.
+
+The implementation is a private `RobddPavingLeafIterator` deriving from
+`ForwardConstantIteratorInterface<GridCell>`. It holds the manager
+pointer, a snapshot of the Boolean root and root cell, the logical depth,
+a stack of pending search frames, and the currently yielded `GridCell`.
+The stack always pushes the high branch before the low branch, so each
+increment visits the next enabled leaf in the same depth-first order as
+the recombined explicit binary tree. False terminals are skipped;
+true terminals close a leaf immediately; skipped BDD variables branch
+to both valuations. The iterator does not construct a
+`BinaryTreeNode` or materialize the entire output sequence.
+
+The iterator owns its traversal state, including on copy/clone, and
+checks that the Boolean root, manager, geometry and logical depth match
+when comparing two iterator positions. It remains valid if the
+`RobddPaving` object is copied or its logical depth is subsequently
+changed, provided the owning `RobddManager` remains alive. It does
+not own the manager. Past-the-end dereference and increment are
+precondition violations.
+
+The legacy `GridTreePaving::size()` can count redundant explicitly
+minced leaves, whereas the ROBDD `size()` counts the compact
+recombined interpretation. They agree after recombination; they are
+not universally identical for unnormalized explicit trees. The
+fixed-depth `enabled_cell_count()` remains a separate operation.
+
+Regression tests exercise empty, full, early terminal and skipped
+variable cases, copy/clone independence, post-increment semantics,
+forward iteration through `operator->`, equality and the complete
+set of 256 three-variable truth tables against explicit-tree
+reference iterators. These changes are a prerequisite for an eventual
+`PavingInterface` implementation; they do not yet make
+`RobddPaving` derive from it or rename `PavingHandle` to `Paving`.
+`Reasoning` and `bdd` remain unchanged. CI validation is pending.

@@ -23,6 +23,7 @@
 #include "bdd/robdd.hpp"
 #include "paving/binary_tree.hpp"
 #include "paving/grid_cell.hpp"
+#include "paving/paving_interface.hpp"
 
 namespace Ariadne {
 
@@ -48,6 +49,12 @@ class RobddPaving {
 
     //! \brief Geometric root of the represented subpaving.
     GridCell const& root_cell() const { return _root_cell; }
+
+    //! \brief Underlying grid shared by all cells in the paving.
+    Grid const& grid() const { return _root_cell.grid(); }
+
+    //! \brief Dimension of the underlying grid.
+    DimensionType dimension() const { return grid().dimension(); }
 
     //! \brief Immutable Boolean root shared through the manager.
     Robdd const& robdd() const { return _root; }
@@ -83,6 +90,24 @@ class RobddPaving {
     //! It matches the size of to_binary_tree() after recombine(), but an
     //! unrecombined explicit tree can contain additional redundant leaves.
     SizeType enabled_leaf_count() const;
+
+    //! \brief Number of enabled leaves in the canonical tree interpretation.
+    //! \details Unlike enabled_cell_count(), this does not depend on the
+    //! requested subdivision depth after a true terminal. This matches the
+    //! size of a recombined explicit binary-tree paving.
+    SizeType size() const { return enabled_leaf_count(); }
+
+    //! \brief Common forward-iterator interface used by other paving types.
+    //! \details Iterates compact enabled leaves, not fixed-depth cells.
+    //! The iterator retains its own traversal state and Boolean root snapshot;
+    //! the RobddManager must outlive the iterator.
+    using ConstIterator = ForwardConstantIteratorHandle<GridCell>;
+
+    //! \brief Return an iterator to the first enabled compact leaf.
+    ConstIterator begin() const;
+
+    //! \brief Return a past-the-end iterator for compact leaves.
+    ConstIterator end() const;
 
     //! \brief Visit enabled leaves of the compact ordered binary tree.
     //! \details A true terminal emits the shortest path at its current level.
