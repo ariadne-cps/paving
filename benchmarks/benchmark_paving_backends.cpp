@@ -20,12 +20,14 @@
 #include <algorithm>
 #include <chrono>
 #include <cmath>
+#include <functional>
 #include <iomanip>
 #include <iostream>
 #include <limits>
 #include <map>
 #include <stdexcept>
 #include <string>
+#include <tuple>
 #include <utility>
 #include <vector>
 
@@ -259,6 +261,136 @@ SizeType probe_coverage(SubPavingInterface const& paving,
     return result;
 }
 
+// RobddManager::Node is private, so sizeof() cannot be queried directly.
+// This mirror has precisely the same declared fields and order in bdd/robdd.hpp.
+// Its sizeof() is an ABI-dependent *estimate* (not a manager allocation metric).
+struct RobddDecisionNodeLayoutEstimate {
+    BddVariable variable;
+    SizeType low;
+    SizeType high;
+};
+
+// Recover physical DAG identity from the public BDD cofactors. Complemented
+// edges must refer to the SAME physical decision node: normalize the low
+// branch to regular polarity, matching the manager's canonical representation.
+// Terminal references are 0/1 and cost no stored decision-node payload.
+// This intentionally runs OUTSIDE all benchmark timings.
+SizeType reachable_robdd_node_count(
+        RobddManager const& manager,Robdd const& root) {
+    using Key=std::tuple<SizeType,SizeType,SizeType>;
+    std::map<Key,SizeType> unique_nodes;
+    std::function<SizeType(Robdd const&)> visit=
+        [&](Robdd const& value)->SizeType {
+            if (value.is_terminal()) {
+                return value.is_true()?1u:0u;
+            }
+            auto var=manager.top_variable(value);
+            if (not var) {
+                throw std::logic_error("nonterminal ROBDD without variable");
+            }
+            SizeType low=visit(manager.low(value));
+            SizeType high=visit(manager.high(value));
+            SizeType complement=low & 1u;
+            if (complement!=0u) {
+                low^=1u;
+                high^=1u;
+            }
+            Key key{var->index(),low,high};
+            auto found=unique_nodes.find(key);
+            if (found==unique_nodes.end()) {
+                SizeType id=unique_nodes.size()+1u;
+                found=unique_nodes.emplace(key,id).first;
+            }
+            return (found->second<<1u)|complement;
+        };
+    visit(root);
+    return unique_nodes.size();
+}
+
+void verify_reachable_node_oracle() {
+    RobddManager manager;
+    Robdd false_bdd=manager.constant(false);
+    Robdd true_bdd=manager.constant(true);
+    Robdd x=manager.variable(0u);
+    Robdd y=manager.variable(1u);
+    Robdd xor_bdd=manager.exclusive_or(x,y);
+    if (reachable_robdd_node_count(manager,false_bdd)!=0u
+        or reachable_robdd_node_count(manager,true_bdd)!=0u
+        or reachable_robdd_node_count(manager,x)!=1u
+        or reachable_robdd_node_count(manager,manager.negation(x))!=1u
+        or reachable_robdd_node_count(manager,xor_bdd)!=2u
+        or reachable_robdd_node_count(
+            manager,manager.negation(xor_bdd))!=2u) {
+        throw std::runtime_error("incorrect physical ROBDD DAG node accounting");
+    }
+}
+
+SizeType checked_node_bytes(SizeType count,SizeType bytes_per_node) {
+    if (count>std::numeric_limits<SizeType>::max()/bytes_per_node) {
+        throw std::overflow_error("node payload estimate exceeds SizeType");
+    }
+    return count*bytes_per_node;
+}
+
+struct MemoryDatum {
+    std::string shape;
+    unsigned dimension;
+    unsigned fineness;
+    SizeType tree_nodes;
+    SizeType robdd_reachable_nodes;
+    SizeType robdd_manager_nodes;
+    SizeType tree_payload_bytes;
+    SizeType robdd_reachable_bytes;
+    SizeType robdd_manager_payload_bytes;
+};
+
+void print_memory_results(std::vector<MemoryDatum> const& memory) {
+    constexpr int width=127;
+    LOGGING_PRINTLN("Estimated physical node payload (not RSS/heap footprint):")
+    LOGGING_PRINTLN("sizeof(BinaryTreeNode)="<<sizeof(BinaryTreeNode)
+        <<"  estimated sizeof(ROBDD decision node)="
+        <<sizeof(RobddDecisionNodeLayoutEstimate)
+        <<"  sizeof(BinaryTreePaving)="<<sizeof(BinaryTreePaving)
+        <<"  sizeof(RobddPaving)="<<sizeof(RobddPaving)
+        <<"  sizeof(RobddManager)="<<sizeof(RobddManager))
+    LOGGING_PRINTLN("Tree B~=TreeNodes*sizeof(BinaryTreeNode);"
+        <<" BDD B~=reachable distinct nonterminal nodes*estimated node size.")
+    LOGGING_PRINTLN("Mgr B~=all manager nodes*estimated node size,"
+        <<" INCLUDING unreachable cached nodes. This is NOT per-paving memory.")
+    LOGGING_PRINTLN("All estimates exclude allocator overhead, vector spare"
+        <<" capacity, unique/computed tables, and dynamically owned metadata.")
+    LOGGING_PRINTLN(std::string(width,'='))
+    LOGGING_PRINTLN(std::left
+        <<std::setw(19)<<"Shape"<<"  "
+        <<std::setw(3)<<"D"<<"  "
+        <<std::setw(3)<<"F"<<"  "
+        <<std::right<<std::setw(9)<<"Tree N"
+        <<"  "<<std::setw(9)<<"BDD N"
+        <<"  "<<std::setw(9)<<"Mgr N"
+        <<"  "<<std::setw(12)<<"Tree B~"
+        <<"  "<<std::setw(12)<<"BDD B~"
+        <<"  "<<std::setw(12)<<"Mgr B~"
+        <<"  "<<std::setw(12)<<"BDD/Tree")
+    LOGGING_PRINTLN(std::string(width,'-'))
+    for (MemoryDatum const& datum:memory) {
+        double ratio=static_cast<double>(datum.robdd_reachable_bytes)
+                    /static_cast<double>(datum.tree_payload_bytes);
+        LOGGING_PRINTLN(std::left
+            <<std::setw(19)<<datum.shape<<"  "
+            <<std::setw(3)<<datum.dimension<<"  "
+            <<std::setw(3)<<datum.fineness<<"  "
+            <<std::right<<std::setw(9)<<datum.tree_nodes
+            <<"  "<<std::setw(9)<<datum.robdd_reachable_nodes
+            <<"  "<<std::setw(9)<<datum.robdd_manager_nodes
+            <<"  "<<std::setw(12)<<datum.tree_payload_bytes
+            <<"  "<<std::setw(12)<<datum.robdd_reachable_bytes
+            <<"  "<<std::setw(12)<<datum.robdd_manager_payload_bytes
+            <<"  "<<std::fixed<<std::setprecision(3)
+            <<std::setw(11)<<ratio<<"x")
+    }
+    LOGGING_PRINTLN(std::string(width,'='))
+}
+
 struct Datum {
     std::string shape;
     std::string operation;
@@ -302,8 +434,9 @@ void validate_geometry(
     }
 }
 
-void append_case(std::vector<Datum>& data, Selection const& selection,
-                 std::string const& shape, unsigned dimension,unsigned fineness) {
+void append_case(std::vector<Datum>& data,std::vector<MemoryDatum>& memory,
+                 Selection const& selection,std::string const& shape,
+                 unsigned dimension,unsigned fineness) {
     Grid grid(dimension);
     GridCell primary(grid,0u,BinaryWord{});
     EffectiveConstrainedImageSet compact=make_shape(dimension,shape);
@@ -316,15 +449,25 @@ void append_case(std::vector<Datum>& data, Selection const& selection,
     tree.recombine();
     robdd.adjoin_outer_approximation(set,fineness);
     robdd.recombine();
-    validate_geometry(tree,robdd);
 
+    // Snapshot node counts BEFORE geometric validation or timed operations,
+    // both of which may allocate additional manager nodes / cache entries.
+    SizeType tree_nodes=count_tree_nodes(*tree.binary_tree());
+    SizeType reachable_nodes=reachable_robdd_node_count(
+        manager,robdd.robdd());
+    SizeType manager_nodes=manager.node_count();
+    if (reachable_nodes>manager_nodes) {
+        throw std::logic_error("reachable nodes exceed allocated manager nodes");
+    }
+    memory.push_back({shape,dimension,fineness,tree_nodes,
+        reachable_nodes,manager_nodes,
+        checked_node_bytes(tree_nodes,sizeof(BinaryTreeNode)),
+        checked_node_bytes(reachable_nodes,sizeof(RobddDecisionNodeLayoutEstimate)),
+        checked_node_bytes(manager_nodes,sizeof(RobddDecisionNodeLayoutEstimate))});
+
+    validate_geometry(tree,robdd);
     SizeType tree_leaves=tree.size();
     SizeType robdd_leaves=robdd.size();
-    SizeType tree_nodes=count_tree_nodes(*tree.binary_tree());
-    // Manager nodes include reusable nodes from all constructions and
-    // cannot be attributed to one Boolean root. This initial count is
-    // reported as shared-manager state, never as exclusive ROBDD memory.
-    SizeType manager_nodes=manager.node_count();
     auto probes=make_probes(grid,dimension,fineness);
 
     auto record=[&](char const* name,auto&& tree_operation,
@@ -388,8 +531,9 @@ void append_case(std::vector<Datum>& data, Selection const& selection,
         });
 }
 
-void report(std::vector<Datum> const& data, Selection const& selection,
-            unsigned skipped) {
+void report(std::vector<Datum> const& data,
+            std::vector<MemoryDatum> const& memory,
+            Selection const& selection,unsigned skipped) {
     constexpr int width=117;
     LOGGING_PRINTLN("BinaryTree / ROBDD compact-set benchmark")
     LOGGING_PRINTLN("Iterations="<<selection.iterations
@@ -431,6 +575,8 @@ void report(std::vector<Datum> const& data, Selection const& selection,
         }
         LOGGING_PRINTLN(std::string(width,'='))
     }
+
+    print_memory_results(memory);
 
     std::map<std::string,Aggregate> by_operation;
     std::map<std::string,Aggregate> by_shape;
@@ -488,6 +634,7 @@ int main(int argc,char const* argv[]) {
     try {
         Logger::instance().configuration().set_verbosity(1u);
         Selection selection;
+        verify_reachable_node_oracle();
         ThreadingCommandLineInterface command_line;
         command_line.add(CommandLineContribution(
             "paving-backends-benchmark",parsers(selection)));
@@ -498,6 +645,7 @@ int main(int argc,char const* argv[]) {
         }
 
         std::vector<Datum> data;
+        std::vector<MemoryDatum> memory;
         unsigned skipped=0u;
         for (unsigned d:selection.dimensions) {
             for (unsigned f:selection.finenesses) {
@@ -517,14 +665,14 @@ int main(int argc,char const* argv[]) {
                 for (auto const& shape:selection.shapes) {
                     LOGGING_PRINTLN("Measuring "<<shape<<" | d="<<d
                         <<" | fineness="<<f)
-                    append_case(data,selection,shape,d,f);
+                    append_case(data,memory,selection,shape,d,f);
                 }
             }
         }
         if (data.empty()) {
             throw std::runtime_error("no cases within max-depth-bits budget");
         }
-        report(data,selection,skipped);
+        report(data,memory,selection,skipped);
         return 0;
     } catch(std::exception const& error) {
         LOGGING_PRINTLN("benchmark_paving_backends: "<<error.what())

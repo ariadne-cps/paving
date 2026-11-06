@@ -1233,3 +1233,33 @@ deliberately NOT measured in this increment. No unsupported claim of
 exclusive ROBDD memory usage is made; future cold-manager and resident
 memory measurements are separate work.
 
+
+## 2026-11-06 - Indicative physical node memory for backend benchmark
+
+Added per-scenario node-memory table to benchmark_paving_backends, separate
+from per-operation timing rows to avoid duplicating identical memory stats.
+The tree uses a physical node count including disabled and internal nodes
+times the actual sizeof(BinaryTreeNode). The ROBDD uses *distinct physical
+nodes reachable from its root*, not merely manager.node_count(): traversal
+is based on the public top_variable/low/high API and interns a canonical
+(triple of variable, normalized low child, normalized high child).
+Complemented edges are normalized, so f and !f share one physical node.
+Zero/one terminals do not consume physical decision nodes. Self-checks
+exercise constant nodes, single variables, XOR and complemented roots.
+The size estimate mirrors the private RobddManager::Node layout using
+{BddVariable,SizeType,SizeType} and sizeof of that mirror; no change to
+the bdd dependency is needed.
+
+The report gives Tree N, BDD N reachable, manager-wide allocated nodes,
+Tree B~, BDD B~ and Mgr B~ and BDD/tree indicative node-byte ratio. All
+counts are captured directly after both source approximations and before
+the geometry checker, which may itself allocate nodes. These are lower-
+scope node payload estimates only: neither backend's dynamically allocated
+container metadata, allocator overhead, vector spare capacity nor the
+ROBDD manager's unique and computed tables are included. BDD B~ counts
+all nodes reachable from one root even if those nodes could be shared
+with other pavings; Mgr B~ captures all allocated canonical manager nodes
+including those no longer reachable, and cannot be interpreted as per-root
+memory or full manager RSS. These estimates have no memory-ownership
+implications and must not be used as replacement for a resident-memory
+measurement.

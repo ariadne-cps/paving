@@ -140,6 +140,18 @@ combinations with an excessive theoretical subdivision depth. Manager
 nodes are shared and must not be read as exclusive ROBDD memory use.
 The first version measures warmed manager behavior, not manager startup,
 and refuses to compare approximations that disagree geometrically.
+For each geometry/dimension/fineness case, an independent memory
+table estimates physical node payload: BinaryTreeNode count multiplied
+by sizeof(BinaryTreeNode), and reachable distinct ROBDD decision nodes
+(including complemented-edge sharing) multiplied by the layout estimate
+of RobddManager::Node. It also prints the manager-wide allocated node
+payload separately. These are **indicative node storage**, NOT measured
+RSS or total heap use: allocator overhead, node-vector capacity, unique
+table and ITE cache memory are excluded. Manager counts are snapped
+before correctness verification or benchmark timings. The public BDD
+cofactor API is used for node counting, so no BDD library modification
+is required.
+
 A small CTest smoke exercise checks build/invocation without being used
 as a performance result.
 
