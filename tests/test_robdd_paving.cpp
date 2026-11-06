@@ -1398,6 +1398,113 @@ class TestRobddPaving : public Ariadne::Testing::ContextFixture {
         ARIADNE_TESTING_PROVE(empty.is_empty());
     }
 
+    Void test_polymorphic_paving_handle_and_subpaving_views() {
+        RobddManager manager;
+        Grid grid(1u);
+        GridCell root(grid,0u,BinaryWord{});
+        GridCell left=root.split(false);
+        GridCell right=root.split(true);
+        GridCell left_right=left.split(true);
+
+        PavingHandle tree_handle(new BinaryTreePaving(grid));
+        PavingHandle robdd_handle(new RobddPaving(
+            manager,root,manager.constant(false),0u));
+        PavingInterface& tree=tree_handle;
+        PavingInterface& robdd=robdd_handle;
+        tree.adjoin(left_right);
+        tree.adjoin(right);
+        robdd.adjoin(left_right);
+        robdd.adjoin(right);
+
+        ARIADNE_TESTING_PROVE(tree.superset(right));
+        ARIADNE_TESTING_PROVE(robdd.superset(right));
+        ARIADNE_TESTING_EXPECT_EQUAL(tree.size(),robdd.size());
+        ARIADNE_TESTING_PROVE(tree.subset(robdd));
+        ARIADNE_TESTING_PROVE(robdd.subset(tree));
+        ARIADNE_TESTING_PROVE(tree.equals(robdd));
+        ARIADNE_TESTING_PROVE(robdd.equals(tree));
+        ARIADNE_TESTING_PROVE(tree.intersects(robdd));
+        ARIADNE_TESTING_PROVE(robdd.intersects(tree));
+        ARIADNE_TESTING_PROVE(same(
+            cast_exact_box(tree.bounding_box()),
+            cast_exact_box(robdd.bounding_box())));
+
+        // The root paving is cloned independently through PavingHandle.
+        PavingHandle copied(robdd_handle);
+        ARIADNE_TESTING_PROVE(copied.superset(right));
+        copied.remove(right);
+        ARIADNE_TESTING_PROVE(not copied.superset(right));
+        ARIADNE_TESTING_PROVE(robdd.superset(right));
+
+        // Child interfaces are live views and modify their owning paving.
+        SubPavingHandle tree_left=tree.branch(false);
+        SubPavingHandle robdd_left=robdd.branch(false);
+        ARIADNE_TESTING_PROVE(tree_left.root_cell()==left);
+        ARIADNE_TESTING_PROVE(robdd_left.root_cell()==left);
+        ARIADNE_TESTING_PROVE(tree_left.superset(left_right));
+        ARIADNE_TESTING_PROVE(robdd_left.superset(left_right));
+        ARIADNE_TESTING_EXPECT_EQUAL(tree_left.size(),robdd_left.size());
+        ARIADNE_TESTING_PROVE(
+            tree_left.subset(static_cast<SubPavingInterface const&>(robdd_left)));
+        ARIADNE_TESTING_PROVE(
+            robdd_left.subset(static_cast<SubPavingInterface const&>(tree_left)));
+
+        // Clone the view via both handle constructors. Mutating either
+        // independent clone must not change the original parent.
+        SubPavingHandle robdd_left_copy(robdd_left);
+        PavingHandle independent_left(
+            static_cast<SubPavingInterface const&>(robdd_left));
+        ARIADNE_TESTING_PROVE(robdd_left_copy.superset(left_right));
+        ARIADNE_TESTING_PROVE(independent_left.superset(left_right));
+        robdd_left_copy.set_root_cell(false);
+        independent_left.set_root_cell(false);
+        ARIADNE_TESTING_PROVE(robdd_left.superset(left_right));
+        ARIADNE_TESTING_PROVE(robdd.superset(left_right));
+        ARIADNE_TESTING_PROVE(not robdd_left_copy.superset(left_right));
+        ARIADNE_TESTING_PROVE(not independent_left.superset(left_right));
+
+        // A grandchild returned through the interface is another live view.
+        SubPavingHandle tree_left_right=
+            static_cast<SubPavingInterface const&>(tree_left).branch(true);
+        SubPavingHandle robdd_left_right=
+            static_cast<SubPavingInterface const&>(robdd_left).branch(true);
+        ARIADNE_TESTING_PROVE(tree_left_right.root_cell()==left_right);
+        ARIADNE_TESTING_PROVE(robdd_left_right.root_cell()==left_right);
+        tree_left_right.set_root_cell(false);
+        robdd_left_right.set_root_cell(false);
+        ARIADNE_TESTING_PROVE(not tree.superset(left_right));
+        ARIADNE_TESTING_PROVE(not robdd.superset(left_right));
+        ARIADNE_TESTING_PROVE(tree.superset(right));
+        ARIADNE_TESTING_PROVE(robdd.superset(right));
+
+        // Local mincing/recombining must leave sibling geometry unchanged.
+        tree_left.mince(2u);
+        robdd_left.mince(2u);
+        tree_left.recombine();
+        robdd_left.recombine();
+        ARIADNE_TESTING_PROVE(tree.superset(right));
+        ARIADNE_TESTING_PROVE(robdd.superset(right));
+
+        // Iterators through the polymorphic interfaces agree.
+        auto it_tree=tree.begin(),end_tree=tree.end();
+        auto it_robdd=robdd.begin(),end_robdd=robdd.end();
+        ARIADNE_TESTING_PROVE(it_tree!=end_tree);
+        ARIADNE_TESTING_PROVE(it_robdd!=end_robdd);
+        ARIADNE_TESTING_PROVE(*it_tree==*it_robdd);
+        ++it_tree;
+        ++it_robdd;
+        ARIADNE_TESTING_PROVE(it_tree==end_tree);
+        ARIADNE_TESTING_PROVE(it_robdd==end_robdd);
+
+        // Constructing a handle from a detached ROBDD paving remains valid
+        // when the source object goes out of scope.
+        PavingHandle independent_full(
+            static_cast<SubPavingInterface const&>(robdd));
+        ARIADNE_TESTING_PROVE(independent_full.superset(right));
+        independent_full.set_root_cell(false);
+        ARIADNE_TESTING_PROVE(robdd.superset(right));
+    }
+
     Void test_common_writable_cell_views() {
         RobddManager manager;
         Grid grid(1u);
@@ -1493,5 +1600,6 @@ int main(int argc, char** argv) {
     ARIADNE_TESTING_ADD_TEST(TestRobddPaving, test_common_view_forward_iterator);
     ARIADNE_TESTING_ADD_TEST(TestRobddPaving, test_outer_box_approximation_between_backends);
     ARIADNE_TESTING_ADD_TEST(TestRobddPaving, test_generic_approximations_between_backends);
+    ARIADNE_TESTING_ADD_TEST(TestRobddPaving, test_polymorphic_paving_handle_and_subpaving_views);
     return ARIADNE_TESTING_RUN_TESTS_WITH_ARGS(argc,argv);
 }

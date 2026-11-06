@@ -1110,7 +1110,12 @@ ForwardConstantIteratorInterface<GridCell>* GridTreeSubpaving::_end() const {
 }
 
 Bool GridTreeSubpaving::equals(const SubPavingInterface& paving) const {
-    return (*this) == dynamic_cast<const GridTreeSubpaving&>(paving);
+    if (auto const* tree=dynamic_cast<GridTreeSubpaving const*>(&paving)) {
+        return (*this) == *tree;
+    }
+    ARIADNE_PRECONDITION_MSG(grid() == paving.grid(),
+        "Cannot compare subpavings from different grids");
+    return subset(paving) and paving.subset(*this);
 }
 
 Bool GridTreeSubpaving::superset(const GridCell& theCell) const {
@@ -1118,11 +1123,30 @@ Bool GridTreeSubpaving::superset(const GridCell& theCell) const {
 }
 
 Bool GridTreeSubpaving::subset(const SubPavingInterface& paving) const {
-    return Ariadne::subset(*this, dynamic_cast<const GridTreeSubpaving&>(paving));
+    if (auto const* tree=dynamic_cast<GridTreeSubpaving const*>(&paving)) {
+        return Ariadne::subset(*this,*tree);
+    }
+    ARIADNE_PRECONDITION_MSG(grid() == paving.grid(),
+        "Cannot compare subpavings from different grids");
+    for (auto it=begin(),end_it=end(); it!=end_it; ++it) {
+        if (not paving.superset(*it)) { return false; }
+    }
+    return true;
 }
 
 Bool GridTreeSubpaving::intersects(const SubPavingInterface& paving) const {
-    return Ariadne::intersect(*this, dynamic_cast<const GridTreeSubpaving&>(paving));
+    if (auto const* tree=dynamic_cast<GridTreeSubpaving const*>(&paving)) {
+        return Ariadne::intersect(*this,*tree);
+    }
+    ARIADNE_PRECONDITION_MSG(grid() == paving.grid(),
+        "Cannot compare subpavings from different grids");
+    for (auto left=begin(),end_left=end(); left!=end_left; ++left) {
+        for (auto right=paving.begin(),end_right=paving.end();
+                right!=end_right; ++right) {
+            if (left->box().overlaps(right->box())) { return true; }
+        }
+    }
+    return false;
 }
 
 GridTreeSubpaving* GridTreeSubpaving::clone( ) const {

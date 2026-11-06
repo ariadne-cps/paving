@@ -22,6 +22,7 @@
 #include "utility/macros.hpp"
 #include "paving/grid_paving.hpp"
 #include "paving/grid_cell_alignment.hpp"
+#include "paving/paving_cell_operations.hpp"
 #include "paving/robdd_paving.hpp"
 
 namespace Ariadne {
@@ -212,6 +213,30 @@ class RobddPavingLeafIterator final
 };
 
 } // anonymous namespace
+
+RobddPaving* RobddPaving::clone() const {
+    return new RobddPaving(*this);
+}
+
+SubPavingInterface* RobddPaving::_branch(Bool right) const {
+    return new PavingCellViewAdapter<RobddPaving>(
+        const_cast<RobddPaving&>(*this),_root_cell.split(right));
+}
+
+ForwardConstantIteratorInterface<GridCell>* RobddPaving::_begin() const {
+    return new RobddPavingLeafIterator(
+        *_manager,_root_cell,_root,_depth,false);
+}
+
+ForwardConstantIteratorInterface<GridCell>* RobddPaving::_end() const {
+    return new RobddPavingLeafIterator(
+        *_manager,_root_cell,_root,_depth,true);
+}
+
+OutputStream& RobddPaving::_write(OutputStream& os) const {
+    os << "RobddPaving(" << _root_cell << ",depth=" << _depth << ")";
+    return os;
+}
 
 RobddPaving::RobddPaving(
         RobddManager& manager, GridTreeSubpaving const& source)

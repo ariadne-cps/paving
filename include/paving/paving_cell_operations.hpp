@@ -277,6 +277,107 @@ PavingCellView<Paving> paving_cell_view(
     return PavingCellView<Paving>(paving,root);
 }
 
+//! \brief Polymorphic bridge for a mutable cell view of a canonical paving.
+//! \details The live view always borrows its owner. clone() instead creates a
+//! detached owner snapshot of the selected cell and returns that snapshot as
+//! SubPavingInterface. In particular, copied SubPavingHandles are independent,
+//! while branch() continues to refer to the current owner.
+//! \tparam Paving A PavingInterface implementation with a detached
+//! subpaving(GridCell) operation and canonical, representation-only mincing.
+//! \warning The owner must outlive this live adapter and its child views.
+template<class Paving>
+class PavingCellViewAdapter final : public SubPavingInterface {
+  public:
+    PavingCellViewAdapter(Paving& paving, GridCell const& root)
+        : _paving(&paving), _view(paving,root) { }
+
+    SubPavingInterface* clone() const override {
+        return new Paving(_paving->subpaving(_view.root_cell()));
+    }
+
+    DimensionType dimension() const override { return _view.dimension(); }
+    Grid const& grid() const override { return _view.grid(); }
+    SizeType size() const override { return _view.size(); }
+    GridCell root_cell() const override { return _view.root_cell(); }
+    Bool superset(GridCell const& cell) const override {
+        return _view.superset(cell);
+    }
+
+    Bool equals(SubPavingInterface const& other) const override {
+        return _paving->subpaving(_view.root_cell()).equals(other);
+    }
+
+    Bool subset(SubPavingInterface const& other) const override {
+        return _paving->subpaving(_view.root_cell()).subset(other);
+    }
+
+    Bool intersects(SubPavingInterface const& other) const override {
+        return _paving->subpaving(_view.root_cell()).intersects(other);
+    }
+
+    Void set_root_cell(Bool enabled) override {
+        _view.set_root_cell(enabled);
+    }
+
+    UpperBoxType bounding_box() const override {
+        return _view.bounding_box();
+    }
+
+    ValidatedLowerKleenean inside(ExactBoxType const& box) const override {
+        return _view.inside(box);
+    }
+
+    ValidatedLowerKleenean separated(ExactBoxType const& box) const override {
+        return _view.separated(box);
+    }
+
+    ValidatedLowerKleenean overlaps(ExactBoxType const& box) const override {
+        return _view.overlaps(box);
+    }
+
+    Void mince(Nat fineness) override {
+        // A canonical ROBDD already represents arbitrary refinement of
+        // each enabled terminal without modifying the DAG. The view has
+        // no persistent depth metadata: mincing it is geometrically a
+        // no-op, unlike physically splitting a binary-tree subpaving.
+        (void)fineness;
+    }
+
+    Void recombine() override {
+        // The BDD manager already canonicalizes the DAG. Recombining
+        // this view cannot change the owner or any of its sibling cells.
+    }
+
+  protected:
+    SubPavingInterface* _branch(Bool right) const override {
+        return new PavingCellViewAdapter(
+            *_paving,_view.root_cell().split(right));
+    }
+
+    ForwardConstantIteratorInterface<GridCell>* _begin() const override {
+        auto cells=std::make_shared<std::vector<GridCell>>();
+        _view.for_each_enabled_leaf([&](GridCell const& cell) {
+            cells->push_back(cell);
+        });
+        return new PavingCellViewIterator(
+            _paving,_view.root_cell(),cells,false);
+    }
+
+    ForwardConstantIteratorInterface<GridCell>* _end() const override {
+        auto cells=std::make_shared<std::vector<GridCell>>();
+        return new PavingCellViewIterator(
+            _paving,_view.root_cell(),cells,true);
+    }
+
+  private:
+    OutputStream& _write(OutputStream& os) const override {
+        return os << "PavingCellViewAdapter(" << _view.root_cell() << ")";
+    }
+
+    Paving* _paving;
+    PavingCellView<Paving> _view;
+};
+
 } // namespace Ariadne
 
 #endif // ARIADNE_PAVING_CELL_OPERATIONS_HPP

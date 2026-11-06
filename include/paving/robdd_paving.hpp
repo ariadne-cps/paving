@@ -36,8 +36,12 @@ class SubPavingInterface;
 //! Copies share immutable canonical ROBDD nodes, but changing one paving's
 //! root leaves other copies unchanged. GridTreePaving/GridTreeCursor semantics
 //! are unaffected. A shared RobddManager must outlive pavings and iterators.
-class RobddPaving {
+class RobddPaving : public virtual PavingInterface {
   public:
+    //! \brief Create an independent paving value for polymorphic handles.
+    //! \details The copy shares only immutable manager-owned BDD nodes.
+    RobddPaving* clone() const override;
+
     //! \brief Encode an existing explicit tree without retaining its node pointers.
     //! \details The root cell and maximal tree depth are copied.
     RobddPaving(RobddManager& manager, GridTreeSubpaving const& source);
@@ -54,35 +58,35 @@ class RobddPaving {
         Robdd const& root, SizeType depth);
 
     //! \brief Geometric root of the represented subpaving.
-    GridCell const& root_cell() const { return _root_cell; }
+    GridCell root_cell() const override { return _root_cell; }
 
     //! \brief Find the smallest primary grid cell enclosing a given box.
     //! \details Uses the same grid geometry and dimension check as the
     //! explicit-tree backend, regardless of the represented Boolean set.
-    GridCell smallest_enclosing_primary_cell(UpperBoxType const& box) const;
+    GridCell smallest_enclosing_primary_cell(UpperBoxType const& box) const override;
 
     //! \brief Axis-aligned bounding box of all enabled cells.
     //! \details The empty paving returns an empty box of the grid dimension.
-    UpperBoxType bounding_box() const;
+    UpperBoxType bounding_box() const override;
 
     //! \brief Certify that the paving lies in the interior of a box.
     //! \details Uses the same conservative narrowing convention as the
     //! explicit binary-tree implementation.
-    ValidatedLowerKleenean inside(ExactBoxType const& box) const;
+    ValidatedLowerKleenean inside(ExactBoxType const& box) const override;
 
     //! \brief Certify separation from a box, including its boundary.
     //! \details Uses conservative widening of the query box.
-    ValidatedLowerKleenean separated(ExactBoxType const& box) const;
+    ValidatedLowerKleenean separated(ExactBoxType const& box) const override;
 
     //! \brief Certify nonempty intersection of interiors with a box.
     //! \details Uses conservative narrowing of the query box.
-    ValidatedLowerKleenean overlaps(ExactBoxType const& box) const;
+    ValidatedLowerKleenean overlaps(ExactBoxType const& box) const override;
 
     //! \brief Underlying grid shared by all cells in the paving.
-    Grid const& grid() const { return _root_cell.grid(); }
+    Grid const& grid() const override { return _root_cell.grid(); }
 
     //! \brief Dimension of the underlying grid.
-    DimensionType dimension() const { return grid().dimension(); }
+    DimensionType dimension() const override { return grid().dimension(); }
 
     //! \brief Immutable Boolean root shared through the manager.
     Robdd const& robdd() const { return _root; }
@@ -123,7 +127,7 @@ class RobddPaving {
     //! \details Unlike enabled_cell_count(), this does not depend on the
     //! requested subdivision depth after a true terminal. This matches the
     //! size of a recombined explicit binary-tree paving.
-    SizeType size() const { return enabled_leaf_count(); }
+    SizeType size() const override { return enabled_leaf_count(); }
 
     //! \brief Common forward-iterator interface used by other paving types.
     //! \details Iterates compact enabled leaves, not fixed-depth cells.
@@ -151,14 +155,14 @@ class RobddPaving {
     //! mince(fineness): max(0,(root_extent+fineness)*dimension-
     //! root_cell.word().size()). Canonical true leaves remain compact,
     //! therefore size() does not change just because of logical mincing.
-    Void mince(Nat fineness);
+    Void mince(Nat fineness) override;
 
     //! \brief Increase logical depth without changing any ROBDD node.
     Void mince_to_depth(SizeType new_depth);
 
     //! \brief Drop unnecessary trailing subdivision levels.
     //! \details Canonical ROBDD reduction already removes equal branches.
-    Void recombine();
+    Void recombine() override;
 
     //! \brief Reconstruct a mutable explicit tree for migration comparisons.
     //! \details Expands all enabled paths to depth() and may be exponential.
@@ -166,7 +170,7 @@ class RobddPaving {
 
     //! \brief Enable or disable the entire root cell.
     //! \details Replaces the ROBDD root with a terminal and resets depth to 0.
-    Void set_root_cell(Bool enabled);
+    Void set_root_cell(Bool enabled) override;
 
     //! \brief Disable all cells without changing the geometric root.
     Void clear();
@@ -176,50 +180,50 @@ class RobddPaving {
 
     //! \brief In-place union with any subpaving on the same grid.
     //! \details Imports its enabled cells into this paving's manager.
-    Void adjoin(SubPavingInterface const& other);
+    Void adjoin(SubPavingInterface const& other) override;
 
     //! \brief In-place intersection with a paving on the same grid and manager.
     Void restrict(RobddPaving const& other);
 
     //! \brief In-place intersection with a representation-neutral subpaving.
-    Void restrict(SubPavingInterface const& other);
+    Void restrict(SubPavingInterface const& other) override;
 
     //! \brief In-place difference with a paving on the same grid and manager.
     Void remove(RobddPaving const& other);
 
     //! \brief In-place removal of any subpaving on the same grid.
-    Void remove(SubPavingInterface const& other);
+    Void remove(SubPavingInterface const& other) override;
 
     //! \brief Adjoin the outer approximation of a compact set.
     //! \details Uses certified separation, optional open-set coverage,
     //! and the grid-relative target depth of GridTreePaving. Does not
     //! materialize an explicit binary tree.
     Void adjoin_outer_approximation(
-        EffectiveEuclideanCompactSetInterface const& set, Nat fineness);
+        EffectiveEuclideanCompactSetInterface const& set, Nat fineness) override;
 
     //! \brief Adjoin a grid-aligned outer approximation of a box.
     //! \details Delegates through the compact-set overload, matching
     //! GridTreePaving's geometric and fineness conventions.
-    Void adjoin_outer_approximation(UpperBoxType const& box, Nat fineness);
+    Void adjoin_outer_approximation(UpperBoxType const& box, Nat fineness) override;
 
     //! \brief Adjoin the certified inner approximation of an open set.
     //! \details The primary cell extent bounds the search; only cells
     //! with a verified coverage proof are inserted into the ROBDD.
     Void adjoin_inner_approximation(
         EffectiveEuclideanOpenSetInterface const& set,
-        Nat extent, Nat fineness);
+        Nat extent, Nat fineness) override;
 
     //! \brief Adjoin an inner approximation using the set's bounding box.
     //! \details Matches GridTreePaving's extent selection and then
     //! delegates to the open-set overload.
     Void adjoin_inner_approximation(
-        EffectiveEuclideanSetInterface const& set, Nat fineness);
+        EffectiveEuclideanSetInterface const& set, Nat fineness) override;
 
     //! \brief Adjoin a cell from the same grid.
-    Void adjoin(GridCell const& cell);
+    Void adjoin(GridCell const& cell) override;
 
     //! \brief Remove a cell from the same grid.
-    Void remove(GridCell const& cell);
+    Void remove(GridCell const& cell) override;
 
     //! \brief Return an immutable union with a paving on the same grid and manager.
     RobddPaving join(RobddPaving const& other) const;
@@ -234,19 +238,19 @@ class RobddPaving {
     Bool subset(RobddPaving const& other) const;
 
     //! \brief Test subset inclusion against an arbitrary subpaving.
-    Bool subset(SubPavingInterface const& other) const;
+    Bool subset(SubPavingInterface const& other) const override;
 
     //! \brief Test whether two compatible pavings intersect.
     Bool intersects(RobddPaving const& other) const;
 
     //! \brief Test intersection against an arbitrary subpaving.
-    Bool intersects(SubPavingInterface const& other) const;
+    Bool intersects(SubPavingInterface const& other) const override;
 
     //! \brief Test geometric set equality against an arbitrary subpaving.
-    Bool equals(SubPavingInterface const& other) const;
+    Bool equals(SubPavingInterface const& other) const override;
 
     //! \brief Test whether the paving covers a geometric cell completely.
-    Bool superset(GridCell const& cell) const;
+    Bool superset(GridCell const& cell) const override;
 
     //! \brief Return a detached subpaving restricted to a descendant cell.
     //! \details Repeatedly cofactoring each binary subdivision bit avoids
@@ -262,7 +266,14 @@ class RobddPaving {
     //! branch view whose mutations must propagate to the parent.
     RobddPaving branch(Bool right) const;
 
+  protected:
+    //! \brief Create a live, non-owning child view through SubPavingInterface.
+    SubPavingInterface* _branch(Bool right) const override;
+    ForwardConstantIteratorInterface<GridCell>* _begin() const override;
+    ForwardConstantIteratorInterface<GridCell>* _end() const override;
+
   private:
+    OutputStream& _write(OutputStream& os) const override;
     Void _check_compatible(RobddPaving const& other) const;
     GridCell _common_root(RobddPaving const& other) const;
     std::pair<Robdd,SizeType> _lift_to(GridCell const& ancestor) const;

@@ -764,3 +764,57 @@ view adapter, including clone semantics and subregion-local
 `mince`/`recombine` effects. No changes were made to
 `PavingHandle`, `bdd`, `drawing` or `reasoning`.
 CI verification is pending.
+
+## 2026-11-06 - Polymorphic ROBDD paving and generic live branch adapter
+
+`RobddPaving` now derives from `PavingInterface` and implements its
+remaining virtual hooks: `clone()`, `_branch()`, `_begin()`,
+`_end()` and `_write()`. Its `root_cell()` returns `GridCell`
+by value as required by the abstract interface. Its existing
+native set operations, geometric queries, mincing and
+approximation signatures are marked `override`; no alternate
+paving type or rename of `PavingHandle` was introduced.
+
+The shared `paving_cell_operations.hpp` provides a
+`PavingCellViewAdapter<Paving>` implementing `SubPavingInterface`
+for a backend with detached `subpaving(GridCell)` snapshots.
+The adapter borrows the mutable owner, while `_branch()`
+returns another borrowing adapter for the selected child.
+`set_root_cell()` updates only the designated subcell through
+the already-tested geometric cell mutation primitive.
+
+The adapter's `clone()` returns a newly owned value of the
+underlying paving's `subpaving(root_cell)`. Consequently,
+copying a `SubPavingHandle` or constructing `PavingHandle`
+from a branch yields an independent paving; modifying that
+clone does not affect the original. No new `RobddSubpaving`
+backend-specific class is needed. Geometric queries and
+snapshot-safe iterators reuse `PavingCellView`. For a
+canonical ROBDD, `mince()` and `recombine()` on a view
+are geometry-preserving no-ops, intentionally avoiding
+modifications to sibling regions or to the owner's global
+logical depth. This is *geometric* rather than physical
+leaf-count equivalence: the explicit tree can expand its
+storage during local mincing, whereas a canonical ROBDD
+retains the reduced Boolean DAG.
+
+An existing limitation in `GridTreeSubpaving` comparisons
+was also addressed: `equals`, `subset` and `intersects`
+previously required the right operand to be another
+`GridTreeSubpaving` through a mandatory `dynamic_cast`.
+The specialized tree-to-tree path is preserved, and a
+representation-neutral geometric fallback is now used for
+other `SubPavingInterface` implementations. This is
+necessary for symmetric cross-backend polymorphic queries.
+
+The integration regression constructs both backends through
+`PavingHandle`, compares geometric sets through
+`PavingInterface`, checks cloned handle independence and
+mutable nested child views, preserves sibling geometry
+through local refinement/recombination, exercises virtual
+iteration and verifies constructing an independent
+`PavingHandle` from a `SubPavingInterface`. The
+`RobddManager` must outlive all ROBDD pavings and
+iterators; a live view's owner must outlive the view.
+No updates to `bdd`, `drawing` or `reasoning`.
+This increment requires CI verification.
