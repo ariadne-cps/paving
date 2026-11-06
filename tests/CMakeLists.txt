@@ -5,7 +5,7 @@ set(UNIT_TESTS
     test_grid
     test_grid_paving
     test_grid_paving_extensions
-    test_robdd_grid_paving
+    test_robdd_paving
     test_paver
     test_paving
     test_set_approximation

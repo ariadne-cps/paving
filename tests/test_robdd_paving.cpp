@@ -1,5 +1,5 @@
 /***************************************************************************
- *            test_robdd_grid_paving.cpp
+ *            test_robdd_paving.cpp
  *
  *  Copyright  2026  Luca Geretti
  ****************************************************************************/
@@ -16,17 +16,17 @@
 #include <type_traits>
 #include <vector>
 
-#include "paving/binary_tree_grid_paving.hpp"
+#include "paving/binary_tree_paving.hpp"
 #include "paving/grid_paving.hpp"
-#include "paving/robdd_grid_paving.hpp"
+#include "paving/robdd_paving.hpp"
 #include "ariadne-testing.hpp"
 
 using namespace Ariadne;
 
-static_assert(std::is_same_v<BinaryTreeGridPaving,GridTreePaving>);
+static_assert(std::is_same_v<BinaryTreePaving,GridTreePaving>);
 
 
-class TestRobddGridPaving : public Ariadne::Testing::ContextFixture {
+class TestRobddPaving : public Ariadne::Testing::ContextFixture {
   public:
     using ContextFixture::ContextFixture;
 
@@ -40,7 +40,7 @@ class TestRobddGridPaving : public Ariadne::Testing::ContextFixture {
         tree.recombine();
 
         GridTreeSubpaving source(grid,2u,prefix,&tree);
-        RobddGridPaving snapshot(manager,source);
+        RobddPaving snapshot(manager,source);
         ARIADNE_TESTING_EXPECT_EQUAL(snapshot.depth(),3u);
         ARIADNE_TESTING_PROVE(snapshot.root_cell() == source.root_cell());
         ARIADNE_TESTING_PROVE(not snapshot.is_empty());
@@ -86,8 +86,8 @@ class TestRobddGridPaving : public Ariadne::Testing::ContextFixture {
         RobddManager manager;
         Grid grid(1u);
         GridCell root(grid,0u,BinaryWord{});
-        auto full = RobddGridPaving(manager,root,manager.constant(true),0u);
-        auto empty = RobddGridPaving(manager,root,manager.constant(false),0u);
+        auto full = RobddPaving(manager,root,manager.constant(true),0u);
+        auto empty = RobddPaving(manager,root,manager.constant(false),0u);
         ARIADNE_TESTING_PROVE(full.is_enabled(BinaryWord{}));
         ARIADNE_TESTING_PROVE(not empty.is_enabled(BinaryWord{}));
         ARIADNE_TESTING_EXPECT_EQUAL(full.enabled_cell_count(),1u);
@@ -112,7 +112,7 @@ class TestRobddGridPaving : public Ariadne::Testing::ContextFixture {
 
         BinaryTreeNode enabled(true);
         GridTreeSubpaving source(grid,0u,BinaryWord{},&enabled);
-        RobddGridPaving imported(manager,source);
+        RobddPaving imported(manager,source);
         ARIADNE_TESTING_PROVE(imported.robdd().is_true());
         ARIADNE_TESTING_PROVE(imported.to_binary_tree()->is_enabled());
     }
@@ -132,8 +132,8 @@ class TestRobddGridPaving : public Ariadne::Testing::ContextFixture {
 
         GridTreeSubpaving left_explicit(grid,0u,BinaryWord{},&left_tree);
         GridTreeSubpaving right_explicit(grid,0u,BinaryWord{},&right_tree);
-        RobddGridPaving lhs(manager,left_explicit);
-        RobddGridPaving rhs(manager,right_explicit);
+        RobddPaving lhs(manager,left_explicit);
+        RobddPaving rhs(manager,right_explicit);
         ARIADNE_TESTING_PROVE(not lhs.intersects(rhs));
         ARIADNE_TESTING_PROVE(not lhs.subset(rhs));
         ARIADNE_TESTING_PROVE(lhs.subset(lhs));
@@ -166,14 +166,14 @@ class TestRobddGridPaving : public Ariadne::Testing::ContextFixture {
         RobddManager foreign;
         auto foreign_value = foreign.variable(0u);
         ARIADNE_TESTING_EXPECT_EXCEPTION(
-            RobddGridPaving(manager,root,foreign_value,1u));
+            RobddPaving(manager,root,foreign_value,1u));
         ARIADNE_TESTING_EXPECT_EXCEPTION(
-            RobddGridPaving(manager,root,manager.variable(2u),2u));
-        RobddGridPaving other_manager(foreign,root,foreign.variable(0u),1u);
+            RobddPaving(manager,root,manager.variable(2u),2u));
+        RobddPaving other_manager(foreign,root,foreign.variable(0u),1u);
         ARIADNE_TESTING_EXPECT_EXCEPTION(lhs.join(other_manager));
         ARIADNE_TESTING_EXPECT_EXCEPTION(lhs.subset(other_manager));
         GridCell different_root(grid,0u,make_binary_word("0"));
-        RobddGridPaving wrong_cell(manager,different_root,manager.variable(0u),1u);
+        RobddPaving wrong_cell(manager,different_root,manager.variable(0u),1u);
         // Different geometric roots are aligned rather than rejected.
         ARIADNE_TESTING_PROVE(not lhs.intersects(wrong_cell));
         ARIADNE_TESTING_EXPECT_EXCEPTION(lhs.for_each_enabled_cell(
@@ -187,8 +187,8 @@ class TestRobddGridPaving : public Ariadne::Testing::ContextFixture {
 
         GridCell left_cell(grid,0u,make_binary_word("0"));
         GridCell right_cell(grid,0u,make_binary_word("1"));
-        RobddGridPaving lhs(manager,left_cell,enabled,0u);
-        RobddGridPaving rhs(manager,right_cell,enabled,0u);
+        RobddPaving lhs(manager,left_cell,enabled,0u);
+        RobddPaving rhs(manager,right_cell,enabled,0u);
 
         auto united = lhs.join(rhs);
         ARIADNE_TESTING_PROVE(united.root_cell() == GridCell(grid,0u,BinaryWord{}));
@@ -203,7 +203,7 @@ class TestRobddGridPaving : public Ariadne::Testing::ContextFixture {
         ARIADNE_TESTING_EXPECT_EQUAL(lhs.difference(rhs).enabled_cell_count(),1u);
 
         GridCell ancestor(grid,0u,BinaryWord{});
-        auto parent = RobddGridPaving(manager,ancestor,enabled,0u);
+        auto parent = RobddPaving(manager,ancestor,enabled,0u);
         ARIADNE_TESTING_PROVE(lhs.subset(parent));
         ARIADNE_TESTING_PROVE(parent.intersects(lhs));
         ARIADNE_TESTING_PROVE(parent.join(lhs).robdd().is_true());
@@ -212,7 +212,7 @@ class TestRobddGridPaving : public Ariadne::Testing::ContextFixture {
         ARIADNE_TESTING_PROVE(parent_minus_left.is_enabled(make_binary_word("1")));
 
         GridCell deep_cell(grid,0u,make_binary_word("010"));
-        RobddGridPaving deep(manager,deep_cell,enabled,0u);
+        RobddPaving deep(manager,deep_cell,enabled,0u);
         auto shared = lhs.join(deep);
         ARIADNE_TESTING_PROVE(shared.root_cell() == left_cell);
         ARIADNE_TESTING_PROVE(shared.robdd().is_true());
@@ -222,7 +222,7 @@ class TestRobddGridPaving : public Ariadne::Testing::ContextFixture {
 
         // Extent 1 has primary path '1' to extent 0 in dimension 1.
         GridCell raised_cell(grid,1u,BinaryWord{});
-        auto raised = RobddGridPaving(manager,raised_cell,enabled,0u);
+        auto raised = RobddPaving(manager,raised_cell,enabled,0u);
         auto across_extent = raised.intersection(lhs);
         ARIADNE_TESTING_PROVE(across_extent.root_cell() == raised_cell);
         ARIADNE_TESTING_EXPECT_EQUAL(across_extent.depth(),2u);
@@ -234,7 +234,7 @@ class TestRobddGridPaving : public Ariadne::Testing::ContextFixture {
 
         // Disjoint paving roots at different extents are still legal.
         GridCell distant_cell(grid,1u,make_binary_word("0"));
-        RobddGridPaving distant(manager,distant_cell,enabled,0u);
+        RobddPaving distant(manager,distant_cell,enabled,0u);
         ARIADNE_TESTING_PROVE(not distant.intersects(lhs));
         auto separated_union = distant.join(lhs);
         ARIADNE_TESTING_PROVE(
@@ -277,7 +277,7 @@ class TestRobddGridPaving : public Ariadne::Testing::ContextFixture {
 
         // An independent grid is never silently aligned.
         Grid other_grid(2u);
-        RobddGridPaving incompatible(
+        RobddPaving incompatible(
             manager,GridCell(other_grid,0u,BinaryWord{}),disabled,0u);
         ARIADNE_TESTING_EXPECT_EXCEPTION(lhs.join(incompatible));
         ARIADNE_TESTING_EXPECT_EXCEPTION(lhs.subset(incompatible));
@@ -288,8 +288,8 @@ class TestRobddGridPaving : public Ariadne::Testing::ContextFixture {
         Grid grid(1u);
         GridCell root(grid,0u,BinaryWord{});
 
-        RobddGridPaving full(manager,root,manager.constant(true),4u);
-        RobddGridPaving empty(manager,root,manager.constant(false),4u);
+        RobddPaving full(manager,root,manager.constant(true),4u);
+        RobddPaving empty(manager,root,manager.constant(false),4u);
         ARIADNE_TESTING_EXPECT_EQUAL(full.enabled_cell_count(),16u);
         ARIADNE_TESTING_EXPECT_EQUAL(full.enabled_leaf_count(),1u);
         ARIADNE_TESTING_EXPECT_EQUAL(empty.enabled_leaf_count(),0u);
@@ -308,7 +308,7 @@ class TestRobddGridPaving : public Ariadne::Testing::ContextFixture {
         // x0 OR x1: the true branch at x0 yields a single prefix leaf.
         auto x0 = manager.variable(0u);
         auto x1 = manager.variable(1u);
-        RobddGridPaving either(
+        RobddPaving either(
             manager,root,manager.disjunction(x0,x1),3u);
         ARIADNE_TESTING_EXPECT_EQUAL(either.enabled_cell_count(),6u);
         ARIADNE_TESTING_EXPECT_EQUAL(either.enabled_leaf_count(),2u);
@@ -321,7 +321,7 @@ class TestRobddGridPaving : public Ariadne::Testing::ContextFixture {
         ARIADNE_TESTING_PROVE(either_leaves[1u] == make_binary_word("1"));
 
         // x1 ignores x0, so its true leaf occurs under both x0 branches.
-        RobddGridPaving skipped(manager,root,x1,3u);
+        RobddPaving skipped(manager,root,x1,3u);
         ARIADNE_TESTING_EXPECT_EQUAL(skipped.enabled_cell_count(),4u);
         ARIADNE_TESTING_EXPECT_EQUAL(skipped.enabled_leaf_count(),2u);
         std::vector<BinaryWord> skipped_leaves;
@@ -334,7 +334,7 @@ class TestRobddGridPaving : public Ariadne::Testing::ContextFixture {
 
         // A complemented reference has the same short-leaf semantics.
         auto conjunction = manager.conjunction(x0,x1);
-        RobddGridPaving complemented(
+        RobddPaving complemented(
             manager,root,manager.negation(conjunction),3u);
         ARIADNE_TESTING_EXPECT_EQUAL(complemented.enabled_cell_count(),6u);
         ARIADNE_TESTING_EXPECT_EQUAL(complemented.enabled_leaf_count(),2u);
@@ -371,7 +371,7 @@ class TestRobddGridPaving : public Ariadne::Testing::ContextFixture {
             }
             explicit_tree.recombine();
             GridTreeSubpaving source(grid,2u,prefix,&explicit_tree);
-            RobddGridPaving snapshot(manager,source);
+            RobddPaving snapshot(manager,source);
             // A fully uniform truth table can recombine to a terminal.
             // Restore the declared three-variable universe for evaluation.
             snapshot.mince_to_depth(3u);
@@ -412,12 +412,12 @@ class TestRobddGridPaving : public Ariadne::Testing::ContextFixture {
 };
 
 int main(int argc, char** argv) {
-    ARIADNE_TESTING_SUITE("test_robdd_grid_paving");
-    ARIADNE_TESTING_ADD_TEST(TestRobddGridPaving, test_import_and_explicit_tree_oracle);
-    ARIADNE_TESTING_ADD_TEST(TestRobddGridPaving, test_terminals_and_complemented_roots);
-    ARIADNE_TESTING_ADD_TEST(TestRobddGridPaving, test_set_operations_and_preconditions);
-    ARIADNE_TESTING_ADD_TEST(TestRobddGridPaving, test_distinct_roots_and_extents);
-    ARIADNE_TESTING_ADD_TEST(TestRobddGridPaving, test_compact_leaf_iteration);
-    ARIADNE_TESTING_ADD_TEST(TestRobddGridPaving, test_compact_leaves_exhaustive_truth_tables);
+    ARIADNE_TESTING_SUITE("test_robdd_paving");
+    ARIADNE_TESTING_ADD_TEST(TestRobddPaving, test_import_and_explicit_tree_oracle);
+    ARIADNE_TESTING_ADD_TEST(TestRobddPaving, test_terminals_and_complemented_roots);
+    ARIADNE_TESTING_ADD_TEST(TestRobddPaving, test_set_operations_and_preconditions);
+    ARIADNE_TESTING_ADD_TEST(TestRobddPaving, test_distinct_roots_and_extents);
+    ARIADNE_TESTING_ADD_TEST(TestRobddPaving, test_compact_leaf_iteration);
+    ARIADNE_TESTING_ADD_TEST(TestRobddPaving, test_compact_leaves_exhaustive_truth_tables);
     return ARIADNE_TESTING_RUN_TESTS_WITH_ARGS(argc,argv);
 }

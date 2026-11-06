@@ -207,3 +207,53 @@ common `PavingInterface` is deciding what `size()` means for
 an immutable ROBDD paving after logical mincing, and
 implementing iterator/geometry operations without prematurely
 materializing the full decision tree.
+
+## 2026-11-06 - Backend names and long-term public Paving handle
+
+The backend types are now named `BinaryTreePaving` and `RobddPaving`.
+Both provide pavings on a `Grid`, which is already required by
+`PavingInterface`; the "Grid" qualifier in the implementation names
+adds no information. The newly introduced names
+`BinaryTreeGridPaving` / `RobddGridPaving` and their headers are
+**deleted outright**. There are no transition compatibility headers or
+aliases for these two names.
+
+`BinaryTreePaving` is a public type alias of the long-established
+`GridTreePaving` concrete class. That original class is still used
+throughout the paving implementation and downstream reasoning, and
+renaming it is a separate legacy migration rather than retention of
+one of the new temporary names. `RobddPaving` is a standalone class,
+with the same algorithms and constraints as the previous prototype.
+The C++ implementation/test files, umbrella header, CMake declarations
+and README use the new names.
+
+### Planned public interface, not implemented in this naming change
+
+The intended public value-like type is `Paving`, replacing the
+historical `PavingHandle`; `BinaryTreePaving` and `RobddPaving`
+are implementation choices at construction. The existing
+`PavingInterface` and `PavingHandle` expose polymorphic operations
+and copy-by-clone today. To construct `Paving` from
+`RobddPaving`, however, the latter first needs a faithful complete
+implementation of `PavingInterface`, including the subpaving
+interface and mutation semantics. The shared `RobddManager` lifetime,
+clone/copy behaviour, and the difference between compact-leaf size and
+fixed-depth assignment counts must be resolved explicitly.
+
+Current downstream `ariadne-cps/reasoning` dependencies go beyond
+spelling: `Storage::_state_set` owns `GridTreePaving` by value,
+`Storage::state_set()` returns a concrete reference, and
+`Storage::state_auxiliary_set()` uses `outer_skew_product`.
+`Storage` also calls functions not currently exposed by
+`PavingInterface`, such as `clear`, `restrict_to_extent`,
+`adjoin_lower_approximation`, and concrete drawing support.
+`LabelledStorage`, `LabelledGridTreePaving`,
+`SpaceAnalysisTraits<EuclideanSpace>`, and hybrid storage/type
+traits require coordinated follow-up changes. The paver integration
+already accepts `PavingInterface&`, which is a useful interface
+boundary.
+
+This commit does *not* rename `PavingHandle`, modify
+`PavingInterface`, change `Reasoning`, or claim that `RobddPaving`
+is already interchangeable with `BinaryTreePaving`. No change is
+made to `ariadne-cps/bdd`. CI validation is required.

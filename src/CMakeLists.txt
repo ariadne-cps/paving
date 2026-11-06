@@ -2,7 +2,7 @@ add_library(PAVING_SRC OBJECT
     binary_tree.cpp
     grid.cpp
     grid_paving.cpp
-    robdd_grid_paving.cpp
+    robdd_paving.cpp
     paver.cpp
     set_approximation.cpp
 )

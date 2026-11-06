@@ -29,15 +29,14 @@ Paving depends directly on:
 
 Set provides Linear Programming, Constraint Solving, Function, Geometry and the lower layers transitively. BDD provides its Threading and other lower dependencies transitively. The CMake build includes and links both Set and BDD; existing paving binary-tree algorithms are not replaced by the BDD implementation.
 
-## Grid paving representations
+## Paving representations
 
-Two representation-specific C++ names are available:
+The two representation-specific C++ names are:
 
-- `BinaryTreeGridPaving` (header
-  `paving/binary_tree_grid_paving.hpp`): an alias of the existing
-  `GridTreePaving` implementation, retaining full legacy behaviour and
-  compatibility.
-- `RobddGridPaving` (header `paving/robdd_grid_paving.hpp`):
+- `BinaryTreePaving` (header
+  `paving/binary_tree_paving.hpp`): the public name of the existing
+  `GridTreePaving` implementation, which remains used by legacy clients.
+- `RobddPaving` (header `paving/robdd_paving.hpp`):
   an experimental ROBDD-backed paving snapshot.
 
 The types do not yet offer identical functionality. In particular,
@@ -46,7 +45,7 @@ the ROBDD prototype does not yet implement the complete
 
 ## Experimental ROBDD paving snapshot
 
-`RobddGridPaving` is an additive prototype for comparing immutable
+`RobddPaving` is an additive prototype for comparing immutable
 ROBDD storage with the current explicit binary-tree backend. It imports a
 `GridTreeSubpaving`, retains the geometric `GridCell` root and a logical
 subdivision depth, and stores membership in a shared `RobddManager`.
