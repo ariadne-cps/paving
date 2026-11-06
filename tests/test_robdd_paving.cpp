@@ -712,11 +712,11 @@ class TestRobddPaving : public Ariadne::Testing::ContextFixture {
                     BinaryWord suffix;
                     suffix.push_back((mask & 2u) != 0u);
                     suffix.push_back((mask & 1u) != 0u);
-                    BinaryWord full;
-                    full.push_back(side);
-                    full.append(suffix);
+                    BinaryWord full_path;
+                    full_path.push_back(side);
+                    full_path.append(suffix);
                     ARIADNE_TESTING_EXPECT_EQUAL(
-                        branch.is_enabled(suffix),oracle.is_enabled(full));
+                        branch.is_enabled(suffix),oracle.is_enabled(full_path));
                 }
             }
         }
