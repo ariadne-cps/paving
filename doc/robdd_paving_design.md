@@ -917,3 +917,35 @@ This change is solely test organization. The production
 names, as does the independent `test_grid_paving_extensions` suite.
 No changes to the `bdd`, `drawing` or `reasoning` repositories.
 The rename and test relocation require CI validation.
+
+## 2026-11-06 - Polymorphic equivalence across nonzero primary extents
+
+Extended `test_paving_backends.cpp` with
+`test_polymorphic_alignment_across_primary_extents`. This is a
+focused cross-backend regression covering one, two and three
+dimensions at primary extents 1 and 2. Both implementations are
+constructed independently with the same geometric root through
+`PavingHandle`. The test enables cells at both the owner's
+primary extent and zero extent, so the ROBDD must align
+subdivision variables and the binary tree must align its
+nodes across primary-cell boundaries.
+
+After each mutation sequence, an external observer compares
+geometric properties: normalized enabled-leaf counts,
+bounding boxes, mutual coverage of each backend's enabled
+cells by the other (using only `superset(GridCell)`),
+and membership of eight probe subcells at two primary
+extents. No mixed-backend paving set operation is used.
+
+The test also checks that live `SubPavingHandle` child and
+grandchild views propagate local changes to the original
+owners, that copied child handles retain independent
+snapshots, that sibling regions remain enabled, and that
+copies of the original `PavingHandle` remain unchanged.
+As required by the binary-tree ownership rules, borrowed
+subpaving handles are destroyed before recombining the tree.
+
+This supplements the exhaustive extent-zero truth-table
+regressions with a different geometric alignment path;
+it is not a performance benchmark and does not change
+any production API. The full CI matrix must validate it.
