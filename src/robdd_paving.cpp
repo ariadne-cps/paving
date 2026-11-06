@@ -15,6 +15,7 @@
 
 #include <algorithm>
 #include <limits>
+#include <memory>
 #include <optional>
 #include <stdexcept>
 #include <utility>
@@ -29,6 +30,43 @@
 namespace Ariadne {
 
 namespace {
+
+
+// Compact Boolean prefix trie: a covered node represents its entire region.
+// Insertion of a shallow cell subsumes all deeper descendants, while inserting
+// a descendant under an already-covered ancestor is a no-op. The trie is
+// local to bulk construction and is destroyed before returning.
+struct CellPrefixTrie {
+    Bool covered=false;
+    std::unique_ptr<CellPrefixTrie> low;
+    std::unique_ptr<CellPrefixTrie> high;
+};
+
+void insert_cell_path(CellPrefixTrie& root,BinaryWord const& path) {
+    CellPrefixTrie* node=&root;
+    for(SizeType i=0u;i<path.size();++i) {
+        if(node->covered) { return; }
+        std::unique_ptr<CellPrefixTrie>& child=
+            path[i] ? node->high : node->low;
+        if(not child) { child=std::make_unique<CellPrefixTrie>(); }
+        node=child.get();
+    }
+    node->covered=true;
+    node->low.reset();
+    node->high.reset();
+}
+
+Robdd encode_cell_trie(
+        RobddManager& manager,CellPrefixTrie const* node,SizeType level) {
+    if(node==nullptr) { return manager.constant(false); }
+    if(node->covered) { return manager.constant(true); }
+    if(not node->low and not node->high) {
+        return manager.constant(false);
+    }
+    Robdd low=encode_cell_trie(manager,node->low.get(),level+1u);
+    Robdd high=encode_cell_trie(manager,node->high.get(),level+1u);
+    return manager.make_node(BddVariable(level),low,high);
+}
 
 // Encode the explicit leaf/branch representation in natural variable order.
 // A uniform leaf becomes a terminal, independently of its logical depth.
@@ -265,6 +303,34 @@ RobddPaving::RobddPaving(
         "ROBDD root refers to a subdivision outside the declared depth");
 }
 
+
+RobddPaving RobddPaving::from_cells(
+        RobddManager& manager,GridCell const& root_cell,
+        std::vector<GridCell> const& cells) {
+    // Validate and normalize all relative paths before inserting any BDD
+    // nodes. A GridCell can have a different primary extent but still
+    // represent a descendant of the supplied geometric root.
+    std::vector<BinaryWord> paths;
+    paths.reserve(cells.size());
+    SizeType maximum_depth=0u;
+    for(GridCell const& cell:cells) {
+        ARIADNE_PRECONDITION_MSG(root_cell.grid()==cell.grid(),
+            "Bulk ROBDD cells must lie on the same grid");
+        BinaryWord path=relative_cell_path(root_cell,cell);
+        ARIADNE_PRECONDITION_MSG(
+            path.size()<std::numeric_limits<SizeType>::max(),
+            "Bulk ROBDD path exceeds representable decision depth");
+        maximum_depth=std::max(maximum_depth,path.size());
+        paths.push_back(std::move(path));
+    }
+    CellPrefixTrie trie;
+    for(BinaryWord const& path:paths) {
+        insert_cell_path(trie,path);
+    }
+    Robdd root=encode_cell_trie(manager,&trie,0u);
+    return RobddPaving(manager,root_cell,root,maximum_depth);
+}
+
 Bool RobddPaving::is_enabled(BinaryWord const& path) const {
     ARIADNE_PRECONDITION_MSG(path.size() == _depth,
         "Paving membership requires a path of the snapshot's logical depth");
@@ -451,6 +517,25 @@ RobddPaving robdd_operand(SubPavingInterface const& other) {
     throw std::invalid_argument("ROBDD paving requires a ROBDD-backed operand");
 }
 
+
+Void RobddPaving::adjoin_cells_bulk(std::vector<GridCell> const& cells) {
+    if(cells.empty()) { return; }
+    GridCell root=_root_cell;
+    for(GridCell const& cell:cells) {
+        ARIADNE_PRECONDITION_MSG(grid()==cell.grid(),
+            "Cannot bulk-adjoin cells from another grid");
+        root=common_root_cell(root,cell);
+    }
+    RobddPaving additions=from_cells(*_manager,root,cells);
+    if(is_empty() and _depth==0u) {
+        // Only a genuinely depth-zero empty paving can discard its old
+        // metadata. A minced empty paving must retain its logical depth.
+        *this=std::move(additions);
+    } else {
+        adjoin(additions);
+    }
+}
+
 Void RobddPaving::adjoin(SubPavingInterface const& other) {
     ARIADNE_PRECONDITION_MSG(grid() == other.grid(),
         "Cannot adjoin a subpaving on another grid");
@@ -517,7 +602,7 @@ Void RobddPaving::adjoin_outer_approximation(
             visit(cell.split(true),depth+1u);
         };
     visit(enclosing_root,0u);
-    for (GridCell const& cell : selected) { adjoin(cell); }
+    adjoin_cells_bulk(selected);
 }
 
 Void RobddPaving::adjoin_outer_approximation(
@@ -564,7 +649,7 @@ Void RobddPaving::adjoin_inner_approximation(
             visit(cell.split(true),depth+1u);
         };
     visit(enclosing_root,0u);
-    for (GridCell const& cell : selected) { adjoin(cell); }
+    adjoin_cells_bulk(selected);
 }
 
 Void RobddPaving::adjoin_inner_approximation(

@@ -19,6 +19,7 @@
 #include <functional>
 #include <memory>
 #include <utility>
+#include <vector>
 
 #include "bdd/robdd.hpp"
 #include "paving/binary_tree.hpp"
@@ -56,6 +57,17 @@ class RobddPaving : public virtual PavingInterface {
     RobddPaving(
         RobddManager& manager, GridCell const& root_cell,
         Robdd const& root, SizeType depth);
+
+    //! \brief Build the exact union of arbitrary cells in one bottom-up pass.
+    //! \details Builds a prefix trie and reduces it through the shared BDD
+    //! manager. Duplicate, overlapping and ancestor/descendant cells are
+    //! supported, including cells with different primary-cell extents.
+    //! No per-cell BDD union or explicit paving tree is materialized.
+    //! The manager must outlive the returned paving.
+    //! \pre All cells belong to root_cell.grid() and lie inside root_cell.
+    static RobddPaving from_cells(
+        RobddManager& manager, GridCell const& root_cell,
+        std::vector<GridCell> const& cells);
 
     //! \brief Geometric root of the represented subpaving.
     GridCell root_cell() const override { return _root_cell; }
@@ -177,6 +189,12 @@ class RobddPaving : public virtual PavingInterface {
 
     //! \brief In-place union with a paving on the same grid and manager.
     Void adjoin(RobddPaving const& other);
+
+    //! \brief Adjoin many cells by building one ROBDD and taking one union.
+    //! \details Empty input is a no-op; the current paving need not be empty.
+    //! The geometric root is enlarged as required by the input cells.
+    //! Input validation precedes changes to this paving's root value.
+    Void adjoin_cells_bulk(std::vector<GridCell> const& cells);
 
     //! \brief In-place union with any subpaving on the same grid.
     //! \details Imports its enabled cells into this paving's manager.

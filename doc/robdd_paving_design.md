@@ -1386,3 +1386,45 @@ mutations per sample may grow toward --max-iterations, allowing
 submicrosecond operations to approach --min-sample-ms without
 allocating thousands of copies simultaneously. No BDD library or
 backend semantics were altered by this benchmark iteration.
+
+## 2026-11-06 - Direct ROBDD batch compilation from grid-cell prefixes
+
+RobddPaving::from_cells(manager,root_cell,vector<GridCell>) is a native
+construction primitive. Each input is normalized with relative_cell_path,
+requiring the same grid and containment within the explicit root cell.
+A temporary prefix trie canonicalizes overlapping, duplicate and
+ancestor/descendant cells: any fully covered trie node collapses all
+descendants. A single post-order walk turns occupied branches into
+manager.make_node(BddVariable(level),low,high), and covered/empty
+branches into constant(true/false). Reduced DAG nodes and complemented
+edges are interned by RobddManager; no explicit BinaryTreePaving is
+allocated, and no per-cell singleton union is performed. The returned
+logical depth equals the longest normalized input path, including
+skipped variables and completely covered subtrees; recombine may
+subsequently shrink depth following the existing semantics.
+
+RobddPaving::adjoin_cells_bulk(vector<GridCell>) constructs the common
+geometric ancestor of the current root and every input cell, builds
+one batch operand, and merges it once into a nonempty paving. A
+genuinely empty depth-zero paving adopts the batch root directly,
+avoiding a superfluous Boolean union. A previously minced empty paving
+does NOT lose its declared depth: it uses the ordinary union path.
+All cell grid and relative-path checks occur before the existing
+paving root is changed. Empty batches are no-ops.
+
+Both outer/inner approximation methods keep their existing certified
+recursive geometry traversal and selected-cell order; only the final
+incremental cell-adjoin loop is replaced with adjoin_cells_bulk.
+These two methods' logical geometry must remain unchanged. Existing
+single-cell adjoin and same-backend algebra are retained.
+
+The regression suite includes an exhaustive 256-mask three-variable
+oracle and tests covering duplicated cells, out-of-order ancestors,
+different primary-cell extents, root enlargement, invalid grids and
+preservation of the original paving on rejected input. The benchmark
+retains replay_cells (incremental reference) and adds replay_bulk
+using the identical precomputed cell sequence, including geometric
+equivalence verification before timing. A separate fresh-manager
+table reports both strategies' physical node counts, reachable nodes,
+ITE-cache occupancy and indicative payload bytes. This is an
+architecture/performance change, not a memory reclaiming collector.

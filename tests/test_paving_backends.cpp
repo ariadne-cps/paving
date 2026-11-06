@@ -13,6 +13,7 @@
  *  (at your option) any later version.
  */
 
+#include <algorithm>
 #include <type_traits>
 #include <vector>
 
@@ -153,6 +154,120 @@ class TestPavingBackends : public Ariadne::Testing::ContextFixture {
             ARIADNE_TESTING_EXPECT_EQUAL(
                 snapshot.enabled_cell_count(),expected_satisfying);
         }
+    }
+
+    Void test_bulk_cell_construction_and_union() {
+        RobddManager manager;
+        Grid grid(1u);
+        GridCell root(grid,2u,make_binary_word("01"));
+
+        // Exhaust every three-bit occupancy function. Independent oracle:
+        // leaf bits are interpreted as an exact Boolean truth table.
+        for(unsigned mask=0u;mask<256u;++mask) {
+            std::vector<GridCell> cells;
+            for(unsigned k=0u;k<8u;++k) {
+                if((mask&(1u<<k))==0u) { continue; }
+                BinaryWord word=root.word();
+                for(unsigned bit=0u;bit<3u;++bit) {
+                    word.push_back((k&(1u<<(2u-bit)))!=0u);
+                }
+                cells.emplace_back(grid,2u,word);
+            }
+            if((mask&1u)!=0u) std::reverse(cells.begin(),cells.end());
+
+            RobddPaving bulk=RobddPaving::from_cells(manager,root,cells);
+            RobddPaving adjoined(
+                manager,root,manager.constant(false),0u);
+            RobddPaving incremental(
+                manager,root,manager.constant(false),0u);
+            adjoined.adjoin_cells_bulk(cells);
+            for(GridCell const& cell:cells) incremental.adjoin(cell);
+            bulk.mince_to_depth(3u);
+            adjoined.mince_to_depth(3u);
+            incremental.mince_to_depth(3u);
+            ARIADNE_TESTING_PROVE(bulk.root_cell()==root);
+            ARIADNE_TESTING_PROVE(adjoined.root_cell()==root);
+            for(unsigned k=0u;k<8u;++k) {
+                BinaryWord word;
+                for(unsigned bit=0u;bit<3u;++bit) {
+                    word.push_back((k&(1u<<(2u-bit)))!=0u);
+                }
+                Bool expected=(mask&(1u<<k))!=0u;
+                ARIADNE_TESTING_EXPECT_EQUAL(bulk.is_enabled(word),expected);
+                ARIADNE_TESTING_EXPECT_EQUAL(adjoined.is_enabled(word),expected);
+                ARIADNE_TESTING_EXPECT_EQUAL(incremental.is_enabled(word),expected);
+            }
+            bulk.recombine();
+            adjoined.recombine();
+            incremental.recombine();
+            ARIADNE_TESTING_PROVE(bulk.robdd()==incremental.robdd());
+            ARIADNE_TESTING_PROVE(adjoined.robdd()==incremental.robdd());
+        }
+
+        // Out-of-order duplicate/ancestor/descendant cells must represent
+        // their geometric union regardless of insertion order.
+        std::vector<GridCell> overlapped={
+            root.split(false).split(false),
+            root.split(true).split(true),
+            root.split(false).split(true),
+            root.split(false),
+            root.split(false).split(false),
+            root.split(true).split(true)};
+        RobddPaving bulk=RobddPaving::from_cells(manager,root,overlapped);
+        RobddPaving incremental(
+            manager,root,manager.constant(false),0u);
+        for(GridCell const& cell:overlapped) incremental.adjoin(cell);
+        bulk.recombine();
+        incremental.recombine();
+        ARIADNE_TESTING_PROVE(bulk.robdd()==incremental.robdd());
+        ARIADNE_TESTING_PROVE(bulk.superset(root.split(false)));
+        ARIADNE_TESTING_PROVE(bulk.superset(root.split(true).split(true)));
+        ARIADNE_TESTING_PROVE(not bulk.superset(root.split(true)));
+        auto full=RobddPaving::from_cells(
+            manager,root,{root.split(false),root.split(true)});
+        ARIADNE_TESTING_PROVE(full.robdd().is_true());
+        auto empty=RobddPaving::from_cells(manager,root,{});
+        ARIADNE_TESTING_PROVE(empty.is_empty());
+
+        // Geometrically compatible cells with different primary extents.
+        GridCell wider(grid,1u,BinaryWord{});
+        GridCell coarse(grid,1u,make_binary_word("0"));
+        GridCell fine(grid,0u,make_binary_word("0"));
+        std::vector<GridCell> mixed={fine,coarse,fine};
+        auto aligned=RobddPaving::from_cells(manager,wider,mixed);
+        RobddPaving via_union(
+            manager,wider,manager.constant(false),0u);
+        for(GridCell const& cell:mixed) via_union.adjoin(cell);
+        aligned.recombine();
+        via_union.recombine();
+        ARIADNE_TESTING_PROVE(aligned.robdd()==via_union.robdd());
+        ARIADNE_TESTING_PROVE(aligned.root_cell()==wider);
+
+        // Bulk union must enlarge a nonempty paving's geometric root.
+        GridCell smaller(grid,0u,BinaryWord{});
+        RobddPaving existing(
+            manager,smaller,manager.constant(false),0u);
+        existing.adjoin(smaller.split(true));
+        RobddPaving expected(existing);
+        for(GridCell const& cell:mixed) expected.adjoin(cell);
+        existing.adjoin_cells_bulk(mixed);
+        ARIADNE_TESTING_PROVE(existing.root_cell()==expected.root_cell());
+        ARIADNE_TESTING_PROVE(existing.subset(expected));
+        ARIADNE_TESTING_PROVE(expected.subset(existing));
+
+        Grid other_grid(2u);
+        GridCell wrong(other_grid,0u,BinaryWord{});
+        RobddPaving unchanged(existing);
+        ARIADNE_TESTING_EXPECT_EXCEPTION(
+            existing.adjoin_cells_bulk({coarse,wrong}));
+        ARIADNE_TESTING_PROVE(existing.robdd()==unchanged.robdd());
+        ARIADNE_TESTING_PROVE(existing.root_cell()==unchanged.root_cell());
+        ARIADNE_TESTING_EXPECT_EXCEPTION(
+            RobddPaving::from_cells(manager,smaller,{coarse}));
+        ARIADNE_TESTING_EXPECT_EXCEPTION(
+            RobddPaving::from_cells(manager,wider,{wrong}));
+        existing.adjoin_cells_bulk({});
+        ARIADNE_TESTING_PROVE(existing.robdd()==unchanged.robdd());
     }
 
     Void test_in_place_mutation_and_value_semantics() {
@@ -2350,6 +2465,7 @@ int main(int argc, char** argv) {
     ARIADNE_TESTING_SUITE("test_paving_backends");
     ARIADNE_TESTING_ADD_TEST(TestPavingBackends, test_import_and_explicit_tree_oracle);
     ARIADNE_TESTING_ADD_TEST(TestPavingBackends, test_compact_leaves_exhaustive_truth_tables);
+    ARIADNE_TESTING_ADD_TEST(TestPavingBackends, test_bulk_cell_construction_and_union);
     ARIADNE_TESTING_ADD_TEST(TestPavingBackends, test_in_place_mutation_and_value_semantics);
     ARIADNE_TESTING_ADD_TEST(TestPavingBackends, test_in_place_mutation_across_extents);
     ARIADNE_TESTING_ADD_TEST(TestPavingBackends, test_explicit_subpaving_import_and_backend_rejection);

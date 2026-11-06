@@ -270,3 +270,35 @@ calling size(), so its sink resembles replay_cells. outer_cold still
 calls size() before returning because its manager must be destroyed,
 and that distinction should be taken into account when comparing
 the cold and warm construction timings.
+
+### Batch ROBDD construction from precomputed cells
+
+The native ROBDD backend now exposes
+RobddPaving::from_cells(manager,root_cell,cells) and
+RobddPaving::adjoin_cells_bulk(cells). A temporary prefix trie collects
+the cells, collapses duplicates and nested ancestor/descendant cells,
+then uses the manager's canonical make_node() operations in one
+bottom-up pass. Skipped Boolean variables and complemented-edge
+canonicalization remain owned by the manager. The batch union first
+validates the grid and common root; it preserves the original paving
+when inputs are invalid. When the previous paving is empty but has
+been explicitly minced, the batch union retains that logical depth.
+
+Both outer and inner compact-set approximation now use batch
+insertion of the cells selected by their existing certified geometric
+visitors. The geometric acceptance/rejection decisions and their
+coverage targets are unchanged; the only change is that the selected
+cells enter the ROBDD as one union rather than successive singleton
+pavings and Boolean unions.
+
+The benchmark retains replay_cells as the incremental reference and
+adds replay_bulk using the exact same prepared cell sequence, outside
+any geometric constraint checks. It validates the two variants against
+the binary-tree oracle before timing. A new table measures fresh
+isolated manager nodes, ITE cache entries and estimated payload for
+both replay methods (plus reachable nodes), not totals inflated by
+warm-manager repeated runs. The tree timings for replay_bulk provide
+the same baseline tree insertion workload as replay_cells, allowing
+comparison of incremental/batch ROBDD independently of geometric
+classification. All reported memory is indicative and does not
+include allocator bookkeeping or full resident memory.
