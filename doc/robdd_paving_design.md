@@ -491,3 +491,38 @@ intermediate representation.
 No production code or public APIs were changed in this
 increment. The test must pass the usual CI before its
 equivalence claims can be considered verified.
+
+## 2026-11-06 - Grid-relative mincing and primary-cell enclosure
+
+Implemented two further `PavingInterface`-compatible operations in
+`RobddPaving` without introducing incomplete virtual overrides:
+
+- `mince(Nat fineness)` computes the same subdivision-depth target
+  used by `GridTreeSubpaving::mince`:
+  `max(0,(root_extent+fineness)*dimension-root_word_size)`.
+  The operations check size arithmetic for overflow before adjusting
+  the declared logical depth. No ROBDD nodes are expanded and existing
+  membership is unchanged. Canonical true terminals still represent
+  one compact leaf despite the increased number of fixed-depth cells,
+  unlike explicitly minced binary-tree storage. This distinction
+  remains deliberate and observable through `size()`.
+- `smallest_enclosing_primary_cell(UpperBoxType const&)` validates the
+  box dimension and delegates to the existing geometric
+  `GridCell::smallest_enclosing_primary_cell(box,grid())` function.
+  It does not depend on the current Boolean root.
+
+The regression exercises one-, two- and three-dimensional grids,
+different primary extents, and nonempty root paths; compares geometric
+predicates and root identity with a corresponding
+`GridTreeSubpaving`; verifies the computed logical depth and stable
+compact-leaf count; checks primary-cell enclosure; and rejects
+incompatible query dimensions. An explicit tree is physically minced
+only for small target depths to prevent accidental exponential
+test-memory consumption.
+
+This increment does not make `RobddPaving` a
+`PavingInterface` implementation. Before constructing a
+`PavingHandle` from this backend, the writable branch-view
+semantics and geometric approximation routines still require
+careful implementation. `bdd`, `drawing` and `reasoning`
+remain unchanged. CI must validate this increment.

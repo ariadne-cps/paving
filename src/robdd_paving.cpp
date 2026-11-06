@@ -245,6 +245,13 @@ Bool RobddPaving::is_enabled(BinaryWord const& path) const {
     return _manager->evaluate(_root,path);
 }
 
+GridCell RobddPaving::smallest_enclosing_primary_cell(
+        UpperBoxType const& box) const {
+    ARIADNE_PRECONDITION_MSG(box.dimension() == dimension(),
+        "Cannot find an enclosing primary cell for a box of another dimension");
+    return GridCell::smallest_enclosing_primary_cell(box,grid());
+}
+
 UpperBoxType RobddPaving::bounding_box() const {
     auto current=begin(), finish=end();
     if (current == finish) {
@@ -351,6 +358,27 @@ Void RobddPaving::for_each_enabled_leaf(
             GridCell cell(_root_cell.grid(),_root_cell.root_extent(),complete_path);
             visitor(cell);
         });
+}
+
+Void RobddPaving::mince(Nat fineness) {
+    // GridTreeSubpaving::mince uses this same geometric target, but
+    // physically splits leaves. A ROBDD retains canonical shared nodes
+    // and records the additional subdivisions only in its logical depth.
+    constexpr SizeType limit=std::numeric_limits<SizeType>::max();
+    SizeType extent=static_cast<SizeType>(_root_cell.root_extent());
+    SizeType requested=static_cast<SizeType>(fineness);
+    SizeType dimensions=static_cast<SizeType>(dimension());
+    ARIADNE_PRECONDITION_MSG(extent <= limit-requested,
+        "Requested paving fineness overflows the primary-cell level");
+    SizeType levels=extent+requested;
+    ARIADNE_PRECONDITION_MSG(
+        dimensions == 0u or levels <= limit/dimensions,
+        "Requested paving fineness overflows subdivision depth");
+    SizeType absolute_depth=levels*dimensions;
+    SizeType prefix_depth=_root_cell.word().size();
+    SizeType desired=absolute_depth>prefix_depth
+        ? absolute_depth-prefix_depth : 0u;
+    mince_to_depth(desired);
 }
 
 Void RobddPaving::mince_to_depth(SizeType new_depth) {

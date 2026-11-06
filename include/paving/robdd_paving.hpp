@@ -56,6 +56,11 @@ class RobddPaving {
     //! \brief Geometric root of the represented subpaving.
     GridCell const& root_cell() const { return _root_cell; }
 
+    //! \brief Find the smallest primary grid cell enclosing a given box.
+    //! \details Uses the same grid geometry and dimension check as the
+    //! explicit-tree backend, regardless of the represented Boolean set.
+    GridCell smallest_enclosing_primary_cell(UpperBoxType const& box) const;
+
     //! \brief Axis-aligned bounding box of all enabled cells.
     //! \details The empty paving returns an empty box of the grid dimension.
     UpperBoxType bounding_box() const;
@@ -140,6 +145,13 @@ class RobddPaving {
     //! reference is temporary and must not be retained.
     Void for_each_enabled_leaf(
         std::function<void(GridCell const&)> const& visitor) const;
+
+    //! \brief Subdivide logically to the grid-relative fineness.
+    //! \details Matches the geometric depth chosen by the tree backend's
+    //! mince(fineness): max(0,(root_extent+fineness)*dimension-
+    //! root_cell.word().size()). Canonical true leaves remain compact,
+    //! therefore size() does not change just because of logical mincing.
+    Void mince(Nat fineness);
 
     //! \brief Increase logical depth without changing any ROBDD node.
     Void mince_to_depth(SizeType new_depth);

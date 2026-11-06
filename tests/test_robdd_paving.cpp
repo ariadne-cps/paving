@@ -814,6 +814,72 @@ class TestRobddPaving : public Ariadne::Testing::ContextFixture {
         ARIADNE_TESTING_EXPECT_EXCEPTION(all.overlaps(wrong_root.box()));
     }
 
+    Void test_grid_relative_mince_and_primary_cell_query() {
+        RobddManager manager;
+        for (Nat dimensions : {1u,2u,3u}) {
+            Grid grid(dimensions);
+            for (Nat extent : {0u,1u,3u}) {
+                for (BinaryWord const& prefix : {
+                         BinaryWord{},make_binary_word("0"),
+                         make_binary_word("101")}) {
+                    GridCell root(grid,extent,prefix);
+                    RobddPaving robdd(
+                        manager,root,manager.constant(true),0u);
+                    BinaryTreeNode reference_node(true);
+                    GridTreeSubpaving reference(
+                        grid,extent,prefix,&reference_node);
+
+                    auto geometry_before=robdd.bounding_box();
+                    for (Nat fineness : {0u,1u,2u,4u}) {
+                        robdd.mince(fineness);
+                        SizeType requested=
+                            (static_cast<SizeType>(extent)+fineness)*
+                            static_cast<SizeType>(dimensions);
+                        SizeType desired=requested>prefix.size()
+                            ? requested-prefix.size() : 0u;
+                        ARIADNE_TESTING_EXPECT_EQUAL(
+                            robdd.depth(),desired);
+                        // Materialize only small reference subdivisions:
+                        // the largest combinations would create millions
+                        // of redundant explicit-tree nodes.
+                        if (desired <= 5u) {
+                            reference.mince(fineness);
+                            ARIADNE_TESTING_EXPECT_EQUAL(
+                                reference.tree_depth(),desired);
+                        }
+                        ARIADNE_TESTING_PROVE(robdd.robdd().is_true());
+                        ARIADNE_TESTING_EXPECT_EQUAL(robdd.size(),1u);
+                        ARIADNE_TESTING_PROVE(same(
+                            cast_exact_box(robdd.bounding_box()),
+                            cast_exact_box(geometry_before)));
+                        ARIADNE_TESTING_PROVE(
+                            robdd.root_cell() == reference.root_cell());
+                        ARIADNE_TESTING_PROVE(
+                            definitely(reference.inside(root.box())) ==
+                            definitely(robdd.inside(root.box())));
+                    }
+                    GridCell expected_primary=
+                        GridCell::smallest_enclosing_primary_cell(
+                            geometry_before,grid);
+                    ARIADNE_TESTING_PROVE(
+                        robdd.smallest_enclosing_primary_cell(
+                            geometry_before) == expected_primary);
+                }
+            }
+        }
+        Grid grid(1u);
+        GridCell root(grid,0u,BinaryWord{});
+        RobddPaving empty(
+            manager,root,manager.constant(false),0u);
+        empty.mince(4u);
+        ARIADNE_TESTING_EXPECT_EQUAL(empty.depth(),4u);
+        ARIADNE_TESTING_PROVE(empty.is_empty());
+        ARIADNE_TESTING_EXPECT_EQUAL(empty.size(),0u);
+        ARIADNE_TESTING_EXPECT_EXCEPTION(
+            empty.smallest_enclosing_primary_cell(
+                GridCell(Grid(2u),0u,BinaryWord{}).box()));
+    }
+
 };
 
 int main(int argc, char** argv) {
@@ -829,5 +895,6 @@ int main(int argc, char** argv) {
     ARIADNE_TESTING_ADD_TEST(TestRobddPaving, test_representation_neutral_subpaving_operations);
     ARIADNE_TESTING_ADD_TEST(TestRobddPaving, test_native_branch_cofactors);
     ARIADNE_TESTING_ADD_TEST(TestRobddPaving, test_geometric_queries_between_backends);
+    ARIADNE_TESTING_ADD_TEST(TestRobddPaving, test_grid_relative_mince_and_primary_cell_query);
     return ARIADNE_TESTING_RUN_TESTS_WITH_ARGS(argc,argv);
 }
