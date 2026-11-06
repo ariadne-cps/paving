@@ -721,3 +721,46 @@ approximation overloads. In particular, `RobddPaving` is not yet
 derived from `PavingInterface`. No `RobddSubpaving` was introduced.
 `PavingHandle`, `bdd`, `drawing` and `reasoning` are unchanged.
 CI must validate this increment.
+
+## 2026-11-06 - Generic compact outer and open/set inner approximations
+
+Completed the remaining geometric-approximation method signatures
+needed by `PavingInterface` in the experimental `RobddPaving`:
+
+- `adjoin_outer_approximation(EffectiveEuclideanCompactSetInterface
+  const&,Nat)` uses the same conservative separation test and
+  optional open-set coverage proof as the explicit-tree backend.
+  The existing `UpperBoxType` overload now delegates through
+  an `ExactBoxSetType` so that both use identical geometry semantics.
+- `adjoin_inner_approximation(EffectiveEuclideanOpenSetInterface
+  const&,Nat extent,Nat fineness)` visits subdivisions of the
+  requested primary cell, only adjoining regions that are
+  `definitely(set.covers(cell.box()))`. As in the tree backend,
+  optional closed-set separation prunes disjoint regions; cells
+  that remain uncertain at the target depth are excluded.
+- `adjoin_inner_approximation(EffectiveEuclideanSetInterface
+  const&,Nat)` selects the primary-cell extent from the exact
+  bounding box and delegates to the open-set operation.
+
+All three implementations stage geometric cells and then use native
+ROBDD insertions, without converting a tree or a subpaving. They
+validate dimensions and protect subdivision-depth arithmetic
+against overflow. Previously enabled regions are skipped.
+The implementation is intended to preserve the observable
+geometric result, not internal binary-tree refinement.
+
+The cross-backend regression independently executes each new
+overload using geometric box-sets as concrete effective sets,
+in one and two dimensions, three explicit primary extents,
+multiple fineness levels and multiple query boxes. It checks
+two-way geometric cell coverage, normalized leaf counts,
+idempotence and wrong-dimension rejection. This checks the
+overloads' behavior for box-sets; richer compact/open set
+implementations require future dedicated tests.
+
+`RobddPaving` still does **not** derive from `PavingInterface`.
+The remaining blocker is the correct generic mutable subpaving
+view adapter, including clone semantics and subregion-local
+`mince`/`recombine` effects. No changes were made to
+`PavingHandle`, `bdd`, `drawing` or `reasoning`.
+CI verification is pending.

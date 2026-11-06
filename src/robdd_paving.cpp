@@ -436,11 +436,9 @@ Void RobddPaving::remove(SubPavingInterface const& other) {
 }
 
 Void RobddPaving::adjoin_outer_approximation(
-        UpperBoxType const& box, Nat fineness) {
-    ARIADNE_PRECONDITION_MSG(box.dimension() == dimension(),
-        "Cannot approximate a box of another dimension");
-    ExactBoxType exact_box=cast_exact_box(box);
-    ExactBoxSetType set=exact_box;
+        EffectiveEuclideanCompactSetInterface const& set, Nat fineness) {
+    ARIADNE_PRECONDITION_MSG(set.dimension() == dimension(),
+        "Cannot approximate a set of another dimension");
     Nat extent=GridCell::smallest_enclosing_primary_cell_extent(
         set.bounding_box(),grid());
     Nat dimensions=static_cast<Nat>(dimension());
@@ -450,8 +448,7 @@ Void RobddPaving::adjoin_outer_approximation(
         extent <= nat_limit-dimensions,
         "Outer approximation primary-cell extent overflows");
     Nat enclosing_extent=extent+dimensions;
-    ARIADNE_PRECONDITION_MSG(fineness <= nat_limit and
-        enclosing_extent <= nat_limit-fineness,
+    ARIADNE_PRECONDITION_MSG(enclosing_extent <= nat_limit-fineness,
         "Outer approximation fineness overflows");
     SizeType levels=static_cast<SizeType>(enclosing_extent)+fineness;
     ARIADNE_PRECONDITION_MSG(
@@ -459,15 +456,18 @@ Void RobddPaving::adjoin_outer_approximation(
         "Outer approximation subdivision depth overflows");
     SizeType target_depth=levels*dimensions;
     GridCell enclosing_root(grid(),enclosing_extent,BinaryWord{});
+    auto const* open_set=dynamic_cast<
+        EffectiveEuclideanOpenSetInterface const*>(
+            static_cast<EuclideanSetInterfaceBase const*>(&set));
 
-    // Stage all selected cells before applying any mutation. This leaves
-    // the paving unchanged if a geometric query or subdivision fails.
+    // Perform geometric exploration before changing the ROBDD root.
     std::vector<GridCell> selected;
     std::function<Void(GridCell const&,SizeType)> visit =
         [&](GridCell const& cell, SizeType depth) {
             if (definitely(set.separated(cell.box()))) { return; }
             if (superset(cell)) { return; }
-            if (cell.box().subset(exact_box) or depth==target_depth) {
+            if ((open_set and definitely(open_set->covers(cell.box())))
+                    or depth==target_depth) {
                 selected.push_back(cell);
                 return;
             }
@@ -475,9 +475,65 @@ Void RobddPaving::adjoin_outer_approximation(
             visit(cell.split(true),depth+1u);
         };
     visit(enclosing_root,0u);
-    for (GridCell const& cell : selected) {
-        adjoin(cell);
-    }
+    for (GridCell const& cell : selected) { adjoin(cell); }
+}
+
+Void RobddPaving::adjoin_outer_approximation(
+        UpperBoxType const& box, Nat fineness) {
+    ARIADNE_PRECONDITION_MSG(box.dimension() == dimension(),
+        "Cannot approximate a box of another dimension");
+    ExactBoxSetType set=cast_exact_box(box);
+    EffectiveEuclideanCompactSetInterface const& compact=set;
+    adjoin_outer_approximation(compact,fineness);
+}
+
+Void RobddPaving::adjoin_inner_approximation(
+        EffectiveEuclideanOpenSetInterface const& set,
+        Nat extent, Nat fineness) {
+    ARIADNE_PRECONDITION_MSG(set.dimension() == dimension(),
+        "Cannot approximate a set of another dimension");
+    constexpr SizeType limit=std::numeric_limits<SizeType>::max();
+    ARIADNE_PRECONDITION_MSG(extent <= limit-fineness,
+        "Inner approximation fineness overflows");
+    SizeType levels=static_cast<SizeType>(extent)+fineness;
+    SizeType dimensions=static_cast<SizeType>(dimension());
+    ARIADNE_PRECONDITION_MSG(
+        dimensions == 0u or levels <= limit/dimensions,
+        "Inner approximation subdivision depth overflows");
+    SizeType target_depth=levels*dimensions;
+    GridCell enclosing_root(grid(),extent,BinaryWord{});
+    auto const* closed_set=dynamic_cast<
+        EffectiveEuclideanClosedSetInterface const*>(&set);
+
+    // Only positively certified cells may enter an inner approximation.
+    // Never expand a cell already fully enabled by the current paving.
+    std::vector<GridCell> selected;
+    std::function<Void(GridCell const&,SizeType)> visit =
+        [&](GridCell const& cell, SizeType depth) {
+            if (superset(cell)) { return; }
+            if (definitely(set.covers(cell.box()))) {
+                selected.push_back(cell);
+                return;
+            }
+            if (closed_set and
+                    definitely(closed_set->separated(cell.box()))) { return; }
+            if (depth==target_depth) { return; }
+            visit(cell.split(false),depth+1u);
+            visit(cell.split(true),depth+1u);
+        };
+    visit(enclosing_root,0u);
+    for (GridCell const& cell : selected) { adjoin(cell); }
+}
+
+Void RobddPaving::adjoin_inner_approximation(
+        EffectiveEuclideanSetInterface const& set, Nat fineness) {
+    ARIADNE_PRECONDITION_MSG(set.dimension() == dimension(),
+        "Cannot approximate a set of another dimension");
+    ExactBoxType bounding=cast_exact_box(set.bounding_box());
+    Nat extent=GridCell::smallest_enclosing_primary_cell_extent(
+        bounding,grid());
+    EffectiveEuclideanOpenSetInterface const& open_set=set;
+    adjoin_inner_approximation(open_set,extent,fineness);
 }
 
 Void RobddPaving::adjoin(GridCell const& cell) {

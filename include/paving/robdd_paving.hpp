@@ -190,11 +190,30 @@ class RobddPaving {
     //! \brief In-place removal of any subpaving on the same grid.
     Void remove(SubPavingInterface const& other);
 
+    //! \brief Adjoin the outer approximation of a compact set.
+    //! \details Uses certified separation, optional open-set coverage,
+    //! and the grid-relative target depth of GridTreePaving. Does not
+    //! materialize an explicit binary tree.
+    Void adjoin_outer_approximation(
+        EffectiveEuclideanCompactSetInterface const& set, Nat fineness);
+
     //! \brief Adjoin a grid-aligned outer approximation of a box.
-    //! \details Matches GridTreePaving's primary-cell extent, conservative
-    //! separation, coverage and fineness rules, but builds the result
-    //! directly from ROBDD cell insertions without a binary tree.
+    //! \details Delegates through the compact-set overload, matching
+    //! GridTreePaving's geometric and fineness conventions.
     Void adjoin_outer_approximation(UpperBoxType const& box, Nat fineness);
+
+    //! \brief Adjoin the certified inner approximation of an open set.
+    //! \details The primary cell extent bounds the search; only cells
+    //! with a verified coverage proof are inserted into the ROBDD.
+    Void adjoin_inner_approximation(
+        EffectiveEuclideanOpenSetInterface const& set,
+        Nat extent, Nat fineness);
+
+    //! \brief Adjoin an inner approximation using the set's bounding box.
+    //! \details Matches GridTreePaving's extent selection and then
+    //! delegates to the open-set overload.
+    Void adjoin_inner_approximation(
+        EffectiveEuclideanSetInterface const& set, Nat fineness);
 
     //! \brief Adjoin a cell from the same grid.
     Void adjoin(GridCell const& cell);

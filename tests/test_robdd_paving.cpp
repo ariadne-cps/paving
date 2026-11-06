@@ -1289,6 +1289,115 @@ class TestRobddPaving : public Ariadne::Testing::ContextFixture {
         ARIADNE_TESTING_PROVE(robdd.is_empty());
     }
 
+    Void test_generic_approximations_between_backends() {
+        RobddManager manager;
+        for (Nat dimensions : {1u,2u}) {
+            Grid grid(dimensions);
+            GridCell root(grid,0u,BinaryWord{});
+            GridCell left=root.split(false);
+            GridCell right=root.split(true);
+            std::vector<ExactBoxType> queries{
+                root.box(),left.box(),right.box(),
+                left.split(false).box(),right.split(true).box()
+            };
+            for (Nat extent : {0u,1u,2u}) {
+                for (Nat fineness : {0u,1u,2u}) {
+                    for (ExactBoxType const& box : queries) {
+                        ExactBoxSetType set=box;
+                        EffectiveEuclideanOpenSetInterface const& open_set=set;
+                        EffectiveEuclideanSetInterface const& generic_set=set;
+                        EffectiveEuclideanCompactSetInterface const& compact_set=set;
+
+                        BinaryTreePaving tree(grid);
+                        RobddPaving robdd(
+                            manager,root,manager.constant(false),0u);
+                        tree.adjoin_inner_approximation(
+                            open_set,extent,fineness);
+                        robdd.adjoin_inner_approximation(
+                            open_set,extent,fineness);
+                        tree.recombine();
+                        for (auto it=tree.begin(), end=tree.end();
+                                it!=end; ++it) {
+                            ARIADNE_TESTING_PROVE(robdd.superset(*it));
+                        }
+                        for (auto it=robdd.begin(), end=robdd.end();
+                                it!=end; ++it) {
+                            ARIADNE_TESTING_PROVE(tree.superset(*it));
+                        }
+                        ARIADNE_TESTING_EXPECT_EQUAL(tree.size(),robdd.size());
+
+                        // Exercise the two-argument open-set overload as
+                        // a separate construction, not an imported tree.
+                        BinaryTreePaving inferred_tree(grid);
+                        RobddPaving inferred_robdd(
+                            manager,root,manager.constant(false),0u);
+                        inferred_tree.adjoin_inner_approximation(
+                            generic_set,fineness);
+                        inferred_robdd.adjoin_inner_approximation(
+                            generic_set,fineness);
+                        inferred_tree.recombine();
+                        for (auto it=inferred_tree.begin(),
+                                end=inferred_tree.end(); it!=end; ++it) {
+                            ARIADNE_TESTING_PROVE(
+                                inferred_robdd.superset(*it));
+                        }
+                        for (auto it=inferred_robdd.begin(),
+                                end=inferred_robdd.end(); it!=end; ++it) {
+                            ARIADNE_TESTING_PROVE(
+                                inferred_tree.superset(*it));
+                        }
+                        ARIADNE_TESTING_EXPECT_EQUAL(
+                            inferred_tree.size(),inferred_robdd.size());
+
+                        // The general compact-set overload has identical
+                        // semantics to the existing box overload.
+                        BinaryTreePaving outer_tree(grid);
+                        RobddPaving outer_robdd(
+                            manager,root,manager.constant(false),0u);
+                        outer_tree.adjoin_outer_approximation(
+                            compact_set,fineness);
+                        outer_robdd.adjoin_outer_approximation(
+                            compact_set,fineness);
+                        outer_tree.recombine();
+                        for (auto it=outer_tree.begin(),
+                                end=outer_tree.end(); it!=end; ++it) {
+                            ARIADNE_TESTING_PROVE(outer_robdd.superset(*it));
+                        }
+                        for (auto it=outer_robdd.begin(),
+                                end=outer_robdd.end(); it!=end; ++it) {
+                            ARIADNE_TESTING_PROVE(outer_tree.superset(*it));
+                        }
+                        ARIADNE_TESTING_EXPECT_EQUAL(
+                            outer_tree.size(),outer_robdd.size());
+
+                        // Re-adjoining is geometrically idempotent.
+                        RobddPaving preserved(robdd);
+                        robdd.adjoin_inner_approximation(
+                            open_set,extent,fineness);
+                        ARIADNE_TESTING_PROVE(robdd.subset(preserved));
+                        ARIADNE_TESTING_PROVE(preserved.subset(robdd));
+                    }
+                }
+            }
+        }
+
+        Grid grid(1u);
+        GridCell root(grid,0u,BinaryWord{});
+        RobddPaving empty(manager,root,manager.constant(false),0u);
+        ExactBoxSetType wrong_dimension=
+            GridCell(Grid(2u),0u,BinaryWord{}).box();
+        EffectiveEuclideanCompactSetInterface const& compact=wrong_dimension;
+        EffectiveEuclideanOpenSetInterface const& open=wrong_dimension;
+        EffectiveEuclideanSetInterface const& generic=wrong_dimension;
+        ARIADNE_TESTING_EXPECT_EXCEPTION(
+            empty.adjoin_outer_approximation(compact,1u));
+        ARIADNE_TESTING_EXPECT_EXCEPTION(
+            empty.adjoin_inner_approximation(open,0u,1u));
+        ARIADNE_TESTING_EXPECT_EXCEPTION(
+            empty.adjoin_inner_approximation(generic,1u));
+        ARIADNE_TESTING_PROVE(empty.is_empty());
+    }
+
     Void test_common_writable_cell_views() {
         RobddManager manager;
         Grid grid(1u);
@@ -1383,5 +1492,6 @@ int main(int argc, char** argv) {
     ARIADNE_TESTING_ADD_TEST(TestRobddPaving, test_common_view_geometric_queries);
     ARIADNE_TESTING_ADD_TEST(TestRobddPaving, test_common_view_forward_iterator);
     ARIADNE_TESTING_ADD_TEST(TestRobddPaving, test_outer_box_approximation_between_backends);
+    ARIADNE_TESTING_ADD_TEST(TestRobddPaving, test_generic_approximations_between_backends);
     return ARIADNE_TESTING_RUN_TESTS_WITH_ARGS(argc,argv);
 }
