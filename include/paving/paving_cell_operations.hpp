@@ -110,6 +110,68 @@ class PavingCellView {
         return count;
     }
 
+    //! \brief Bounding box of the enabled region restricted to this view.
+    //! \details The empty view has an empty box of ambient dimension.
+    UpperBoxType bounding_box() const {
+        UpperBoxType bounds(dimension());
+        Bool found=false;
+        for_each_enabled_leaf([&](GridCell const& cell) {
+            if (not found) {
+                bounds=cell.box();
+                found=true;
+                return;
+            }
+            for (DimensionType i=0u; i<dimension(); ++i) {
+                if (cell.box()[i].lower_bound().raw() <
+                        bounds[i].lower_bound().raw()) {
+                    bounds[i].set_lower_bound(cell.box()[i].lower_bound());
+                }
+                if (cell.box()[i].upper_bound().raw() >
+                        bounds[i].upper_bound().raw()) {
+                    bounds[i].set_upper_bound(cell.box()[i].upper_bound());
+                }
+            }
+        });
+        return bounds;
+    }
+
+    //! \brief Check inclusion using the same narrowed query box as
+    //! GridTreeSubpaving::inside.
+    ValidatedLowerKleenean inside(ExactBoxType const& box) const {
+        ARIADNE_PRECONDITION_MSG(box.dimension() == dimension(),
+            "View and query-box dimensions must agree");
+        ExactBoxType narrowed=cast_exact_box(narrow(box));
+        Bool contained=true;
+        for_each_enabled_leaf([&](GridCell const& cell) {
+            if (not cell.box().subset(narrowed)) { contained=false; }
+        });
+        return contained;
+    }
+
+    //! \brief Check separation against the conservatively widened box.
+    ValidatedLowerKleenean separated(ExactBoxType const& box) const {
+        ARIADNE_PRECONDITION_MSG(box.dimension() == dimension(),
+            "View and query-box dimensions must agree");
+        ExactBoxType widened=cast_exact_box(widen(box));
+        Bool disjoint=true;
+        for_each_enabled_leaf([&](GridCell const& cell) {
+            if (cell.box().overlaps(widened)) { disjoint=false; }
+        });
+        return disjoint;
+    }
+
+    //! \brief Check interior overlap against the narrowed query box.
+    ValidatedLowerKleenean overlaps(ExactBoxType const& box) const {
+        ARIADNE_PRECONDITION_MSG(box.dimension() == dimension(),
+            "View and query-box dimensions must agree");
+        ExactBoxType narrowed=cast_exact_box(narrow(box));
+        Bool intersects=false;
+        for_each_enabled_leaf([&](GridCell const& cell) {
+            if (cell.box().overlaps(narrowed)) { intersects=true; }
+        });
+        return intersects;
+    }
+
     //! \brief Update the owner at this view's root, not at its entire root.
     Void set_root_cell(Bool enabled) {
         set_paving_cell(*_paving,_root,enabled);

@@ -641,3 +641,32 @@ changes the visible count in both backends. Neither
 These generic cell views remain non-owning and their copies
 remain aliases; they are not polymorphic cloned subpavings.
 CI verification is pending.
+
+## 2026-11-06 - Geometry queries on backend-neutral cell views
+
+Extended `PavingCellView<Paving>` with `bounding_box()`,
+`inside(ExactBoxType const&)`, `separated(ExactBoxType const&)`
+and `overlaps(ExactBoxType const&)`. All operate on the
+enabled cells already clipped to the view's root by
+`for_each_enabled_leaf`; they never use the unrestricted
+owner's geometry and do not materialize a new paving.
+The result therefore reflects subsequent owner mutations.
+
+As in `GridTreeSubpaving`, inclusion uses the conservatively
+narrowed box, separation the widened box and interior overlap
+the narrowed box; mismatched query dimensions are rejected.
+The bounding box computes the hull of clipped enabled leaves;
+an empty region has a dimension-preserving empty box.
+
+The new regression independently constructs
+`BinaryTreePaving` and `RobddPaving` from all 256
+three-bit truth tables, compares the four view-geometry
+operations for eight descendant-root paths and six box
+queries, and checks full-terminal clipping, live updates
+and dimension errors. No virtual `SubPavingInterface`
+adapter or ownership semantics were changed. The next
+interface step still requires an explicit independent
+`clone()` contract and the remaining approximation API.
+
+No changes were made to `bdd`, `drawing` or
+`reasoning`. CI validation is pending.
