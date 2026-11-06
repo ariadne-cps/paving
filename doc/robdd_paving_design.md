@@ -1263,3 +1263,47 @@ including those no longer reachable, and cannot be interpreted as per-root
 memory or full manager RSS. These estimates have no memory-ownership
 implications and must not be used as replacement for a resident-memory
 measurement.
+
+## 2026-11-06 - Exact benchmark shapes, adaptive sampling and warm/cold
+
+A strict ExactDouble precondition exposed the earlier benchmark's
+invalid non-dyadic exact literals (0.2_x, 0.35_x, irrational rotation
+approximations). Replaced with dyadic exact half-widths 1/4 and 1/8,
+and an exact 3-4-5 rational orthogonal rotation of the first two
+coordinates. The rotated box uses the scaled constraints 3*x+4*y,
+-4*x+3*y with exact dyadic boundaries. Aligned ellipsoids use
+16*x^2+64*y^2<=1; rotated ellipsoids use the equivalent rotated
+16*u^2+64*v^2<=25, where u=3*x+4*y and v=-4*x+3*y.
+For d>2 the rotated quadratic uses 400*(x_i-0.5)^2 so that the
+extra axes have the same radius 1/4 as the aligned counterpart.
+The centered unit ball uses 16*sum(x_i-0.5)^2<=1.
+All variants lie inside [0,1]^d. Orientation changes, not volume or
+principal radii.
+
+Benchmark sampling now calibrates independently for each backend and
+operation, doubling repetitions until a target --min-sample-ms
+elapsed per batch or --max-iterations is reached, with an initial
+unmeasured run. An odd number of samples is sorted for the median
+milliseconds per invocation; the calibrated iteration count is
+reported. Defaults: samples=7, min-sample-ms=12, max-iterations=32768,
+iterations=1. Construction remains a complete operation, never an
+unexplained subtraction of an empty baseline.
+
+The matrix defaults to d={2,3,4}, fineness={2,3},
+max-depth-bits=26, min-leaves=2. A case with fewer than min-leaves
+enabled leaves is classified as geometric degeneration and excluded
+from timing and speedup aggregates. Explicit --min-leaves 0 preserves
+coarse-grid diagnostics, including the trivial fineness=0 smoke test.
+Dimensions and fineness are subject to the prior conservative budget.
+
+New outer_cold times complete construction, including a new ROBDD
+manager for each invocation. The existing construction benchmark is
+renamed outer_warm, explicitly reusing the manager. Both receive the
+same prebuilt compact geometry, excluding its creation time. The
+memory table reports the fresh-manager allocated node count after
+source construction, and a separate manager node count after warm
+timings (which can grow because canonical nodes and caches persist).
+Neither number is per-root ownership or RSS. The rooted physical DAG
+node count and indicative payload bytes continue to be reported
+separately. Cold/warm comparisons are not claimed to isolate only
+manager startup: they also measure allocator/cache effects, as desired.

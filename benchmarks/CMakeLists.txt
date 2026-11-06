@@ -16,6 +16,7 @@ add_test(
     COMMAND $<TARGET_FILE:benchmark_paving_backends>
         --dimensions 2 --finenesses 0 --shapes aligned-box
         --iterations 1 --samples 3 --max-depth-bits 12
+        --min-leaves 0 --min-sample-ms 1 --max-iterations 2
         --concurrency 0 --summary-only
 )
 set_property(TEST benchmark_paving_backends_smoke PROPERTY LABELS "paving;benchmark-smoke")

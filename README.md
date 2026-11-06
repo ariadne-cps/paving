@@ -185,3 +185,38 @@ Python 3.11 or newer and a compatible development environment are required for t
 ## Contribution guidelines
 
 Please contact the developer: Luca Geretti <luca.geretti@univr.it>.
+
+### Accurate geometry, calibration and warm/cold construction
+
+Benchmark geometry now uses exactly representable dyadic constants.
+Aligned/rotated box and ellipsoid pairs use the same principal widths
+and volumes, with a rational 3-4-5 orthogonal rotation of the first
+two coordinate axes. Additional axes remain identical between pairs.
+This is deliberate: decimal literals such as 0.2_x are not exactly
+representable and can fail the ExactDouble precondition.
+
+Defaults focus on nondegenerate cases: dimensions 2,3,4 and
+finenesses 2,3, with --max-depth-bits 26 and --min-leaves 2.
+A geometry producing fewer than the requested minimum leaves is
+reported as SKIP and excluded from time aggregates; specify
+--min-leaves 0 to include coarse cases. The effective subdivision bit
+bound is conservative, so raising it for more 4D/5D cases may be costly.
+Run one configuration at a time if its feasibility is unknown.
+
+Each backend/operation is timed using at least --iterations operations,
+calibrated by doubling the batch size until its elapsed time exceeds
+--min-sample-ms (default 12), up to --max-iterations (default 32768).
+There is one warm-up/calibration phase and an odd number of timed
+samples (default 7); median milliseconds are reported per operation,
+along with the calibrated iteration count. --iterations specifies a
+minimum, not the final exact repetition count.
+
+The distinct outer_warm and outer_cold operations avoid mixing a
+reused ROBDD manager with a fresh one. In outer_cold every invocation
+constructs and destroys a new manager; in outer_warm it reuses a
+populated manager. Geometry construction occurs before timing in both
+modes. Memory table columns distinguish BDD N (nodes reachable from
+the root), Mgr N (fresh manager after initial construction), and Mgr
+warm (manager nodes remaining after all timed measurements). These
+manager node counts are not an allocation size or full heap profile.
+

@@ -38,10 +38,13 @@ namespace {
 
 struct Selection {
     unsigned iterations=1u;
-    unsigned samples=5u;
-    unsigned max_depth_bits=20u;
-    std::vector<unsigned> dimensions{2u,3u};
-    std::vector<unsigned> finenesses{1u,2u};
+    unsigned samples=7u;
+    unsigned min_sample_ms=12u;
+    unsigned max_iterations=32768u;
+    unsigned max_depth_bits=26u;
+    unsigned min_leaves=2u;
+    std::vector<unsigned> dimensions{2u,3u,4u};
+    std::vector<unsigned> finenesses{2u,3u};
     std::vector<std::string> shapes{
         "aligned-box","rotated-box","aligned-ellipsoid",
         "rotated-ellipsoid","ball"};
@@ -92,6 +95,26 @@ List<ArgumentParser> parsers(Selection& selection) {
             return [&selection,n] { selection.samples=n; };
         }));
     result.append(make_valued_argument_parser(
+        "","min-sample-ms","Minimum calibration time per timed sample (ms, positive)",
+        [&selection](String const& value)->VoidFunction {
+            unsigned n=CLI::parse_unsigned<unsigned>(value);
+            if(n==0u or n>10000u) throw std::invalid_argument("min-sample-ms out of range");
+            return [&selection,n] { selection.min_sample_ms=n; };
+        }));
+    result.append(make_valued_argument_parser(
+        "","max-iterations","Upper limit of calibrated repetitions per sample",
+        [&selection](String const& value)->VoidFunction {
+            unsigned n=CLI::parse_unsigned<unsigned>(value);
+            if(n==0u) throw std::invalid_argument("max-iterations must be positive");
+            return [&selection,n] { selection.max_iterations=n; };
+        }));
+    result.append(make_valued_argument_parser(
+        "","min-leaves","Skip geometrically degenerate cases below this enabled leaf count",
+        [&selection](String const& value)->VoidFunction {
+            unsigned n=CLI::parse_unsigned<unsigned>(value);
+            return [&selection,n] { selection.min_leaves=n; };
+        }));
+    result.append(make_valued_argument_parser(
         "d","dimensions","Comma-separated space dimensions (>=2)",
         [&selection](String const& value)->VoidFunction {
             auto dims=CLI::parse_unique_unsigned_list(value,2u);
@@ -125,51 +148,49 @@ List<ArgumentParser> parsers(Selection& selection) {
 
 EffectiveConstrainedImageSet make_shape(
         unsigned dimension,std::string const& shape) {
-    // One common exact geometry is passed to both approximation backends.
-    // The domain [0,1]^d contains all five compact families. The first
-    // coordinate pair is orthogonally rotated for diagonal counterparts.
+    // Exact dyadic parameters avoid ExactDouble rejecting inexact decimals.
+    // Rotation uses the rational orthogonal matrix [3/5,4/5;-4/5,3/5].
+    // The paired boxes and ellipsoids have identical volumes and radii.
     auto x=EffectiveScalarMultivariateFunction::coordinates(dimension);
     RealBox domain(dimension,RealInterval(0,1));
     EffectiveConstrainedImageSet result(
         domain,EffectiveVectorMultivariateFunction::identity(dimension));
 
+    auto first=x[0]-0.5_x;
+    auto second=x[1]-0.5_x;
+    auto rotated_first=3*first+4*second;
+    auto rotated_second=-4*first+3*second;
+
     if (shape=="aligned-box") {
-        result.new_parameter_constraint(x[0]>=0.2_x);
-        result.new_parameter_constraint(x[0]<=0.8_x);
-        result.new_parameter_constraint(x[1]>=0.35_x);
-        result.new_parameter_constraint(x[1]<=0.65_x);
+        result.new_parameter_constraint(first>=-0.25_x);
+        result.new_parameter_constraint(first<=0.25_x);
+        result.new_parameter_constraint(second>=-0.125_x);
+        result.new_parameter_constraint(second<=0.125_x);
     } else if (shape=="rotated-box") {
-        auto sum=x[0]+x[1]-1.0_x;
-        auto difference=x[0]-x[1];
-        // a=.30, b=.15; support in x0,x1 is within [0,1].
-        // Bounds approximate sqrt(2)*a and sqrt(2)*b.
-        result.new_parameter_constraint(
-            sum>=-0.4242640687119285_x);
-        result.new_parameter_constraint(
-            sum<=0.4242640687119285_x);
-        result.new_parameter_constraint(
-            difference>=-0.2121320343559643_x);
-        result.new_parameter_constraint(
-            difference<=0.2121320343559643_x);
+        // Multiplication by five makes the rotated constraints exact.
+        result.new_parameter_constraint(rotated_first>=-1.25_x);
+        result.new_parameter_constraint(rotated_first<=1.25_x);
+        result.new_parameter_constraint(rotated_second>=-0.625_x);
+        result.new_parameter_constraint(rotated_second<=0.625_x);
     } else {
-        auto first=x[0]-0.5_x;
-        auto second=x[1]-0.5_x;
         EffectiveScalarMultivariateFunction quadratic=first*first*16
             +second*second*16;
         if (shape=="aligned-ellipsoid") {
-            quadratic=first*first*100/9+second*second*400/9;
+            quadratic=first*first*16+second*second*64;
         } else if (shape=="rotated-ellipsoid") {
-            auto sum=x[0]+x[1]-1.0_x;
-            auto difference=x[0]-x[1];
-            quadratic=sum*sum*50/9+difference*difference*200/9;
+            // 16*(u/5)^2 + 64*(v/5)^2 <= 1 iff 16*u^2+64*v^2 <= 25.
+            quadratic=rotated_first*rotated_first*16
+                +rotated_second*rotated_second*64;
         } else if (shape!="ball") {
             throw std::invalid_argument("unknown shape");
         }
         for (unsigned i=2u;i<dimension;++i) {
             auto centered=x[i]-0.5_x;
-            quadratic=quadratic+centered*centered*16;
+            quadratic=quadratic+centered*centered*
+                (shape=="rotated-ellipsoid"?400:16);
         }
-        result.new_parameter_constraint(quadratic<=1.0_x);
+        result.new_parameter_constraint(
+            quadratic<=(shape=="rotated-ellipsoid"?25.0_x:1.0_x));
     }
     if (shape=="aligned-box" or shape=="rotated-box") {
         for (unsigned i=2u;i<dimension;++i) {
@@ -190,29 +211,51 @@ void keep_alive(T const& value) {
 #endif
 }
 
+struct Timing {
+    double milliseconds;
+    unsigned iterations;
+};
+
+// A timed sample is long enough to amortize clock precision and dispatch.
+// Calibration is independent for each backend and operation. Each candidate
+// run is a complete operation with a visible result (not a baseline subtraction).
 template<class Operation>
-double median_ms(Operation&& operation,unsigned iterations,unsigned samples) {
-    std::vector<double> elapsed;
-    elapsed.reserve(samples);
-    for (unsigned sample=0u;sample<=samples;++sample) {
-        auto start=std::chrono::steady_clock::now();
-        for (unsigned i=0u;i<iterations;++i) {
+Timing median_ms(Operation&& operation,unsigned min_iterations,
+                 unsigned samples,unsigned minimum_ms,unsigned max_iterations) {
+    using Clock=std::chrono::steady_clock;
+    unsigned iterations=min_iterations;
+    auto run=[&](unsigned count) {
+        auto start=Clock::now();
+        for(unsigned i=0u;i<count;++i) {
             auto value=operation(i);
             keep_alive(value);
         }
-        auto finish=std::chrono::steady_clock::now();
-        if (sample!=0u) {
-            elapsed.push_back(
-                std::chrono::duration<double,std::milli>(
-                    finish-start).count()/iterations);
+        return std::chrono::duration<double,std::milli>(
+            Clock::now()-start).count();
+    };
+    // Perform an unmeasured warm-up. For cold-manager mode, each operation
+    // has a fresh manager even though the CPU/cache gets warmed up.
+    double elapsed=run(iterations);
+    while(elapsed<static_cast<double>(minimum_ms) and
+          iterations<max_iterations) {
+        // Increase progressively without exceeding the user's safety budget.
+        unsigned next=iterations>max_iterations/2u
+            ?max_iterations:iterations*2u;
+        if(next==iterations) break;
+        iterations=next;
+        elapsed=run(iterations);
+    }
+    std::vector<double> measurements;
+    measurements.reserve(samples);
+    for(unsigned sample=0u;sample<samples;++sample) {
+        double ms=run(iterations)/static_cast<double>(iterations);
+        if(not std::isfinite(ms) or ms<=0.0) {
+            throw std::runtime_error("nonpositive/nonfinite benchmark timing");
         }
+        measurements.push_back(ms);
     }
-    std::sort(elapsed.begin(),elapsed.end());
-    double result=elapsed[samples/2u];
-    if(not std::isfinite(result) or result<=0.0) {
-        throw std::runtime_error("nonpositive or nonfinite benchmark time");
-    }
-    return result;
+    std::sort(measurements.begin(),measurements.end());
+    return {measurements[samples/2u],iterations};
 }
 
 SizeType count_tree_nodes(BinaryTreeNode const& node) {
@@ -342,10 +385,11 @@ struct MemoryDatum {
     SizeType tree_payload_bytes;
     SizeType robdd_reachable_bytes;
     SizeType robdd_manager_payload_bytes;
+    SizeType robdd_manager_after_nodes;
 };
 
 void print_memory_results(std::vector<MemoryDatum> const& memory) {
-    constexpr int width=127;
+    constexpr int width=140;
     LOGGING_PRINTLN("Estimated physical node payload (not RSS/heap footprint):")
     LOGGING_PRINTLN("sizeof(BinaryTreeNode)="<<sizeof(BinaryTreeNode)
         <<"  estimated sizeof(ROBDD decision node)="
@@ -355,8 +399,10 @@ void print_memory_results(std::vector<MemoryDatum> const& memory) {
         <<"  sizeof(RobddManager)="<<sizeof(RobddManager))
     LOGGING_PRINTLN("Tree B~=TreeNodes*sizeof(BinaryTreeNode);"
         <<" BDD B~=reachable distinct nonterminal nodes*estimated node size.")
-    LOGGING_PRINTLN("Mgr B~=all manager nodes*estimated node size,"
-        <<" INCLUDING unreachable cached nodes. This is NOT per-paving memory.")
+    LOGGING_PRINTLN("Mgr N is a fresh manager after construction;"
+        <<" Mgr warm is after warm timings. BDD N counts root-reachable nodes.")
+    LOGGING_PRINTLN("Mgr B~=fresh manager node count*estimated node size;"
+        <<" not per-paving memory; ITE and unique tables excluded.")
     LOGGING_PRINTLN("All estimates exclude allocator overhead, vector spare"
         <<" capacity, unique/computed tables, and dynamically owned metadata.")
     LOGGING_PRINTLN(std::string(width,'='))
@@ -367,6 +413,7 @@ void print_memory_results(std::vector<MemoryDatum> const& memory) {
         <<std::right<<std::setw(9)<<"Tree N"
         <<"  "<<std::setw(9)<<"BDD N"
         <<"  "<<std::setw(9)<<"Mgr N"
+        <<"  "<<std::setw(9)<<"Mgr warm"
         <<"  "<<std::setw(12)<<"Tree B~"
         <<"  "<<std::setw(12)<<"BDD B~"
         <<"  "<<std::setw(12)<<"Mgr B~"
@@ -382,6 +429,7 @@ void print_memory_results(std::vector<MemoryDatum> const& memory) {
             <<std::right<<std::setw(9)<<datum.tree_nodes
             <<"  "<<std::setw(9)<<datum.robdd_reachable_nodes
             <<"  "<<std::setw(9)<<datum.robdd_manager_nodes
+            <<"  "<<std::setw(9)<<datum.robdd_manager_after_nodes
             <<"  "<<std::setw(12)<<datum.tree_payload_bytes
             <<"  "<<std::setw(12)<<datum.robdd_reachable_bytes
             <<"  "<<std::setw(12)<<datum.robdd_manager_payload_bytes
@@ -400,6 +448,7 @@ struct Datum {
     double milliseconds;
     SizeType leaves;
     SizeType nodes;
+    unsigned iterations;
 };
 
 struct Aggregate {
@@ -463,28 +512,39 @@ void append_case(std::vector<Datum>& data,std::vector<MemoryDatum>& memory,
         reachable_nodes,manager_nodes,
         checked_node_bytes(tree_nodes,sizeof(BinaryTreeNode)),
         checked_node_bytes(reachable_nodes,sizeof(RobddDecisionNodeLayoutEstimate)),
-        checked_node_bytes(manager_nodes,sizeof(RobddDecisionNodeLayoutEstimate))});
+        checked_node_bytes(manager_nodes,sizeof(RobddDecisionNodeLayoutEstimate)),
+        manager_nodes});
 
     validate_geometry(tree,robdd);
     SizeType tree_leaves=tree.size();
     SizeType robdd_leaves=robdd.size();
+    if(tree_leaves<selection.min_leaves) {
+        LOGGING_PRINTLN("SKIP degenerate geometry: "<<shape
+            <<" d="<<dimension<<" f="<<fineness
+            <<" leaves="<<tree_leaves
+            <<" < min-leaves="<<selection.min_leaves)
+        memory.pop_back();
+        return;
+    }
     auto probes=make_probes(grid,dimension,fineness);
 
     auto record=[&](char const* name,auto&& tree_operation,
                     auto&& robdd_operation) {
-        double tree_ms=median_ms(
-            tree_operation,selection.iterations,selection.samples);
-        double robdd_ms=median_ms(
-            robdd_operation,selection.iterations,selection.samples);
+        Timing tree_time=median_ms(tree_operation,selection.iterations,
+            selection.samples,selection.min_sample_ms,selection.max_iterations);
+        Timing robdd_time=median_ms(robdd_operation,selection.iterations,
+            selection.samples,selection.min_sample_ms,selection.max_iterations);
         data.push_back({shape,name,"tree",dimension,fineness,
-                        tree_ms,tree_leaves,tree_nodes});
+                        tree_time.milliseconds,tree_leaves,tree_nodes,
+                        tree_time.iterations});
         data.push_back({shape,name,"robdd",dimension,fineness,
-                        robdd_ms,robdd_leaves,manager_nodes});
+                        robdd_time.milliseconds,robdd_leaves,manager_nodes,
+                        robdd_time.iterations});
     };
     // The BDD manager is reused for all timed operations in this case.
     // In particular, repeated construction benefits from its unique table;
     // startup/manager allocation is NOT included (warm-manager mode).
-    record("outer_compact",
+    record("outer_warm",
         [&](unsigned) {
             BinaryTreePaving fresh(grid);
             fresh.adjoin_outer_approximation(set,fineness);
@@ -494,6 +554,22 @@ void append_case(std::vector<Datum>& data,std::vector<MemoryDatum>& memory,
         [&](unsigned) {
             RobddPaving fresh(
                 manager,primary,manager.constant(false),0u);
+            fresh.adjoin_outer_approximation(set,fineness);
+            fresh.recombine();
+            return fresh.size();
+        });
+
+    record("outer_cold",
+        [&](unsigned) {
+            BinaryTreePaving fresh(grid);
+            fresh.adjoin_outer_approximation(set,fineness);
+            fresh.recombine();
+            return fresh.size();
+        },
+        [&](unsigned) {
+            RobddManager cold_manager;
+            RobddPaving fresh(cold_manager,primary,
+                cold_manager.constant(false),0u);
             fresh.adjoin_outer_approximation(set,fineness);
             fresh.recombine();
             return fresh.size();
@@ -529,15 +605,19 @@ void append_case(std::vector<Datum>& data,std::vector<MemoryDatum>& memory,
             copy.recombine();
             return copy.size();
         });
+    memory.back().robdd_manager_after_nodes=manager.node_count();
 }
 
 void report(std::vector<Datum> const& data,
             std::vector<MemoryDatum> const& memory,
             Selection const& selection,unsigned skipped) {
-    constexpr int width=117;
+    constexpr int width=132;
     LOGGING_PRINTLN("BinaryTree / ROBDD compact-set benchmark")
-    LOGGING_PRINTLN("Iterations="<<selection.iterations
+    LOGGING_PRINTLN("Minimum iterations="<<selection.iterations
         <<"  samples="<<selection.samples
+        <<"  min_sample_ms="<<selection.min_sample_ms
+        <<"  max_iterations="<<selection.max_iterations
+        <<"  min_leaves="<<selection.min_leaves
         <<"  manager=warm/shared  skipped_budget="<<skipped
         <<"  concurrency="<<ThreadManager::instance().concurrency()) 
     LOGGING_PRINTLN("BDDs are still sequential: --concurrency configures"
@@ -553,7 +633,8 @@ void report(std::vector<Datum> const& data,
             <<std::setw(21)<<"Operation"<<"  "
             <<std::right<<std::setw(16)<<"Median (ms)"
             <<"  "<<std::setw(10)<<"Leaves"
-            <<"  "<<std::setw(12)<<"Nodes")
+            <<"  "<<std::setw(12)<<"Nodes"
+            <<"  "<<std::setw(8)<<"Iter")
         LOGGING_PRINTLN(std::string(width,'-'))
         for (std::size_t i=0u;i<data.size();++i) {
             Datum const& datum=data[i];
@@ -571,7 +652,8 @@ void report(std::vector<Datum> const& data,
                 <<std::right<<std::fixed<<std::setprecision(4)
                 <<std::setw(16)<<datum.milliseconds
                 <<"  "<<std::setw(10)<<datum.leaves
-                <<"  "<<std::setw(12)<<datum.nodes)
+                <<"  "<<std::setw(12)<<datum.nodes
+                <<"  "<<std::setw(8)<<datum.iterations)
         }
         LOGGING_PRINTLN(std::string(width,'='))
     }
@@ -670,7 +752,8 @@ int main(int argc,char const* argv[]) {
             }
         }
         if (data.empty()) {
-            throw std::runtime_error("no cases within max-depth-bits budget");
+            throw std::runtime_error("no nondegenerate cases within the selection"
+                " (lower --min-leaves or increase --finenesses)");
         }
         report(data,memory,selection,skipped);
         return 0;
