@@ -295,6 +295,11 @@ class PavingCellViewAdapter final : public SubPavingInterface {
         return new Paving(_paving->subpaving(_view.root_cell()));
     }
 
+    //! \brief Expose the concrete owning backend to same-backend dispatch.
+    //! \details Allows PavingInterface operations to accept only their own
+    //! backend's views, without importing or converting other backends.
+    Paving const& owner() const { return *_paving; }
+
     DimensionType dimension() const override { return _view.dimension(); }
     Grid const& grid() const override { return _view.grid(); }
     SizeType size() const override { return _view.size(); }

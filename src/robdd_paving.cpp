@@ -16,6 +16,7 @@
 #include <algorithm>
 #include <limits>
 #include <optional>
+#include <stdexcept>
 #include <utility>
 #include <vector>
 
@@ -434,10 +435,26 @@ Void RobddPaving::adjoin(RobddPaving const& other) {
     *this = join(other);
 }
 
+// Only same-backend pavings and their live child views may participate in
+// paving set operations. Cross-backend conversion remains an explicit,
+// external migration operation, never an implicit set-operation fallback.
+RobddPaving robdd_operand(SubPavingInterface const& other) {
+    if (auto const* paving=dynamic_cast<RobddPaving const*>(&other)) {
+        return *paving;
+    }
+    if (auto const* view=
+            dynamic_cast<PavingCellViewAdapter<RobddPaving> const*>(&other)) {
+        return view->owner().subpaving(view->root_cell());
+    }
+    ARIADNE_PRECONDITION_MSG(false,
+        "ROBDD paving operations require a ROBDD-backed operand");
+    throw std::invalid_argument("ROBDD paving requires a ROBDD-backed operand");
+}
+
 Void RobddPaving::adjoin(SubPavingInterface const& other) {
     ARIADNE_PRECONDITION_MSG(grid() == other.grid(),
         "Cannot adjoin a subpaving on another grid");
-    adjoin(RobddPaving(*_manager,other));
+    adjoin(robdd_operand(other));
 }
 
 Void RobddPaving::restrict(RobddPaving const& other) {
@@ -447,7 +464,7 @@ Void RobddPaving::restrict(RobddPaving const& other) {
 Void RobddPaving::restrict(SubPavingInterface const& other) {
     ARIADNE_PRECONDITION_MSG(grid() == other.grid(),
         "Cannot restrict a paving with a subpaving on another grid");
-    restrict(RobddPaving(*_manager,other));
+    restrict(robdd_operand(other));
 }
 
 Void RobddPaving::remove(RobddPaving const& other) {
@@ -457,7 +474,7 @@ Void RobddPaving::remove(RobddPaving const& other) {
 Void RobddPaving::remove(SubPavingInterface const& other) {
     ARIADNE_PRECONDITION_MSG(grid() == other.grid(),
         "Cannot remove a subpaving on another grid");
-    remove(RobddPaving(*_manager,other));
+    remove(robdd_operand(other));
 }
 
 Void RobddPaving::adjoin_outer_approximation(
@@ -661,19 +678,19 @@ Bool RobddPaving::intersects(
 Bool RobddPaving::subset(SubPavingInterface const& other) const {
     ARIADNE_PRECONDITION_MSG(grid() == other.grid(),
         "Cannot compare pavings from different grids");
-    return subset(RobddPaving(*_manager,other));
+    return subset(robdd_operand(other));
 }
 
 Bool RobddPaving::intersects(SubPavingInterface const& other) const {
     ARIADNE_PRECONDITION_MSG(grid() == other.grid(),
         "Cannot compare pavings from different grids");
-    return intersects(RobddPaving(*_manager,other));
+    return intersects(robdd_operand(other));
 }
 
 Bool RobddPaving::equals(SubPavingInterface const& other) const {
     ARIADNE_PRECONDITION_MSG(grid() == other.grid(),
         "Cannot compare pavings from different grids");
-    RobddPaving imported(*_manager,other);
+    RobddPaving imported=robdd_operand(other);
     return subset(imported) and imported.subset(*this);
 }
 

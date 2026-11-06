@@ -798,18 +798,29 @@ leaf-count equivalence: the explicit tree can expand its
 storage during local mincing, whereas a canonical ROBDD
 retains the reduced Boolean DAG.
 
-An existing limitation in `GridTreeSubpaving` comparisons
-was also addressed: `equals`, `subset` and `intersects`
-previously required the right operand to be another
-`GridTreeSubpaving` through a mandatory `dynamic_cast`.
-The specialized tree-to-tree path is preserved, and a
-representation-neutral geometric fallback is now used for
-other `SubPavingInterface` implementations. This is
-necessary for symmetric cross-backend polymorphic queries.
+Cross-backend paving set operations are intentionally
+**not** permitted. The temporary generic fallback added to
+`GridTreeSubpaving::equals`/`subset`/`intersects` was
+reverted: those methods retain the same-backend
+`GridTreeSubpaving` dynamic cast. The ROBDD virtual
+`adjoin`, `restrict`, `remove`, `subset`, `intersects`
+and `equals` now accept only `RobddPaving` operands or
+`PavingCellViewAdapter<RobddPaving>` child views. Different
+backends are rejected before mutation, rather than implicitly
+converted. The same-ROBDD-manager compatibility restriction
+also remains in force.
+
+Geometric cross-backend validation belongs only in external
+test/oracle code, where each backend is constructed and queried
+independently. The existing explicit constructors from
+`GridTreeSubpaving` or `SubPavingInterface` remain available
+as **opt-in migration/conversion**, not as a mechanism for
+automatic mixed-backend set operations.
 
 The integration regression constructs both backends through
-`PavingHandle`, compares geometric sets through
-`PavingInterface`, checks cloned handle independence and
+`PavingHandle`, compares independent geometric observations through
+`PavingInterface`, tests cross-backend set-operation rejection,
+checks cloned handle independence and
 mutable nested child views, preserves sibling geometry
 through local refinement/recombination, exercises virtual
 iteration and verifies constructing an independent
@@ -818,3 +829,18 @@ iteration and verifies constructing an independent
 iterators; a live view's owner must outlive the view.
 No updates to `bdd`, `drawing` or `reasoning`.
 This increment requires CI verification.
+
+## 2026-11-06 - Corrected backend isolation for set operations
+
+Architectural constraint: `BinaryTreePaving` and `RobddPaving`
+are alternate implementations of the same interface, **not**
+interoperable paving set operands. Cross-backend comparison of
+observable outputs in tests is valid, as are external operations
+and explicit conversion for migration. Mixed-backend
+`adjoin`, `restrict`, `remove`, `subset`,
+`equals` and `intersects` are prohibited. The correction
+removes the temporarily introduced tree-side generic fallback,
+rejects foreign inputs in ROBDD virtual overrides, and rewrites
+the tests to verify both rejection and same-backend virtual
+operations, including live child views. No change to
+`PavingHandle` or the BDD manager is needed.

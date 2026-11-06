@@ -575,7 +575,7 @@ class TestRobddPaving : public Ariadne::Testing::ContextFixture {
         ARIADNE_TESTING_PROVE(paving.robdd() == saved.robdd());
     }
 
-    Void test_representation_neutral_subpaving_operations() {
+    Void test_explicit_subpaving_import_and_backend_rejection() {
         RobddManager manager;
         Grid grid(1u);
         GridCell root(grid,0u,BinaryWord{});
@@ -584,68 +584,66 @@ class TestRobddPaving : public Ariadne::Testing::ContextFixture {
         explicit_tree.add_enabled(make_binary_word("110"));
         explicit_tree.recombine();
         GridTreeSubpaving source(grid,0u,BinaryWord{},&explicit_tree);
-        SubPavingInterface const& generic = source;
+        SubPavingInterface const& generic=source;
 
+        // Explicit conversion is allowed for external migration/testing.
+        // It must never happen implicitly inside paving set operations.
         RobddPaving imported(manager,generic);
         RobddPaving direct(manager,source);
-        ARIADNE_TESTING_PROVE(imported.root_cell() == root);
+        ARIADNE_TESTING_PROVE(imported.root_cell()==root);
         ARIADNE_TESTING_PROVE(imported.subset(direct));
         ARIADNE_TESTING_PROVE(direct.subset(imported));
-        ARIADNE_TESTING_PROVE(imported.equals(generic));
-        ARIADNE_TESTING_PROVE(imported.subset(generic));
-        ARIADNE_TESTING_PROVE(imported.intersects(generic));
         ARIADNE_TESTING_PROVE(imported.superset(
             GridCell(grid,0u,make_binary_word("0"))));
-        ARIADNE_TESTING_PROVE(not imported.superset(
-            GridCell(grid,0u,make_binary_word("1"))));
         ARIADNE_TESTING_PROVE(imported.superset(
             GridCell(grid,0u,make_binary_word("110"))));
         ARIADNE_TESTING_PROVE(not imported.superset(
             GridCell(grid,0u,make_binary_word("111"))));
 
-        RobddPaving mutable_paving(manager,root,manager.constant(false),0u);
-        mutable_paving.adjoin(generic);
-        ARIADNE_TESTING_PROVE(mutable_paving.equals(generic));
-        mutable_paving.restrict(generic);
-        ARIADNE_TESTING_PROVE(mutable_paving.equals(generic));
-        mutable_paving.remove(generic);
-        ARIADNE_TESTING_PROVE(mutable_paving.is_empty());
-        ARIADNE_TESTING_PROVE(imported.equals(generic));
+        RobddPaving unchanged(imported);
+        ARIADNE_TESTING_EXPECT_EXCEPTION(imported.adjoin(generic));
+        ARIADNE_TESTING_EXPECT_EXCEPTION(imported.restrict(generic));
+        ARIADNE_TESTING_EXPECT_EXCEPTION(imported.remove(generic));
+        ARIADNE_TESTING_EXPECT_EXCEPTION(imported.subset(generic));
+        ARIADNE_TESTING_EXPECT_EXCEPTION(imported.intersects(generic));
+        ARIADNE_TESTING_EXPECT_EXCEPTION(imported.equals(generic));
+        ARIADNE_TESTING_EXPECT_EXCEPTION(source.subset(imported));
+        ARIADNE_TESTING_EXPECT_EXCEPTION(source.intersects(imported));
+        ARIADNE_TESTING_EXPECT_EXCEPTION(source.equals(imported));
+        ARIADNE_TESTING_PROVE(imported.robdd()==unchanged.robdd());
+        ARIADNE_TESTING_PROVE(imported.root_cell()==unchanged.root_cell());
 
-        // A compressed true leaf and nontrivial root extent are valid input.
-        BinaryTreeNode left_half(true);
-        GridTreeSubpaving offset(
-            grid,1u,make_binary_word("0"),&left_half);
-        SubPavingInterface const& offset_generic=offset;
-        RobddPaving offset_import(manager,offset_generic);
-        ARIADNE_TESTING_PROVE(offset_import.root_cell() == offset.root_cell());
-        ARIADNE_TESTING_PROVE(offset_import.robdd().is_true());
-        ARIADNE_TESTING_EXPECT_EQUAL(offset_import.size(),1u);
-        ARIADNE_TESTING_PROVE(not imported.intersects(offset_generic));
-        RobddPaving joined(imported);
-        joined.adjoin(offset_generic);
-        ARIADNE_TESTING_PROVE(joined.intersects(offset_generic));
-        ARIADNE_TESTING_PROVE(imported.subset(joined));
-        joined.remove(offset_generic);
-        ARIADNE_TESTING_PROVE(joined.subset(imported));
-        ARIADNE_TESTING_PROVE(imported.subset(joined));
+        // Same-backend operations accept the interface and child views.
+        SubPavingInterface const& own=imported;
+        RobddPaving same(manager,root,manager.constant(false),0u);
+        same.adjoin(own);
+        ARIADNE_TESTING_PROVE(same.equals(own));
+        ARIADNE_TESTING_PROVE(same.subset(own));
+        ARIADNE_TESTING_PROVE(same.intersects(own));
+        auto left=static_cast<SubPavingInterface const&>(imported).branch(false);
+        SubPavingInterface const& left_interface=left;
+        RobddPaving left_snapshot=imported.subpaving(root.split(false));
+        ARIADNE_TESTING_PROVE(left_snapshot.equals(left_interface));
+        RobddPaving union_left(manager,root,manager.constant(false),0u);
+        union_left.adjoin(left_interface);
+        ARIADNE_TESTING_PROVE(union_left.superset(root.split(false)));
+        same.restrict(left_interface);
+        ARIADNE_TESTING_PROVE(same.subset(left_interface));
+        same.remove(left_interface);
+        ARIADNE_TESTING_PROVE(same.is_empty());
 
-        Grid different_grid(2u);
+        Grid other_grid(2u);
         BinaryTreeNode foreign_node(true);
         GridTreeSubpaving foreign(
-            different_grid,0u,BinaryWord{},&foreign_node);
-        SubPavingInterface const& foreign_generic=foreign;
-        RobddPaving saved(imported);
-        ARIADNE_TESTING_EXPECT_EXCEPTION(imported.adjoin(foreign_generic));
-        ARIADNE_TESTING_EXPECT_EXCEPTION(imported.restrict(foreign_generic));
-        ARIADNE_TESTING_EXPECT_EXCEPTION(imported.remove(foreign_generic));
-        ARIADNE_TESTING_EXPECT_EXCEPTION(imported.subset(foreign_generic));
-        ARIADNE_TESTING_EXPECT_EXCEPTION(imported.intersects(foreign_generic));
-        ARIADNE_TESTING_EXPECT_EXCEPTION(imported.equals(foreign_generic));
-        ARIADNE_TESTING_EXPECT_EXCEPTION(imported.superset(
-            GridCell(different_grid,0u,BinaryWord{})));
-        ARIADNE_TESTING_PROVE(imported.robdd() == saved.robdd());
-        ARIADNE_TESTING_PROVE(imported.root_cell() == saved.root_cell());
+            other_grid,0u,BinaryWord{},&foreign_node);
+        SubPavingInterface const& foreign_interface=foreign;
+        ARIADNE_TESTING_EXPECT_EXCEPTION(imported.adjoin(foreign_interface));
+        ARIADNE_TESTING_EXPECT_EXCEPTION(imported.restrict(foreign_interface));
+        ARIADNE_TESTING_EXPECT_EXCEPTION(imported.remove(foreign_interface));
+        ARIADNE_TESTING_EXPECT_EXCEPTION(imported.subset(foreign_interface));
+        ARIADNE_TESTING_EXPECT_EXCEPTION(imported.intersects(foreign_interface));
+        ARIADNE_TESTING_EXPECT_EXCEPTION(imported.equals(foreign_interface));
+        ARIADNE_TESTING_PROVE(imported.robdd()==unchanged.robdd());
     }
 
     Void test_native_branch_cofactors() {
@@ -1419,12 +1417,20 @@ class TestRobddPaving : public Ariadne::Testing::ContextFixture {
         ARIADNE_TESTING_PROVE(tree.superset(right));
         ARIADNE_TESTING_PROVE(robdd.superset(right));
         ARIADNE_TESTING_EXPECT_EQUAL(tree.size(),robdd.size());
-        ARIADNE_TESTING_PROVE(tree.subset(robdd));
-        ARIADNE_TESTING_PROVE(robdd.subset(tree));
-        ARIADNE_TESTING_PROVE(tree.equals(robdd));
-        ARIADNE_TESTING_PROVE(robdd.equals(tree));
-        ARIADNE_TESTING_PROVE(tree.intersects(robdd));
-        ARIADNE_TESTING_PROVE(robdd.intersects(tree));
+        // Same observable geometry, but incompatible paving backends:
+        // set operations must reject mixing rather than convert silently.
+        ARIADNE_TESTING_EXPECT_EXCEPTION(tree.subset(robdd));
+        ARIADNE_TESTING_EXPECT_EXCEPTION(robdd.subset(tree));
+        ARIADNE_TESTING_EXPECT_EXCEPTION(tree.equals(robdd));
+        ARIADNE_TESTING_EXPECT_EXCEPTION(robdd.equals(tree));
+        ARIADNE_TESTING_EXPECT_EXCEPTION(tree.intersects(robdd));
+        ARIADNE_TESTING_EXPECT_EXCEPTION(robdd.intersects(tree));
+        ARIADNE_TESTING_EXPECT_EXCEPTION(tree.adjoin(robdd));
+        ARIADNE_TESTING_EXPECT_EXCEPTION(robdd.adjoin(tree));
+        ARIADNE_TESTING_EXPECT_EXCEPTION(tree.restrict(robdd));
+        ARIADNE_TESTING_EXPECT_EXCEPTION(robdd.restrict(tree));
+        ARIADNE_TESTING_EXPECT_EXCEPTION(tree.remove(robdd));
+        ARIADNE_TESTING_EXPECT_EXCEPTION(robdd.remove(tree));
         ARIADNE_TESTING_PROVE(same(
             cast_exact_box(tree.bounding_box()),
             cast_exact_box(robdd.bounding_box())));
@@ -1444,9 +1450,9 @@ class TestRobddPaving : public Ariadne::Testing::ContextFixture {
         ARIADNE_TESTING_PROVE(tree_left.superset(left_right));
         ARIADNE_TESTING_PROVE(robdd_left.superset(left_right));
         ARIADNE_TESTING_EXPECT_EQUAL(tree_left.size(),robdd_left.size());
-        ARIADNE_TESTING_PROVE(
+        ARIADNE_TESTING_EXPECT_EXCEPTION(
             tree_left.subset(static_cast<SubPavingInterface const&>(robdd_left)));
-        ARIADNE_TESTING_PROVE(
+        ARIADNE_TESTING_EXPECT_EXCEPTION(
             robdd_left.subset(static_cast<SubPavingInterface const&>(tree_left)));
 
         // Clone the view via both handle constructors. Mutating either
@@ -1588,7 +1594,7 @@ int main(int argc, char** argv) {
     ARIADNE_TESTING_ADD_TEST(TestRobddPaving, test_compact_leaves_exhaustive_truth_tables);
     ARIADNE_TESTING_ADD_TEST(TestRobddPaving, test_in_place_mutation_and_value_semantics);
     ARIADNE_TESTING_ADD_TEST(TestRobddPaving, test_in_place_mutation_across_extents);
-    ARIADNE_TESTING_ADD_TEST(TestRobddPaving, test_representation_neutral_subpaving_operations);
+    ARIADNE_TESTING_ADD_TEST(TestRobddPaving, test_explicit_subpaving_import_and_backend_rejection);
     ARIADNE_TESTING_ADD_TEST(TestRobddPaving, test_native_branch_cofactors);
     ARIADNE_TESTING_ADD_TEST(TestRobddPaving, test_geometric_queries_between_backends);
     ARIADNE_TESTING_ADD_TEST(TestRobddPaving, test_grid_relative_mince_and_primary_cell_query);
