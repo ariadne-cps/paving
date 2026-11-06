@@ -42,6 +42,62 @@ Void set_paving_cell(Paving& paving, GridCell const& cell, Bool enabled) {
     }
 }
 
+//! \brief A non-owning, backend-neutral mutable view rooted at a grid cell.
+//! \details Supports cell membership, root-cell mutation and nested branch
+//! navigation through the common paving APIs. Copies are views of the same
+//! owner; they are NOT independent clones. The owning paving must outlive
+//! all views. This intentionally does not implement SubPavingInterface:
+//! full iteration, mincing and detached clone semantics need separate design.
+//! \tparam Paving A mutable paving providing grid(), root_cell(),
+//! superset(GridCell), adjoin(GridCell) and remove(GridCell).
+template<class Paving>
+class PavingCellView {
+  public:
+    PavingCellView(Paving& paving, GridCell const& root)
+        : _paving(&paving), _root(root) {
+        ARIADNE_PRECONDITION_MSG(paving.grid() == root.grid(),
+            "Cannot create a cell view on a different grid");
+        ARIADNE_PRECONDITION_MSG(
+            root.box().subset(paving.root_cell().box()),
+            "The cell view must lie within the owning paving root");
+    }
+
+    GridCell const& root_cell() const { return _root; }
+    Grid const& grid() const { return _paving->grid(); }
+    DimensionType dimension() const { return _root.dimension(); }
+
+    //! \brief Test coverage only inside this view's geometric region.
+    //! \details An out-of-view cell is not covered, even when the
+    //! containing paving has that cell enabled.
+    Bool superset(GridCell const& cell) const {
+        ARIADNE_PRECONDITION_MSG(grid() == cell.grid(),
+            "Cannot compare a cell view to a different grid");
+        return cell.box().subset(_root.box()) and _paving->superset(cell);
+    }
+
+    //! \brief Update the owner at this view's root, not at its entire root.
+    Void set_root_cell(Bool enabled) {
+        set_paving_cell(*_paving,_root,enabled);
+    }
+
+    //! \brief Return a nested view of the same owning paving.
+    //! \details Changes through either view affect their common owner.
+    PavingCellView branch(Bool right) const {
+        return PavingCellView(*_paving,_root.split(right));
+    }
+
+  private:
+    Paving* _paving;
+    GridCell _root;
+};
+
+//! \brief Deduce the backend when constructing a mutable cell view.
+template<class Paving>
+PavingCellView<Paving> paving_cell_view(
+        Paving& paving, GridCell const& root) {
+    return PavingCellView<Paving>(paving,root);
+}
+
 } // namespace Ariadne
 
 #endif // ARIADNE_PAVING_CELL_OPERATIONS_HPP

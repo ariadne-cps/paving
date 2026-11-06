@@ -1005,6 +1005,77 @@ class TestRobddPaving : public Ariadne::Testing::ContextFixture {
         ARIADNE_TESTING_PROVE(parent.robdd().is_true());
     }
 
+    Void test_common_writable_cell_views() {
+        RobddManager manager;
+        Grid grid(1u);
+        GridCell root(grid,0u,BinaryWord{});
+        BinaryTreePaving tree(grid);
+        PavingInterface& tree_interface=tree;
+        RobddPaving robdd(manager,root,manager.constant(false),0u);
+
+        auto tree_view=paving_cell_view(tree_interface,root);
+        auto robdd_view=paving_cell_view(robdd,root);
+        auto tree_left=tree_view.branch(false);
+        auto robdd_left=robdd_view.branch(false);
+        auto tree_right=tree_view.branch(true);
+        auto robdd_right=robdd_view.branch(true);
+        GridCell left=root.split(false);
+        GridCell right=root.split(true);
+        ARIADNE_TESTING_PROVE(tree_left.root_cell()==left);
+        ARIADNE_TESTING_PROVE(robdd_left.root_cell()==left);
+        ARIADNE_TESTING_EXPECT_EQUAL(tree_left.dimension(),1u);
+        ARIADNE_TESTING_EXPECT_EQUAL(robdd_left.dimension(),1u);
+        ARIADNE_TESTING_PROVE(not tree_left.superset(left));
+        ARIADNE_TESTING_PROVE(not robdd_left.superset(left));
+
+        tree_left.set_root_cell(true);
+        robdd_left.set_root_cell(true);
+        tree.recombine();
+        ARIADNE_TESTING_PROVE(tree.superset(left));
+        ARIADNE_TESTING_PROVE(robdd.superset(left));
+        ARIADNE_TESTING_PROVE(tree_left.superset(left));
+        ARIADNE_TESTING_PROVE(robdd_left.superset(left));
+        ARIADNE_TESTING_PROVE(not tree_left.superset(right));
+        ARIADNE_TESTING_PROVE(not robdd_left.superset(right));
+
+        // Copies of views alias their original paving, not a detached clone.
+        auto tree_alias=tree_left;
+        auto robdd_alias=robdd_left;
+        tree_alias.set_root_cell(false);
+        robdd_alias.set_root_cell(false);
+        ARIADNE_TESTING_PROVE(not tree.superset(left));
+        ARIADNE_TESTING_PROVE(not robdd.superset(left));
+
+        tree_right.branch(false).set_root_cell(true);
+        robdd_right.branch(false).set_root_cell(true);
+        GridCell right_left=right.split(false);
+        ARIADNE_TESTING_PROVE(tree.superset(right_left));
+        ARIADNE_TESTING_PROVE(robdd.superset(right_left));
+        ARIADNE_TESTING_PROVE(not tree.superset(right));
+        ARIADNE_TESTING_PROVE(not robdd.superset(right));
+
+        // A nested view can be disabled without clearing sibling cells.
+        tree_right.branch(false).set_root_cell(false);
+        robdd_right.branch(false).set_root_cell(false);
+        ARIADNE_TESTING_PROVE(not tree.superset(right_left));
+        ARIADNE_TESTING_PROVE(not robdd.superset(right_left));
+
+        Grid other_grid(2u);
+        ARIADNE_TESTING_EXPECT_EXCEPTION(paving_cell_view(
+            tree_interface,GridCell(other_grid,0u,BinaryWord{})));
+        ARIADNE_TESTING_EXPECT_EXCEPTION(paving_cell_view(
+            robdd,GridCell(other_grid,0u,BinaryWord{})));
+        GridCell outside(grid,1u,BinaryWord{});
+        ARIADNE_TESTING_EXPECT_EXCEPTION(
+            paving_cell_view(tree_interface,outside));
+        ARIADNE_TESTING_EXPECT_EXCEPTION(
+            paving_cell_view(robdd,outside));
+        ARIADNE_TESTING_EXPECT_EXCEPTION(
+            tree_left.superset(GridCell(other_grid,0u,BinaryWord{})));
+        ARIADNE_TESTING_EXPECT_EXCEPTION(
+            robdd_left.superset(GridCell(other_grid,0u,BinaryWord{})));
+    }
+
 };
 
 int main(int argc, char** argv) {
@@ -1023,5 +1094,6 @@ int main(int argc, char** argv) {
     ARIADNE_TESTING_ADD_TEST(TestRobddPaving, test_grid_relative_mince_and_primary_cell_query);
     ARIADNE_TESTING_ADD_TEST(TestRobddPaving, test_generic_cell_updates_across_backends);
     ARIADNE_TESTING_ADD_TEST(TestRobddPaving, test_detached_subpaving_for_descendants);
+    ARIADNE_TESTING_ADD_TEST(TestRobddPaving, test_common_writable_cell_views);
     return ARIADNE_TESTING_RUN_TESTS_WITH_ARGS(argc,argv);
 }

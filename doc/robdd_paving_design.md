@@ -577,3 +577,42 @@ The remaining work for `PavingHandle` is a well-defined
 mutable subpaving view and full `PavingInterface` approximation
 support, not another class name alias. No changes were made to
 `bdd`, `drawing` or `reasoning`. CI validation is pending.
+
+## 2026-11-06 - Backend-neutral non-owning writable cell views
+
+Introduced `PavingCellView<Paving>` and the deduction helper
+`paving_cell_view(paving,root)` in the existing
+`paving/paving_cell_operations.hpp`. This is a lightweight,
+non-owning wrapper around a mutable paving and a `GridCell`
+contained in its geometric root, using the already shared
+`set_paving_cell` operation for mutation.
+
+The API is deliberately small: `root_cell`, `grid`,
+`dimension`, `superset(GridCell)`,
+`set_root_cell(Bool)` and `branch(Bool)`. A child view
+holds the same paving pointer but a child root cell, enabling
+nested modifications of precisely the selected region.
+The view checks grids and geometric containment. Membership
+queries for cells outside the view return false, even when
+the owner represents them.
+
+View copies retain the same owner pointer; they are aliases,
+not independently owned values. The paving must outlive its
+views. In particular, this class does **not** derive from
+`SubPavingInterface`, is not a `SubPavingHandle`, and does
+not attempt a `clone()` implementation. This distinction
+is essential because the existing `SubPavingHandle` copy
+constructor delegates to `clone()`, whose current binary-tree
+implementation returns an independently owned paving. The
+complete polymorphic contract must be addressed separately,
+including live iteration, geometric queries, logical mincing,
+and lifetime/ownership semantics of views.
+
+The regression exercises the same `PavingCellView` through a
+`PavingInterface&` referring to `BinaryTreePaving` and
+directly through `RobddPaving&`. It tests nested branches,
+root-cell enabling/disabling, parent mutation, alias copies,
+out-of-view membership, independent sibling regions, invalid
+grid/root requests, and unchanged behavior of both backends.
+No changes were made to `bdd`, `drawing` or `reasoning`.
+CI validation is required before treating this as verified.
