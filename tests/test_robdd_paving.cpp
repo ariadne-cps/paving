@@ -1396,6 +1396,159 @@ class TestRobddPaving : public Ariadne::Testing::ContextFixture {
         ARIADNE_TESTING_PROVE(empty.is_empty());
     }
 
+    Void test_polymorphic_sequences_backend_isolation() {
+        RobddManager manager;
+        for (Nat dimensions : {1u,2u}) {
+            Grid grid(dimensions);
+            GridCell root(grid,0u,BinaryWord{});
+            std::vector<GridCell> cells;
+            for (unsigned mask=0u; mask<8u; ++mask) {
+                BinaryWord word;
+                word.push_back((mask & 4u)!=0u);
+                word.push_back((mask & 2u)!=0u);
+                word.push_back((mask & 1u)!=0u);
+                cells.emplace_back(grid,0u,word);
+            }
+
+            // Check geometric observations only; never pass either
+            // backend as an operand to the other backend's set methods.
+            auto verify_outputs=[&](PavingInterface const& tree,
+                                    PavingInterface const& robdd) {
+                ARIADNE_TESTING_PROVE(tree.grid()==robdd.grid());
+                ARIADNE_TESTING_PROVE(tree.root_cell()==robdd.root_cell());
+                ARIADNE_TESTING_EXPECT_EQUAL(tree.size(),robdd.size());
+                ARIADNE_TESTING_EXPECT_EQUAL(
+                    tree.bounding_box().dimension(),
+                    robdd.bounding_box().dimension());
+                if (tree.size()!=0u) {
+                    ARIADNE_TESTING_PROVE(same(
+                        cast_exact_box(tree.bounding_box()),
+                        cast_exact_box(robdd.bounding_box())));
+                }
+                for (GridCell const& cell : cells) {
+                    ARIADNE_TESTING_EXPECT_EQUAL(
+                        tree.superset(cell),robdd.superset(cell));
+                    ExactBoxType query=cell.box();
+                    ARIADNE_TESTING_EXPECT_EQUAL(
+                        definitely(tree.inside(query)),
+                        definitely(robdd.inside(query)));
+                    ARIADNE_TESTING_EXPECT_EQUAL(
+                        definitely(tree.separated(query)),
+                        definitely(robdd.separated(query)));
+                    ARIADNE_TESTING_EXPECT_EQUAL(
+                        definitely(tree.overlaps(query)),
+                        definitely(robdd.overlaps(query)));
+                }
+            };
+
+            for (unsigned table=0u; table<256u; ++table) {
+                PavingHandle tree_handle(new BinaryTreePaving(grid));
+                PavingHandle robdd_handle(new RobddPaving(
+                    manager,root,manager.constant(false),0u));
+                PavingInterface& tree=tree_handle;
+                PavingInterface& robdd=robdd_handle;
+                for (unsigned mask=0u; mask<8u; ++mask) {
+                    if ((table & (1u<<mask))==0u) { continue; }
+                    tree_handle.adjoin(cells[mask]);
+                    robdd_handle.adjoin(cells[mask]);
+                }
+                tree.recombine();
+                robdd.recombine();
+                verify_outputs(tree,robdd);
+
+                // Polymorphic cloning yields independent owners.
+                PavingHandle original_tree(tree_handle);
+                PavingHandle original_robdd(robdd_handle);
+
+                // Intersect only with an operand of the same backend.
+                BinaryTreePaving tree_mask(grid);
+                RobddPaving robdd_mask(
+                    manager,root,manager.constant(false),0u);
+                for (unsigned mask=0u; mask<8u; ++mask) {
+                    if ((0x5Au & (1u<<mask))==0u) { continue; }
+                    tree_mask.adjoin(cells[mask]);
+                    robdd_mask.adjoin(cells[mask]);
+                }
+                tree_handle.restrict(tree_mask);
+                robdd_handle.restrict(robdd_mask);
+                tree.recombine();
+                robdd.recombine();
+                verify_outputs(tree,robdd);
+                ARIADNE_TESTING_PROVE(tree.subset(tree_mask));
+                ARIADNE_TESTING_PROVE(robdd.subset(robdd_mask));
+
+                // Difference and union are also strictly same-backend.
+                BinaryTreePaving tree_delta(grid);
+                RobddPaving robdd_delta(
+                    manager,root,manager.constant(false),0u);
+                for (unsigned mask=0u; mask<8u; ++mask) {
+                    if ((0x99u & (1u<<mask))==0u) { continue; }
+                    tree_delta.adjoin(cells[mask]);
+                    robdd_delta.adjoin(cells[mask]);
+                }
+                tree_handle.remove(tree_delta);
+                robdd_handle.remove(robdd_delta);
+                tree.recombine();
+                robdd.recombine();
+                verify_outputs(tree,robdd);
+
+                tree_handle.adjoin(tree_delta);
+                robdd_handle.adjoin(robdd_delta);
+                tree.recombine();
+                robdd.recombine();
+                verify_outputs(tree,robdd);
+
+                // The earlier polymorphic copies keep their initial set.
+                verify_outputs(
+                    static_cast<PavingInterface const&>(original_tree),
+                    static_cast<PavingInterface const&>(original_robdd));
+
+                // Force a mixed root before creating live branch views;
+                // mutations through those views must propagate to owners.
+                GridCell left=root.split(false);
+                GridCell right=root.split(true);
+                GridCell right_left=right.split(false);
+                tree_handle.adjoin(left);
+                robdd_handle.adjoin(left);
+                tree_handle.adjoin(right_left);
+                robdd_handle.adjoin(right_left);
+                // Keep the root mixed even if a previous sequence
+                // happened to fill every cell of its right child.
+                tree_handle.remove(right.split(true));
+                robdd_handle.remove(right.split(true));
+                {
+                    SubPavingHandle tree_left=tree.branch(false);
+                    SubPavingHandle robdd_left=robdd.branch(false);
+                    ARIADNE_TESTING_PROVE(tree_left.root_cell()==left);
+                    ARIADNE_TESTING_PROVE(robdd_left.root_cell()==left);
+                    ARIADNE_TESTING_PROVE(tree_left.superset(left));
+                    ARIADNE_TESTING_PROVE(robdd_left.superset(left));
+
+                    SubPavingHandle tree_snapshot(tree_left);
+                    SubPavingHandle robdd_snapshot(robdd_left);
+                    tree_snapshot.set_root_cell(false);
+                    robdd_snapshot.set_root_cell(false);
+                    ARIADNE_TESTING_PROVE(tree_left.superset(left));
+                    ARIADNE_TESTING_PROVE(robdd_left.superset(left));
+                    ARIADNE_TESTING_PROVE(not tree_snapshot.superset(left));
+                    ARIADNE_TESTING_PROVE(not robdd_snapshot.superset(left));
+
+                    tree_left.set_root_cell(false);
+                    robdd_left.set_root_cell(false);
+                    ARIADNE_TESTING_PROVE(not tree.superset(left));
+                    ARIADNE_TESTING_PROVE(not robdd.superset(left));
+                    ARIADNE_TESTING_PROVE(tree.superset(right_left));
+                    ARIADNE_TESTING_PROVE(robdd.superset(right_left));
+                }
+                // A tree recombine may invalidate borrowed node pointers,
+                // so recombine only after the child handles are destroyed.
+                tree.recombine();
+                robdd.recombine();
+                verify_outputs(tree,robdd);
+            }
+        }
+    }
+
     Void test_polymorphic_paving_handle_and_subpaving_views() {
         RobddManager manager;
         Grid grid(1u);
@@ -1607,5 +1760,6 @@ int main(int argc, char** argv) {
     ARIADNE_TESTING_ADD_TEST(TestRobddPaving, test_outer_box_approximation_between_backends);
     ARIADNE_TESTING_ADD_TEST(TestRobddPaving, test_generic_approximations_between_backends);
     ARIADNE_TESTING_ADD_TEST(TestRobddPaving, test_polymorphic_paving_handle_and_subpaving_views);
+    ARIADNE_TESTING_ADD_TEST(TestRobddPaving, test_polymorphic_sequences_backend_isolation);
     return ARIADNE_TESTING_RUN_TESTS_WITH_ARGS(argc,argv);
 }

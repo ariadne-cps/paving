@@ -844,3 +844,39 @@ rejects foreign inputs in ROBDD virtual overrides, and rewrites
 the tests to verify both rejection and same-backend virtual
 operations, including live child views. No change to
 `PavingHandle` or the BDD manager is needed.
+
+## 2026-11-06 - Sequence-level equivalence via isolated polymorphic handles
+
+Added `test_polymorphic_sequences_backend_isolation`, an exhaustive
+integration regression that exercises each backend through a separate
+`PavingHandle` / `PavingInterface` reference without ever using a
+different-backend paving as a set operand. For all 256 Boolean truth
+tables over three subdivision bits, in one and two dimensions, the
+test runs the same sequence independently on both backends:
+
+1. construct and adjoin initial enabled cells;
+2. clone both handles to preserve an immutable baseline;
+3. restrict against independently constructed same-backend masks;
+4. remove an independently constructed same-backend mask;
+5. adjoin that same-backend mask again;
+6. create live child views, clone their values independently, and
+   modify the original child region without touching siblings;
+7. destroy borrowed child handles before recombining tree nodes.
+
+After each stage the oracle compares only external observations:
+root grid and cell, number of normalized enabled leaves, full
+bounding box (when nonempty), membership of all eight depth-three
+cells and geometric `inside`, `separated`, `overlaps` queries.
+This intentionally does *not* call `subset`, `intersects`,
+`equals`, `adjoin`, `restrict` or `remove` with operands
+from different backends. Same-backend subset predicates are tested
+separately. Cloned handles are checked against each other as
+independent geometric outputs after the owners have been mutated.
+
+The existing negative regression covers forbidden mixed-backend
+operations. This sequence-level test complements, rather than
+replaces, the individual geometric truth-table checks and
+the polymorphic clone and branch tests. No production or public
+interface code changed in this increment. The comparison benchmark
+will be introduced only after functional equivalence is validated
+by the full CI matrix. CI validation of this test is pending.
