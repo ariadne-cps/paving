@@ -1428,3 +1428,45 @@ equivalence verification before timing. A separate fresh-manager
 table reports both strategies' physical node counts, reachable nodes,
 ITE-cache occupancy and indicative payload bytes. This is an
 architecture/performance change, not a memory reclaiming collector.
+
+## 2026-11-06 - Read-only ROBDD GridCell superset and empty-root shortcut
+
+Previously RobddPaving::superset(GridCell) built a singleton
+RobddPaving and called subset(), which lifts/aligns roots and computes
+a Boolean difference through the manager. Although semantically correct,
+this creates canonical intermediate nodes and ITE cache entries on a
+query intended to be read-only; the benchmark revealed this amplification
+during outer approximation's recursive subdivision.
+
+The new query first verifies grid compatibility and immediately returns
+false for a false root. It computes common_root_cell(query,pavingRoot)
+and checks that the paving's geometric root itself is the common
+ancestor: otherwise the queried cell cannot be completely contained.
+This detects disjoint queries and those extending outside the root,
+while accepting alternate primary extents that describe the same
+region. relative_cell_path then gives the query's normalized prefix.
+The walker descends through low()/high() for each queried decision
+index, leaves the BDD untouched for skipped variables and terminates
+early when the cofactor is constant. Complete coverage requires the
+remaining function to be exactly the true terminal. Complemented edges
+are transparently decoded by the existing manager cofactors. The
+entire query uses only public read-only manager accessors, and does
+not populate the unique table or the ITE cache.
+
+Outer/inner geometric traversals previously checked superset(cell)
+even when the paving was empty, a case that can never certify a
+contained cell. The new check_existing flag is computed once before
+the traversal and suppresses this pointless check only when the
+existing root is empty. The paving is modified only after the selected
+cells have been collected, so the flag remains valid throughout
+traversal; nonempty paving behavior and all geometric predicates
+retain their existing semantics.
+
+Regression tests compare direct containment to an independent
+BinaryTreePaving oracle for all 256 three-level occupancy tables and
+many ancestor, sibling, deeper and different-primary-extent queries.
+They verify no changes to physical manager node count/capacity or
+unique/ITE entry counts across each entire batch of direct queries.
+A separate complemented-root query check compares with the previous
+reference subset implementation, followed by a no-allocation check.
+No changes to the BDD manager or its threading contracts are required.

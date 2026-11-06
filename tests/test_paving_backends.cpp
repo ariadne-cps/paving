@@ -156,6 +156,97 @@ class TestPavingBackends : public Ariadne::Testing::ContextFixture {
         }
     }
 
+    Void test_superset_direct_no_manager_allocations() {
+        RobddManager manager;
+        Grid grid(1u);
+        GridCell root(grid,1u,BinaryWord{});
+        GridCell bigger(grid,2u,BinaryWord{});
+        GridCell equivalent(grid,2u,make_binary_word("00"));
+        GridCell alternate(grid,0u,BinaryWord{});
+        // In 1D, extent-2 primary "00" is geometrically the extent-1
+        // primary root, and extent-0 root lies at the left half of it.
+        std::vector<GridCell> probes{
+            root,bigger,equivalent,alternate,
+            GridCell(grid,1u,make_binary_word("0")),
+            GridCell(grid,1u,make_binary_word("1")),
+            GridCell(grid,1u,make_binary_word("00")),
+            GridCell(grid,1u,make_binary_word("01")),
+            GridCell(grid,1u,make_binary_word("10")),
+            GridCell(grid,1u,make_binary_word("11")),
+            GridCell(grid,1u,make_binary_word("000")),
+            GridCell(grid,1u,make_binary_word("001")),
+            GridCell(grid,1u,make_binary_word("010")),
+            GridCell(grid,1u,make_binary_word("011")),
+            GridCell(grid,1u,make_binary_word("100")),
+            GridCell(grid,1u,make_binary_word("101")),
+            GridCell(grid,1u,make_binary_word("110")),
+            GridCell(grid,1u,make_binary_word("111")),
+            GridCell(grid,1u,make_binary_word("1111"))};
+
+        for(unsigned mask=0u;mask<256u;++mask) {
+            BinaryTreePaving oracle(grid,1u,new BinaryTreeNode(false));
+            RobddPaving subject(
+                manager,root,manager.constant(false),0u);
+            for(unsigned k=0u;k<8u;++k) {
+                if((mask&(1u<<k))==0u) { continue; }
+                BinaryWord word;
+                for(unsigned bit=0u;bit<3u;++bit) {
+                    word.push_back((k&(1u<<(2u-bit)))!=0u);
+                }
+                GridCell cell(grid,1u,word);
+                oracle.adjoin(cell);
+                subject.adjoin(cell);
+            }
+            oracle.recombine();
+            subject.recombine();
+            if((mask&1u)!=0u) subject.mince_to_depth(5u);
+
+            auto before=manager.statistics();
+            for(GridCell const& probe:probes) {
+                ARIADNE_TESTING_EXPECT_EQUAL(
+                    subject.superset(probe),oracle.superset(probe));
+            }
+            auto after=manager.statistics();
+            ARIADNE_TESTING_EXPECT_EQUAL(after.node_count,before.node_count);
+            ARIADNE_TESTING_EXPECT_EQUAL(after.node_capacity,before.node_capacity);
+            ARIADNE_TESTING_EXPECT_EQUAL(
+                after.unique_table_entries,before.unique_table_entries);
+            ARIADNE_TESTING_EXPECT_EQUAL(
+                after.ite_cache_entries,before.ite_cache_entries);
+        }
+
+        // Complemented edges and skipped variables are checked directly.
+        auto x=manager.variable(1u);
+        RobddPaving complemented(
+            manager,root,manager.negation(x),3u);
+        for(GridCell const& probe:probes) {
+            ARIADNE_TESTING_EXPECT_EQUAL(
+                complemented.superset(probe),
+                [&] {
+                    RobddPaving expected(manager,root,manager.negation(x),3u);
+                    RobddPaving required(
+                        manager,probe,manager.constant(true),0u);
+                    return required.subset(expected);
+                }());
+        }
+        // The reference operation above intentionally allocates temporary
+        // BDD objects; check the no-allocation contract separately below.
+        auto mid=manager.statistics();
+        for(GridCell const& probe:probes) {
+            (void)complemented.superset(probe);
+        }
+        auto after=manager.statistics();
+        ARIADNE_TESTING_EXPECT_EQUAL(after.node_count,mid.node_count);
+        ARIADNE_TESTING_EXPECT_EQUAL(
+            after.unique_table_entries,mid.unique_table_entries);
+        ARIADNE_TESTING_EXPECT_EQUAL(
+            after.ite_cache_entries,mid.ite_cache_entries);
+
+        Grid other(2u);
+        ARIADNE_TESTING_EXPECT_EXCEPTION(
+            complemented.superset(GridCell(other,0u,BinaryWord{})));
+    }
+
     Void test_bulk_cell_construction_and_union() {
         RobddManager manager;
         Grid grid(1u);
@@ -2465,6 +2556,7 @@ int main(int argc, char** argv) {
     ARIADNE_TESTING_SUITE("test_paving_backends");
     ARIADNE_TESTING_ADD_TEST(TestPavingBackends, test_import_and_explicit_tree_oracle);
     ARIADNE_TESTING_ADD_TEST(TestPavingBackends, test_compact_leaves_exhaustive_truth_tables);
+    ARIADNE_TESTING_ADD_TEST(TestPavingBackends, test_superset_direct_no_manager_allocations);
     ARIADNE_TESTING_ADD_TEST(TestPavingBackends, test_bulk_cell_construction_and_union);
     ARIADNE_TESTING_ADD_TEST(TestPavingBackends, test_in_place_mutation_and_value_semantics);
     ARIADNE_TESTING_ADD_TEST(TestPavingBackends, test_in_place_mutation_across_extents);

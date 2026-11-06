@@ -587,12 +587,15 @@ Void RobddPaving::adjoin_outer_approximation(
         EffectiveEuclideanOpenSetInterface const*>(
             static_cast<EuclideanSetInterfaceBase const*>(&set));
 
-    // Perform geometric exploration before changing the ROBDD root.
+    // Selections are applied only after the traversal, so the current
+    // paving stays unchanged while testing candidate cells. If it starts
+    // empty, no candidate can already be covered: skip the check entirely.
+    Bool check_existing=not is_empty();
     std::vector<GridCell> selected;
     std::function<Void(GridCell const&,SizeType)> visit =
         [&](GridCell const& cell, SizeType depth) {
             if (definitely(set.separated(cell.box()))) { return; }
-            if (superset(cell)) { return; }
+            if (check_existing and superset(cell)) { return; }
             if ((open_set and definitely(open_set->covers(cell.box())))
                     or depth==target_depth) {
                 selected.push_back(cell);
@@ -633,11 +636,13 @@ Void RobddPaving::adjoin_inner_approximation(
         EffectiveEuclideanClosedSetInterface const*>(&set);
 
     // Only positively certified cells may enter an inner approximation.
-    // Never expand a cell already fully enabled by the current paving.
+    // While the candidate cells are collected, the paving root is unchanged.
+    // An initially empty paving cannot cover any candidate.
+    Bool check_existing=not is_empty();
     std::vector<GridCell> selected;
     std::function<Void(GridCell const&,SizeType)> visit =
         [&](GridCell const& cell, SizeType depth) {
-            if (superset(cell)) { return; }
+            if (check_existing and superset(cell)) { return; }
             if (definitely(set.covers(cell.box()))) {
                 selected.push_back(cell);
                 return;
@@ -782,8 +787,36 @@ Bool RobddPaving::equals(SubPavingInterface const& other) const {
 Bool RobddPaving::superset(GridCell const& cell) const {
     ARIADNE_PRECONDITION_MSG(grid() == cell.grid(),
         "Cannot test cell containment across different grids");
-    RobddPaving required(*_manager,cell,_manager->constant(true),0u);
-    return required.subset(*this);
+    if (_root.is_false()) { return false; }
+
+    // Every dyadic GridCell pair is nested or disjoint. A query that
+    // extends outside the paving's geometric root cannot be fully covered.
+    // common_root_cell normalizes differing primary-cell extents. Comparing
+    // relative paths instead of GridCell objects also accepts two distinct
+    // representations of the SAME geometric root.
+    GridCell common=common_root_cell(_root_cell,cell);
+    if (not relative_cell_path(common,_root_cell).empty()) {
+        return false;
+    }
+
+    // The common root is geometrically identical to _root_cell. Use its
+    // normalized descendant path to inspect only the cofactors selected by
+    // the queried cell; skipped variables leave the ROBDD unchanged.
+    // When the requested prefix ends, the entire remaining subfunction
+    // must equal true. No BDD node or computed-table entry is allocated.
+    BinaryWord path=relative_cell_path(common,cell);
+    Robdd value=_root;
+    for(SizeType i=0u;i<path.size();++i) {
+        if(value.is_terminal()) { return value.is_true(); }
+        auto top=_manager->top_variable(value);
+        ARIADNE_PRECONDITION_MSG(
+            top.has_value() and top->index()>=i,
+            "ROBDD support is incompatible with paving subdivision order");
+        if(top->index()==i) {
+            value=path[i] ? _manager->high(value) : _manager->low(value);
+        }
+    }
+    return value.is_true();
 }
 
 RobddPaving RobddPaving::subpaving(GridCell const& cell) const {

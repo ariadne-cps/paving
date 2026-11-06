@@ -302,3 +302,28 @@ the same baseline tree insertion workload as replay_cells, allowing
 comparison of incremental/batch ROBDD independently of geometric
 classification. All reported memory is indicative and does not
 include allocator bookkeeping or full resident memory.
+
+### Direct read-only ROBDD cell-containment query
+
+RobddPaving::superset(GridCell) performs a geometric-root containment
+check, normalizing cell representations across primary extents with
+common_root_cell and relative_cell_path. It then follows the queried
+binary prefix through the ROBDD's low/high cofactors, skipping variables
+absent from the canonical DAG. It returns true only when the entire
+remaining Boolean subfunction is the true terminal. This preserves
+semantics for partial/nonempty subtrees, complemented edges and variable
+skips without constructing an intermediate paving or adding canonical
+nodes/ITE cache entries to the manager.
+
+During inner and outer certified approximation, selected cells are
+collected before any root mutation. If the existing root is empty, every
+superset query is redundant and is now skipped. If nonempty, the same
+geometric pruning condition remains in place, but its containment
+check is read-only.
+
+The expanded backend regression suite independently compares direct
+superset queries against the explicit tree for all 256 occupancy
+patterns of three decision variables, including parent/descendant
+queries, different root extents, minced logical depth and complemented
+Boolean functions. For direct queries it checks that manager nodes,
+capacity, unique entries and ITE cache entries do not increase.
