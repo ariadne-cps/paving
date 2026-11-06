@@ -220,6 +220,14 @@ RobddPaving::RobddPaving(
         encode_tree(manager,source.binary_tree(),0u),source.tree_depth()) { }
 
 RobddPaving::RobddPaving(
+        RobddManager& manager, SubPavingInterface const& source)
+    : RobddPaving(manager,source.root_cell(),manager.constant(false),0u) {
+    for (auto cell=source.begin(), end=source.end(); cell!=end; ++cell) {
+        adjoin(*cell);
+    }
+}
+
+RobddPaving::RobddPaving(
         RobddManager& manager, GridCell const& root_cell,
         Robdd const& root, SizeType depth)
     : _manager(&manager), _root_cell(root_cell), _root(root), _depth(depth) {
@@ -319,12 +327,30 @@ Void RobddPaving::adjoin(RobddPaving const& other) {
     *this = join(other);
 }
 
+Void RobddPaving::adjoin(SubPavingInterface const& other) {
+    ARIADNE_PRECONDITION_MSG(grid() == other.grid(),
+        "Cannot adjoin a subpaving on another grid");
+    adjoin(RobddPaving(*_manager,other));
+}
+
 Void RobddPaving::restrict(RobddPaving const& other) {
     *this = intersection(other);
 }
 
+Void RobddPaving::restrict(SubPavingInterface const& other) {
+    ARIADNE_PRECONDITION_MSG(grid() == other.grid(),
+        "Cannot restrict a paving with a subpaving on another grid");
+    restrict(RobddPaving(*_manager,other));
+}
+
 Void RobddPaving::remove(RobddPaving const& other) {
     *this = difference(other);
+}
+
+Void RobddPaving::remove(SubPavingInterface const& other) {
+    ARIADNE_PRECONDITION_MSG(grid() == other.grid(),
+        "Cannot remove a subpaving on another grid");
+    remove(RobddPaving(*_manager,other));
 }
 
 Void RobddPaving::adjoin(GridCell const& cell) {
@@ -422,6 +448,43 @@ Bool RobddPaving::intersects(
     auto second = other._lift_to(common);
     return not _manager->conjunction(
         first.first,second.first).is_false();
+}
+
+Bool RobddPaving::subset(SubPavingInterface const& other) const {
+    ARIADNE_PRECONDITION_MSG(grid() == other.grid(),
+        "Cannot compare pavings from different grids");
+    return subset(RobddPaving(*_manager,other));
+}
+
+Bool RobddPaving::intersects(SubPavingInterface const& other) const {
+    ARIADNE_PRECONDITION_MSG(grid() == other.grid(),
+        "Cannot compare pavings from different grids");
+    return intersects(RobddPaving(*_manager,other));
+}
+
+Bool RobddPaving::equals(SubPavingInterface const& other) const {
+    ARIADNE_PRECONDITION_MSG(grid() == other.grid(),
+        "Cannot compare pavings from different grids");
+    RobddPaving imported(*_manager,other);
+    return subset(imported) and imported.subset(*this);
+}
+
+Bool RobddPaving::superset(GridCell const& cell) const {
+    ARIADNE_PRECONDITION_MSG(grid() == cell.grid(),
+        "Cannot test cell containment across different grids");
+    RobddPaving required(*_manager,cell,_manager->constant(true),0u);
+    return required.subset(*this);
+}
+
+RobddPaving RobddPaving::branch(Bool right) const {
+    Robdd restricted = _root;
+    SizeType child_depth = 0u;
+    if (_depth != 0u) {
+        restricted = _manager->restrict(_root,BddVariable(0u),right);
+        restricted = _manager->shift(restricted,-1);
+        child_depth = _depth-1u;
+    }
+    return RobddPaving(*_manager,_root_cell.split(right),restricted,child_depth);
 }
 
 } // namespace Ariadne

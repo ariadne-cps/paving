@@ -374,3 +374,52 @@ now-empty directory. There is no compatibility copy.
 
 No changes were made to `ariadne-cps/bdd` or
 `ariadne-cps/reasoning`. CI verification remains necessary.
+
+## 2026-11-06 - Native child restriction and representation-neutral operations
+
+Added explicit support for reading and mutating `RobddPaving` through
+ordinary `SubPavingInterface const&` inputs. A new constructor
+`RobddPaving(RobddManager&, SubPavingInterface const&)` imports the
+source's enabled `GridCell` iterator into the target manager. This
+does not require an intermediate `BinaryTreeNode` and works with
+subpavings of arbitrary geometric root paths and extents. Import
+cost is proportional to the number of enabled cells and may be
+substantial for large inputs; it is not a constant-time conversion.
+
+The following native representation-neutral overloads are now
+available: `adjoin`, `restrict`, `remove`, `subset` and
+`intersects` with `SubPavingInterface const&`; `equals`
+with `SubPavingInterface const&`; and `superset(GridCell const&)`.
+The existing ROBDD-specific overloads remain available, and are
+still chosen for ROBDD arguments. All operations check for grid
+compatibility and reuse the existing canonical Boolean
+set-operation implementations. Equality is checked by inclusion
+in both directions. A cell is completely contained exactly when
+its true-terminal paving is included in the receiver.
+
+`RobddPaving::branch(Bool)` now returns a value-like child snapshot.
+For a nonzero logical depth, it restricts the first ROBDD variable
+to the requested branch and uniformly shifts remaining variable
+indices down by one, keeping canonical representation and
+complemented-edge semantics. At depth zero the root is necessarily
+a terminal, which is reused unchanged for both child cells.
+The child geometric root is obtained with `GridCell::split`.
+The source paving remains unchanged. This operation does not
+materialize a binary tree and does not yet implement the virtual
+`SubPavingInterface::_branch` adapter or its mutation-through-view
+semantics.
+
+Regression tests compare generic import and mixed operations against
+the explicit binary tree, verify compressed leaves and distinct
+extent roots, check self-contained geometric membership,
+reject foreign grids without modifying the receiver, and
+exhaustively compare both child restrictions against all 256
+three-variable truth tables. They also exercise skipped variables,
+complemented references, empty and full terminal roots.
+
+The `PavingHandle` spelling is deliberately retained. This
+increment does **not** make `RobddPaving` derive from
+`PavingInterface`: geometric predicates, outer/inner approximation
+operations, precise `mince(Nat)` semantics and writable subpaving
+views require further implementation. `reasoning`, `drawing`
+and `bdd` remain unchanged. CI must validate this increment.

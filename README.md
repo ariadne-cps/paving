@@ -65,6 +65,13 @@ Compact leaves are the leaves of the recombined ordered binary-tree
 interpretation, not all fixed-depth cells or the leaves of an
 unrecombined historical tree.
 
+The prototype also accepts `SubPavingInterface const&` inputs for
+import, union, intersection, difference, set predicates and equality.
+It implements `superset(GridCell)` and a native `branch(Bool)`
+that restricts the ROBDD to a child cell without constructing an
+explicit binary tree. This does not yet give it the full virtual
+`PavingInterface` contract.
+
 The manager must outlive snapshots. Both operands in a set operation must
 share one manager and lie on the same grid; roots are aligned even when
 their paths and primary-cell extents differ. Projection, geometry queries

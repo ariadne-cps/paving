@@ -28,6 +28,7 @@
 namespace Ariadne {
 
 class GridTreeSubpaving;
+class SubPavingInterface;
 
 //! \brief Experimental ROBDD-backed paving with value-like root updates.
 //! \details The GridCell stores the geometric root, while the Robdd stores
@@ -40,6 +41,11 @@ class RobddPaving {
     //! \brief Encode an existing explicit tree without retaining its node pointers.
     //! \details The root cell and maximal tree depth are copied.
     RobddPaving(RobddManager& manager, GridTreeSubpaving const& source);
+
+    //! \brief Import any paving through the representation-neutral interface.
+    //! \details Iterates its enabled cells into this manager; no explicit-tree
+    //! conversion is required, but import cost depends on the cell count.
+    RobddPaving(RobddManager& manager, SubPavingInterface const& source);
 
     //! \brief Construct a snapshot from a Boolean root and grid metadata.
     //! \pre root belongs to manager, and its support lies in [0, depth).
@@ -139,11 +145,21 @@ class RobddPaving {
     //! \brief In-place union with a paving on the same grid and manager.
     Void adjoin(RobddPaving const& other);
 
+    //! \brief In-place union with any subpaving on the same grid.
+    //! \details Imports its enabled cells into this paving's manager.
+    Void adjoin(SubPavingInterface const& other);
+
     //! \brief In-place intersection with a paving on the same grid and manager.
     Void restrict(RobddPaving const& other);
 
+    //! \brief In-place intersection with a representation-neutral subpaving.
+    Void restrict(SubPavingInterface const& other);
+
     //! \brief In-place difference with a paving on the same grid and manager.
     Void remove(RobddPaving const& other);
+
+    //! \brief In-place removal of any subpaving on the same grid.
+    Void remove(SubPavingInterface const& other);
 
     //! \brief Adjoin a cell from the same grid.
     Void adjoin(GridCell const& cell);
@@ -163,8 +179,26 @@ class RobddPaving {
     //! \brief Test subset inclusion for compatible roots.
     Bool subset(RobddPaving const& other) const;
 
+    //! \brief Test subset inclusion against an arbitrary subpaving.
+    Bool subset(SubPavingInterface const& other) const;
+
     //! \brief Test whether two compatible pavings intersect.
     Bool intersects(RobddPaving const& other) const;
+
+    //! \brief Test intersection against an arbitrary subpaving.
+    Bool intersects(SubPavingInterface const& other) const;
+
+    //! \brief Test geometric set equality against an arbitrary subpaving.
+    Bool equals(SubPavingInterface const& other) const;
+
+    //! \brief Test whether the paving covers a geometric cell completely.
+    Bool superset(GridCell const& cell) const;
+
+    //! \brief Return a value-like snapshot restricted to one child cell.
+    //! \details Cofactors the first subdivision decision and shifts every
+    //! subsequent variable down by one. The source is unchanged, and the
+    //! returned paving is rooted at the selected child, not the parent.
+    RobddPaving branch(Bool right) const;
 
   private:
     Void _check_compatible(RobddPaving const& other) const;
