@@ -880,3 +880,40 @@ the polymorphic clone and branch tests. No production or public
 interface code changed in this increment. The comparison benchmark
 will be introduced only after functional equivalence is validated
 by the full CI matrix. CI validation of this test is pending.
+
+## 2026-11-06 - Separate backend-neutral tests and rename the tree suite
+
+Reorganized the C++ regression suites without changing the behavioral
+assertions of existing test cases:
+
+- `tests/test_grid_paving.cpp` was renamed to
+  `tests/test_binary_tree_paving.cpp`. The fixture class is now
+  `TestBinaryTreePaving` and the test suite is registered as
+  `test_binary_tree_paving`; method names and their assertions stay
+  unchanged. No alias for the retired test target is introduced.
+- `tests/test_paving_backends.cpp` is a new standalone regression
+  executable with fixture `TestPavingBackends`. Seventeen methods
+  previously registered in `test_robdd_paving.cpp` were moved here,
+  preserving their bodies and relative registration order. They cover
+  tree-oracle migration, cross-backend geometric comparisons and
+  sequence-level equivalence using independent backends.
+- `tests/test_robdd_paving.cpp` retains five ROBDD-specific tests:
+  `test_terminals_and_complemented_roots`,
+  `test_set_operations_and_preconditions`,
+  `test_distinct_roots_and_extents`,
+  `test_compact_leaf_iteration`, and
+  `test_detached_subpaving_for_descendants`.
+
+`tests/CMakeLists.txt` replaces the old `test_grid_paving` executable
+with `test_binary_tree_paving` and adds `test_paving_backends` to
+`UNIT_TESTS`. Both are registered through the same `CTest` loop,
+including Windows path setup and the existing `paving` test label.
+All 22 original ROBDD test methods are accounted for (17 moved, five
+retained), and no comparison logic was weakened or converted into
+mixed-backend set operations.
+
+This change is solely test organization. The production
+`GridTreePaving` class and its public API retain their existing
+names, as does the independent `test_grid_paving_extensions` suite.
+No changes to the `bdd`, `drawing` or `reasoning` repositories.
+The rename and test relocation require CI validation.

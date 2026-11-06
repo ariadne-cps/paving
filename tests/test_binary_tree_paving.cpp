@@ -1,5 +1,5 @@
 /***************************************************************************
- *            test_grid_paving.cpp
+ *            test_binary_tree_paving.cpp
  *
  *  Copyright  2008-20  Ivan S. Zapreev, Pieter Collins
  *
@@ -51,7 +51,7 @@ static const Nat extentFour = 4;
 namespace {
 
 
-class TestGridPaving : public Ariadne::Testing::ContextFixture {
+class TestBinaryTreePaving : public Ariadne::Testing::ContextFixture {
   public:
     using ContextFixture::ContextFixture;
 
@@ -2837,40 +2837,40 @@ void test_products() {
 } // namespace
 
 int main(int argc, char** argv) {
-    ARIADNE_TESTING_SUITE("test_grid_paving");
-    ARIADNE_TESTING_ADD_TEST(TestGridPaving, test_grid_paving_cursor);
-    ARIADNE_TESTING_ADD_TEST(TestGridPaving, test_grid_paving_const_iterator);
-    ARIADNE_TESTING_ADD_TEST(TestGridPaving, test_grid_cell);
-    ARIADNE_TESTING_ADD_TEST(TestGridPaving, test_grid_open_cell_one);
-    ARIADNE_TESTING_ADD_TEST(TestGridPaving, test_grid_open_cell_two);
-    ARIADNE_TESTING_ADD_TEST(TestGridPaving, test_grid_open_cell_three);
-    ARIADNE_TESTING_ADD_TEST(TestGridPaving, test_grid_open_cell_four);
-    ARIADNE_TESTING_ADD_TEST(TestGridPaving, test_grid_open_cell_five);
-    ARIADNE_TESTING_ADD_TEST(TestGridPaving, test_grid_open_cell_six);
-    ARIADNE_TESTING_ADD_TEST(TestGridPaving, test_grid_sub_paving_one);
-    ARIADNE_TESTING_ADD_TEST(TestGridPaving, test_grid_sub_paving_two);
-    ARIADNE_TESTING_ADD_TEST(TestGridPaving, test_grid_sub_paving_three);
-    ARIADNE_TESTING_ADD_TEST(TestGridPaving, test_grid_paving);
-    ARIADNE_TESTING_ADD_TEST(TestGridPaving, test_adjoin_operation_one);
-    ARIADNE_TESTING_ADD_TEST(TestGridPaving, test_adjoin_operation_two);
-    ARIADNE_TESTING_ADD_TEST(TestGridPaving, test_adjoin_operation_three);
-    ARIADNE_TESTING_ADD_TEST(TestGridPaving, test_adjoin_outer_approximation_operation);
-    ARIADNE_TESTING_ADD_TEST(TestGridPaving, test_adjoin_inner_approximation_operation_one);
-    ARIADNE_TESTING_ADD_TEST(TestGridPaving, test_adjoin_inner_approximation_operation_two);
-    ARIADNE_TESTING_ADD_TEST(TestGridPaving, test_adjoin_inner_approximation_operation_three);
-    ARIADNE_TESTING_ADD_TEST(TestGridPaving, test_restrict);
-    ARIADNE_TESTING_ADD_TEST(TestGridPaving, test_remove_one);
-    ARIADNE_TESTING_ADD_TEST(TestGridPaving, test_remove_two);
-    ARIADNE_TESTING_ADD_TEST(TestGridPaving, test_cell_subset_subset);
-    ARIADNE_TESTING_ADD_TEST(TestGridPaving, test_subsets_join);
-    ARIADNE_TESTING_ADD_TEST(TestGridPaving, test_subsets_intersection);
-    ARIADNE_TESTING_ADD_TEST(TestGridPaving, test_subsets_difference);
-    ARIADNE_TESTING_ADD_TEST(TestGridPaving, test_cell_intersect_subset);
-    ARIADNE_TESTING_ADD_TEST(TestGridPaving, test_subset_intersect_subset);
-    ARIADNE_TESTING_ADD_TEST(TestGridPaving, test_subset_subset_subset);
-    ARIADNE_TESTING_ADD_TEST(TestGridPaving, test_subset_intersects_box);
-    ARIADNE_TESTING_ADD_TEST(TestGridPaving, test_subset_subset_box);
-    ARIADNE_TESTING_ADD_TEST(TestGridPaving, test_subset_superset_box);
-    ARIADNE_TESTING_ADD_TEST(TestGridPaving, test_products);
+    ARIADNE_TESTING_SUITE("test_binary_tree_paving");
+    ARIADNE_TESTING_ADD_TEST(TestBinaryTreePaving, test_grid_paving_cursor);
+    ARIADNE_TESTING_ADD_TEST(TestBinaryTreePaving, test_grid_paving_const_iterator);
+    ARIADNE_TESTING_ADD_TEST(TestBinaryTreePaving, test_grid_cell);
+    ARIADNE_TESTING_ADD_TEST(TestBinaryTreePaving, test_grid_open_cell_one);
+    ARIADNE_TESTING_ADD_TEST(TestBinaryTreePaving, test_grid_open_cell_two);
+    ARIADNE_TESTING_ADD_TEST(TestBinaryTreePaving, test_grid_open_cell_three);
+    ARIADNE_TESTING_ADD_TEST(TestBinaryTreePaving, test_grid_open_cell_four);
+    ARIADNE_TESTING_ADD_TEST(TestBinaryTreePaving, test_grid_open_cell_five);
+    ARIADNE_TESTING_ADD_TEST(TestBinaryTreePaving, test_grid_open_cell_six);
+    ARIADNE_TESTING_ADD_TEST(TestBinaryTreePaving, test_grid_sub_paving_one);
+    ARIADNE_TESTING_ADD_TEST(TestBinaryTreePaving, test_grid_sub_paving_two);
+    ARIADNE_TESTING_ADD_TEST(TestBinaryTreePaving, test_grid_sub_paving_three);
+    ARIADNE_TESTING_ADD_TEST(TestBinaryTreePaving, test_grid_paving);
+    ARIADNE_TESTING_ADD_TEST(TestBinaryTreePaving, test_adjoin_operation_one);
+    ARIADNE_TESTING_ADD_TEST(TestBinaryTreePaving, test_adjoin_operation_two);
+    ARIADNE_TESTING_ADD_TEST(TestBinaryTreePaving, test_adjoin_operation_three);
+    ARIADNE_TESTING_ADD_TEST(TestBinaryTreePaving, test_adjoin_outer_approximation_operation);
+    ARIADNE_TESTING_ADD_TEST(TestBinaryTreePaving, test_adjoin_inner_approximation_operation_one);
+    ARIADNE_TESTING_ADD_TEST(TestBinaryTreePaving, test_adjoin_inner_approximation_operation_two);
+    ARIADNE_TESTING_ADD_TEST(TestBinaryTreePaving, test_adjoin_inner_approximation_operation_three);
+    ARIADNE_TESTING_ADD_TEST(TestBinaryTreePaving, test_restrict);
+    ARIADNE_TESTING_ADD_TEST(TestBinaryTreePaving, test_remove_one);
+    ARIADNE_TESTING_ADD_TEST(TestBinaryTreePaving, test_remove_two);
+    ARIADNE_TESTING_ADD_TEST(TestBinaryTreePaving, test_cell_subset_subset);
+    ARIADNE_TESTING_ADD_TEST(TestBinaryTreePaving, test_subsets_join);
+    ARIADNE_TESTING_ADD_TEST(TestBinaryTreePaving, test_subsets_intersection);
+    ARIADNE_TESTING_ADD_TEST(TestBinaryTreePaving, test_subsets_difference);
+    ARIADNE_TESTING_ADD_TEST(TestBinaryTreePaving, test_cell_intersect_subset);
+    ARIADNE_TESTING_ADD_TEST(TestBinaryTreePaving, test_subset_intersect_subset);
+    ARIADNE_TESTING_ADD_TEST(TestBinaryTreePaving, test_subset_subset_subset);
+    ARIADNE_TESTING_ADD_TEST(TestBinaryTreePaving, test_subset_intersects_box);
+    ARIADNE_TESTING_ADD_TEST(TestBinaryTreePaving, test_subset_subset_box);
+    ARIADNE_TESTING_ADD_TEST(TestBinaryTreePaving, test_subset_superset_box);
+    ARIADNE_TESTING_ADD_TEST(TestBinaryTreePaving, test_products);
     return ARIADNE_TESTING_RUN_TESTS_WITH_ARGS(argc, argv);
 }

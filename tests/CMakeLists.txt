@@ -4,7 +4,8 @@ set(UNIT_TESTS
     test_binary_tree
     test_grid
     test_grid_cell_alignment
-    test_grid_paving
+    test_binary_tree_paving
+    test_paving_backends
     test_grid_paving_extensions
     test_robdd_paving
     test_paver
