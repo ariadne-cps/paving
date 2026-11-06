@@ -1060,3 +1060,47 @@ mince(). Audit existing callers before introducing or migrating that API.
 No BDD manager or concrete tree mincing changes are made here.
 CI validation of this increment is required.
 
+
+## 2026-11-06 - Non-mutating grid-relative fineness enumeration
+
+Introduced for_each_enabled_cell_at_fineness(SubPavingInterface const&,
+Nat, Visitor&&) in paving_cell_operations.hpp. This free function
+streams enabled cells using current backend iteration as input, then
+expands any enabled leaf with word length below
+(root_extent + fineness) * dimension, respecting the common grid-relative
+fineness convention. Existing deeper leaves remain unchanged (this is a
+minimum, not a demand to coarsen). Split order is left before right.
+It keeps only the pending depth-first search frontier, rather than
+building a new paving or changing the ROBDD root. Polymorphic child-view
+source iterators may independently snapshot their compact leaf sequence.
+Depth/index overflow is checked before iteration; consumers must not
+mutate the source while visiting cells.
+
+Added two regression fixtures in test_paving_backends.cpp. The first
+compares independently constructed tree and ROBDD pavings to an
+explicitly minced tree oracle across 1, 2 and 3 dimensions, two primary
+extents, multiple masks and fineness levels, checking exact visit order,
+coverage, and no mutation of either owner. The second covers nested
+live SubPavingInterface views of an enabled root at two extents; it
+tests root-relative clipping, preservation of already finer leaves,
+and sibling geometry. The source tree must not be recombined while its
+borrowed child views are alive.
+
+Audited repository consumers:
+- Legacy tree, paving and geometric approximation tests intentionally
+  exercise physical mincing, and continue to use the concrete APIs.
+- Calls to recombine() in approximation code, C++ and Python tutorials,
+  and tree projection compact a concrete representation; they do not
+  request enumeration and are unchanged.
+- outer_skew_product() previously const_cast a const input GridTreePaving
+  merely to call mince() before iteration. It now uses the new streaming
+  enumerator for both inputs, removing the const mutation and avoiding
+  transient physical leaf expansion. An existing product regression is
+  retained and extended to assert structural input immutability.
+- External call sites (including downstream reasoning integration) are
+  not rewritten in this increment.
+
+No mixed-backend paving operands are enabled. No changes to BDD manager,
+ROBDD canonicalization, Python API, or virtual method signatures.
+The CI matrix must validate this change.
+

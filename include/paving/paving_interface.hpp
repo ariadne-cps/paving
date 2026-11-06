@@ -180,7 +180,8 @@ class SubPavingInterface
     //! backend may only adjust logical depth or leave a child view unchanged.
     //! The resulting size() and iterator granularity are backend-dependent.
     //! Fineness is relative to the grid's zero-level cell, not this root.
-    //! \note Legacy operation; use explicit-resolution iteration when needed.
+    //! \note Legacy operation; use for_each_enabled_cell_at_fineness()
+    //! from paving_cell_operations.hpp for non-mutating refinement.
     virtual Void mince(Nat fineness) = 0;
     //! \brief Remove redundant representation subdivisions where supported.
     //! \details Preserves geometry. Recombining a child view must not change

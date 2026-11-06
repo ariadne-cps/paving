@@ -34,6 +34,7 @@
 #include "set/list_set.hpp"
 #include "paving/grid_paving.hpp"
 #include "paving/grid_cell_alignment.hpp"
+#include "paving/paving_cell_operations.hpp"
 #include <limits>
 #include "paving/binary_tree.hpp"
 
@@ -2800,19 +2801,20 @@ GridTreePaving outer_skew_product(GridTreePaving const& gtp1, Grid const& g2, Va
     Nat tree_depth = static_cast<Nat>(gtp1.tree_depth());
     Nat fineness=tree_depth/static_cast<Nat>(g1.dimension())-gtp1.root_cell().root_extent();
 
-    const_cast<GridTreePaving&>(gtp1).mince(fineness);
+    // Enumerate at the requested granularity without modifying the
+    // const input paving or materializing artificial subdivisions.
     GridTreePaving gtp2(g2);
     GridTreePaving r(join(g1,g2));
-
-    for (GridCell gc1 : gtp1) {
+    for_each_enabled_cell_at_fineness(
+            gtp1,fineness,[&](GridCell const& gc1) {
         ValidatedConstrainedImageSet s2(gc1.box(),f);
         gtp2.adjoin_outer_approximation(s2,fineness);
-        gtp2.mince(fineness);
-        for (GridCell gc2 : gtp2) {
+        for_each_enabled_cell_at_fineness(
+                gtp2,fineness,[&](GridCell const& gc2) {
             r.adjoin(product(gc1,gc2));
-        }
+        });
         gtp2.clear();
-    }
+    });
     r.recombine();
     return r;
 }

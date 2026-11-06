@@ -40,9 +40,10 @@ The two representation-specific C++ names are:
 - `RobddPaving` (header `paving/robdd_paving.hpp`):
   an experimental ROBDD-backed paving snapshot.
 
-The types do not yet offer identical functionality. In particular,
-the ROBDD prototype does not yet implement the complete
-`PavingInterface`; the alias does not create a new concrete class.
+Both backends implement the polymorphic `PavingInterface`, while
+representation-specific operations and performance characteristics differ.
+The `BinaryTreePaving` name aliases the established concrete implementation;
+the ROBDD backend is an independent concrete implementation.
 
 The two backends share representation-independent geometric alignment
 through `paving/grid_cell_alignment.hpp`, including paths relative to a
@@ -72,13 +73,32 @@ that restricts the ROBDD to a child cell without constructing an
 explicit binary tree. It also supports `bounding_box()`, `inside()`,
 `separated()` and `overlaps()` through compact-leaf iteration,
 matching the binary-tree backend's conservative box semantics.
-This does not yet give it the full virtual `PavingInterface` contract.
+Its polymorphic `PavingInterface` implementation also provides same-backend
+mutable child views, geometric set predicates, and generic approximations.
+Set operations do not implicitly convert between backends.
 
 The manager must outlive snapshots. Both operands in a set operation must
 share one manager and lie on the same grid; roots are aligned even when
 their paths and primary-cell extents differ. Projection, geometry queries
 and integration with `GridTreeCursor` are deliberately deferred. Existing paving APIs and
 representation choices remain unchanged.
+
+## Representation-independent cell refinement
+
+The free function `for_each_enabled_cell_at_fineness(paving,fineness,visitor)`
+is available in `paving/paving_cell_operations.hpp` (also via the umbrella
+header). It visits enabled cells at **at least** the requested grid-relative
+fineness, in left-before-right order. Already finer cells remain fine;
+there is no implicit coarsening. It does not mutate the paving or change
+its stored subdivision depth and can stream the refined cells without
+materializing an expanded tree or ROBDD. The number of visited cells can
+still be exponential in the requested fineness.
+
+Legacy `mince()` and `recombine()` are representation operations, not
+portable guarantees about `size()` or the cells returned by `begin()`.
+In particular, a tree may retain redundant subdivisions while ROBDD
+iteration remains canonical. The number of leaves exposed by `size()`
+therefore need not match between backends before tree recombination.
 
 ## Build
 

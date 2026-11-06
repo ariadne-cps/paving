@@ -48,6 +48,61 @@ Void set_paving_cell(Paving& paving, GridCell const& cell, Bool enabled) {
     }
 }
 
+//! \brief Stream enabled grid cells with at least the requested fineness.
+//! \details The fineness is measured in subdivisions per dimension from the
+//! zero-level grid cell. A leaf is subdivided only if its word is shorter
+//! than (root_extent + fineness) * dimension. Existing finer leaves retain
+//! their geometry: this operation does not coarsen or merge them.
+//!
+//! Uses the backend's current compact/explicit leaf iterator as input and
+//! visits the refined cells in left-to-right depth-first order. The output
+//! is generated incrementally rather than materialized in a new paving.
+//! Unlike mince(), this cannot alter the owner, its logical depth, or its
+//! stored representation. The ROBDD remains canonical.
+//!
+//! \note A backend's source iterator may retain an immutable snapshot of
+//! its original leaves (notably a polymorphic child view). Refined output
+//! cells are not stored. The callback must not mutate the source paving;
+//! references received by the callback are valid only during the call.
+//! \pre The requested target depth must fit valid GridCell word indices.
+//! \warning The number of visited cells may be exponential in fineness.
+template<class Visitor>
+Void for_each_enabled_cell_at_fineness(
+        SubPavingInterface const& paving, Nat fineness, Visitor&& visitor) {
+    GridCell root=paving.root_cell();
+    SizeType extent=static_cast<SizeType>(root.root_extent());
+    SizeType requested=static_cast<SizeType>(fineness);
+    SizeType dimensions=static_cast<SizeType>(paving.dimension());
+    constexpr SizeType limit=std::numeric_limits<SizeType>::max();
+    ARIADNE_PRECONDITION_MSG(extent <= limit-requested,
+        "Requested cell-enumeration fineness overflows the grid level");
+    SizeType levels=extent+requested;
+    ARIADNE_PRECONDITION_MSG(
+        dimensions == 0u or levels <= limit/dimensions,
+        "Requested cell-enumeration fineness overflows subdivision depth");
+    SizeType target=levels*dimensions;
+    SizeType max_word=static_cast<SizeType>(std::numeric_limits<Int>::max());
+    ARIADNE_PRECONDITION_MSG(
+        dimensions <= max_word and target <= max_word-dimensions,
+        "Requested cell-enumeration fineness exceeds valid GridCell depth");
+
+    std::vector<GridCell> pending;
+    for (auto it=paving.begin(), end=paving.end(); it!=end; ++it) {
+        pending.push_back(*it);
+        while (not pending.empty()) {
+            GridCell cell=std::move(pending.back());
+            pending.pop_back();
+            if (cell.word().size() >= target) {
+                visitor(cell);
+            } else {
+                // LIFO: visit the left subdivision before its right sibling.
+                pending.push_back(cell.split(true));
+                pending.push_back(cell.split(false));
+            }
+        }
+    }
+}
+
 //! \brief A snapshot-based iterator over cells clipped to a subpaving view.
 //! \details A cloned iterator shares its immutable cell snapshot. End
 //! comparisons work across independently created iterator snapshots of

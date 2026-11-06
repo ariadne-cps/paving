@@ -1709,6 +1709,133 @@ class TestPavingBackends : public Ariadne::Testing::ContextFixture {
         }
     }
 
+    Void test_polymorphic_enumeration_at_fineness() {
+        RobddManager manager;
+        auto collect=[](SubPavingInterface const& set, Nat fineness) {
+            std::vector<GridCell> cells;
+            for_each_enabled_cell_at_fineness(
+                set,fineness,[&](GridCell const& cell) {
+                    cells.push_back(cell);
+                });
+            return cells;
+        };
+        for (Nat dimensions : {1u,2u,3u}) {
+            Grid grid(dimensions);
+            for (Nat extent : {0u,1u}) {
+                GridCell root(grid,extent,BinaryWord{});
+                for (unsigned mask : {0u,1u,0x3Cu,0xAAu,0xFFu}) {
+                    BinaryTreePaving tree(
+                        grid,extent,new BinaryTreeNode(false));
+                    RobddPaving robdd(
+                        manager,root,manager.constant(false),0u);
+                    for (unsigned bit=0u; bit<8u; ++bit) {
+                        if ((mask & (1u<<bit))==0u) { continue; }
+                        BinaryWord word;
+                        word.push_back((bit & 4u)!=0u);
+                        word.push_back((bit & 2u)!=0u);
+                        word.push_back((bit & 1u)!=0u);
+                        GridCell cell(grid,extent,word);
+                        tree.adjoin(cell);
+                        robdd.adjoin(cell);
+                    }
+                    tree.recombine();
+                    PavingInterface const& tree_interface=tree;
+                    PavingInterface const& robdd_interface=robdd;
+                    Nat tree_depth=tree.tree_depth();
+                    SizeType logical_depth=robdd.depth();
+                    SizeType tree_size=tree.size();
+                    SizeType robdd_size=robdd.size();
+                    for (Nat fineness : {0u,1u,2u}) {
+                        // A materialized, separately minced tree is the
+                        // reference for what a traversal at this depth emits.
+                        BinaryTreePaving oracle(tree);
+                        oracle.mince(fineness);
+                        std::vector<GridCell> expected;
+                        for (auto it=oracle.begin(), end=oracle.end();
+                                it!=end; ++it) { expected.push_back(*it); }
+                        auto actual_tree=collect(tree_interface,fineness);
+                        auto actual_robdd=collect(robdd_interface,fineness);
+                        ARIADNE_TESTING_EXPECT_EQUAL(
+                            actual_tree.size(),expected.size());
+                        ARIADNE_TESTING_EXPECT_EQUAL(
+                            actual_robdd.size(),expected.size());
+                        ARIADNE_TESTING_PROVE(actual_tree==expected);
+                        ARIADNE_TESTING_PROVE(actual_robdd==expected);
+                        for (GridCell const& cell : actual_robdd) {
+                            ARIADNE_TESTING_PROVE(
+                                cell.box().subset(root.box()));
+                            ARIADNE_TESTING_PROVE(tree.superset(cell));
+                            ARIADNE_TESTING_PROVE(robdd.superset(cell));
+                        }
+                        ARIADNE_TESTING_EXPECT_EQUAL(tree.tree_depth(),tree_depth);
+                        ARIADNE_TESTING_EXPECT_EQUAL(robdd.depth(),logical_depth);
+                        ARIADNE_TESTING_EXPECT_EQUAL(tree.size(),tree_size);
+                        ARIADNE_TESTING_EXPECT_EQUAL(robdd.size(),robdd_size);
+                    }
+                }
+            }
+        }
+    }
+
+    Void test_polymorphic_child_enumeration_at_fineness() {
+        RobddManager manager;
+        for (Nat dimensions : {1u,2u}) {
+            Grid grid(dimensions);
+            for (Nat extent : {0u,1u}) {
+                GridCell root(grid,extent,BinaryWord{});
+                BinaryTreePaving tree(grid,extent,new BinaryTreeNode(true));
+                RobddPaving robdd(
+                    manager,root,manager.constant(true),0u);
+                PavingInterface& tree_interface=tree;
+                PavingInterface& robdd_interface=robdd;
+                auto tree_left=tree_interface.branch(false);
+                auto robdd_left=robdd_interface.branch(false);
+                auto tree_sub=
+                    static_cast<SubPavingInterface const&>(tree_left)
+                        .branch(true);
+                auto robdd_sub=
+                    static_cast<SubPavingInterface const&>(robdd_left)
+                        .branch(true);
+                GridCell cell=root.split(false).split(true);
+                ARIADNE_TESTING_PROVE(tree_sub.root_cell()==cell);
+                ARIADNE_TESTING_PROVE(robdd_sub.root_cell()==cell);
+                SizeType tree_size=tree.size();
+                SizeType robdd_size=robdd.size();
+                auto collect=[](SubPavingInterface const& set, Nat f) {
+                    std::vector<GridCell> cells;
+                    for_each_enabled_cell_at_fineness(
+                        set,f,[&](GridCell const& c) { cells.push_back(c); });
+                    return cells;
+                };
+                SubPavingInterface const& tv=tree_sub;
+                SubPavingInterface const& rv=robdd_sub;
+                for (Nat fineness : {0u,1u,2u,3u}) {
+                    BinaryTreeNode reference_node(true);
+                    GridTreeSubpaving reference(
+                        grid,extent,cell.word(),&reference_node);
+                    reference.mince(fineness);
+                    std::vector<GridCell> expected;
+                    for (auto it=reference.begin(), end=reference.end();
+                            it!=end; ++it) { expected.push_back(*it); }
+                    auto from_tree=collect(tv,fineness);
+                    auto from_robdd=collect(rv,fineness);
+                    ARIADNE_TESTING_PROVE(from_tree==expected);
+                    ARIADNE_TESTING_PROVE(from_robdd==expected);
+                    ARIADNE_TESTING_EXPECT_EQUAL(tree.size(),tree_size);
+                    ARIADNE_TESTING_EXPECT_EQUAL(robdd.size(),robdd_size);
+                    ARIADNE_TESTING_PROVE(
+                        tree_interface.superset(root));
+                    ARIADNE_TESTING_PROVE(
+                        robdd_interface.superset(root));
+                    ARIADNE_TESTING_PROVE(
+                        tree_interface.superset(root.split(true)));
+                    ARIADNE_TESTING_PROVE(
+                        robdd_interface.superset(root.split(true)));
+                }
+            }
+        }
+    }
+
     Void test_common_writable_cell_views() {
         RobddManager manager;
         Grid grid(1u);
@@ -1804,5 +1931,7 @@ int main(int argc, char** argv) {
     ARIADNE_TESTING_ADD_TEST(TestPavingBackends, test_polymorphic_alignment_across_primary_extents);
     ARIADNE_TESTING_ADD_TEST(TestPavingBackends, test_polymorphic_pure_algebra_with_isolated_backends);
     ARIADNE_TESTING_ADD_TEST(TestPavingBackends, test_polymorphic_refinement_contract);
+    ARIADNE_TESTING_ADD_TEST(TestPavingBackends, test_polymorphic_enumeration_at_fineness);
+    ARIADNE_TESTING_ADD_TEST(TestPavingBackends, test_polymorphic_child_enumeration_at_fineness);
     return ARIADNE_TESTING_RUN_TESTS_WITH_ARGS(argc,argv);
 }

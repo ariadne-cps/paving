@@ -2827,7 +2827,14 @@ void test_products() {
     EffectiveVectorMultivariateFunction x = EffectiveVectorMultivariateFunction::identity(2);
     EffectiveVectorMultivariateFunction f({x[0]*x[0]-exp(x[1])-11});
 
-    ARIADNE_TESTING_EXPECT_EQUAL(outer_skew_product(gtp1,g2,f).size(),11);
+    // outer_skew_product takes a const paving: refinement must not mutate
+    // its input tree, even as an implementation detail.
+    GridTreePaving unchanged(gtp1);
+    GridTreePaving const& const_gtp1=gtp1;
+    ARIADNE_TESTING_EXPECT_EQUAL(outer_skew_product(const_gtp1,g2,f).size(),11);
+    ARIADNE_TESTING_PROVE(
+        static_cast<GridTreeSubpaving const&>(gtp1) ==
+        static_cast<GridTreeSubpaving const&>(unchanged));
 
 
 }
