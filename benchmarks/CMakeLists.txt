@@ -17,7 +17,8 @@ add_test(
         --dimensions 2 --finenesses 0 --shapes aligned-box
         --iterations 1 --samples 3 --max-depth-bits 12
         --min-leaves 0 --min-sample-ms 1 --max-iterations 2
-        --concurrency 0 --summary-only
+        --concurrency 0 --retention-steps 2 --retention-fineness 2
+        --summary-only
 )
 set_property(TEST benchmark_paving_backends_smoke PROPERTY LABELS "paving;benchmark-smoke")
 if(WIN32)

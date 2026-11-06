@@ -1330,18 +1330,59 @@ reported only in memory tables.
 
 The copy workload no longer invokes size() on the copied object.
 The former mixed copy_adjoin_cell timing was replaced by
-adjoin_recombine: for each timed sample, independently copied
-pavings are prepared outside the timed portion, and only adjoin()
-and recombine() are measured. A maximum batch length of 256 caps
-temporary working memory; larger --iterations requests fail rather
-than silently violating input semantics. Calibration and medians
-otherwise follow the numeric benchmark conventions.
+adjoin_recombine: independent paving copies are prepared outside
+each timed chunk, and only adjoin() and recombine() are measured.
+A 256-live-copy limit applies per chunk, not per sample. A sample
+accumulates measured chunks until --min-sample-ms or --max-iterations
+is reached; all copy/destruction time is excluded. This removes
+the formerly misleading 256-iteration calibration limit.
 
-A separate sequential retention experiment (disable using
---no-retention) creates the selected geometries in one 2D manager
-at fineness 2. Each paving object is destroyed before its manager
-snapshot, so the report demonstrates growth/retention of nodes,
-capacity and tables in the absence of surviving paving roots.
+Two separate sequential retention experiments (disable both using
+--no-retention) compare SAME and VARIED on 2D boxes. SAME repeatedly
+rebuilds the same exact compact input; VARIED translates the box on
+a deterministic dyadic 8x8 grid. The managers are independent, with
+the same configurable --retention-steps (1..64, default 12) and
+--retention-fineness (1..6, default 3). No paving root remains live
+when manager statistics are captured. Different exact inputs may
+discretize to the same paving at coarse resolutions.
 The observation is not a proof of an unintended memory leak:
 RobddManager has no root-tracked reclamation/GC by design.
 The experiment is not included in operation-time speedup aggregates.
+
+## 2026-11-06 - Two retention trajectories and geometric-work isolation
+
+A same-vs-varied controlled experiment now compares two entirely
+independent 2D managers at the same fineness/number of constructions.
+One manager rebuilds the same exact dyadic compact box repeatedly;
+the other receives distinct exact translated compact boxes on an
+8x8 dyadic grid (at most 64 settings). All temporary paving roots
+are destroyed before their manager's statistics are recorded. Each
+row reports the temporary reachable DAG node count separately from
+post-destruction node, vector-capacity, unique-table and ITE-cache
+totals. A plateau on repeated input and growth on varied input can
+therefore be observed without conflating existing live roots or
+different numbers of operations. Distinct geometric shapes may share
+the same coarse outer approximation, so the experiment reports
+rather than assumes nonidentical discretizations.
+
+A replay_cells benchmark operation collects enabled cells of the
+source tree before timing and independently checks that the same
+cells reconstruct identical tree and ROBDD geometry. Timed operations
+then construct an empty representation, adjoin this exact same cell
+sequence, and recombine. This excludes geometric predicate and
+constraint-solving cost, whereas outer_warm includes it. Precomputed
+input cell materialization and equivalence validation are both
+outside the timed region; cases exceeding --max-replay-cells
+(default 16384) are explicitly skipped. outer_warm now returns
+the paving directly instead of computing size(), bringing its
+returned-object timing convention in line with replay_cells.
+outer_cold retains a size() sink because its manager cannot outlive
+the local construction scope.
+
+Mutation timing now accumulates measured intervals over sequential
+chunks of at most 256 prebuilt independent pavings. Copy/allocator
+and destructor work remains outside timed intervals. The number of
+mutations per sample may grow toward --max-iterations, allowing
+submicrosecond operations to approach --min-sample-ms without
+allocating thousands of copies simultaneously. No BDD library or
+backend semantics were altered by this benchmark iteration.

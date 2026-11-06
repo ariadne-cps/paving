@@ -44,6 +44,9 @@ struct Selection {
     unsigned max_iterations=32768u;
     unsigned max_depth_bits=26u;
     unsigned min_leaves=2u;
+    unsigned max_replay_cells=16384u;
+    unsigned retention_steps=12u;
+    unsigned retention_fineness=3u;
     std::vector<unsigned> dimensions{2u,3u,4u};
     std::vector<unsigned> finenesses{2u,3u};
     std::vector<std::string> shapes{
@@ -141,6 +144,27 @@ List<ArgumentParser> parsers(Selection& selection) {
             unsigned n=CLI::parse_unsigned<unsigned>(value);
             if(n==0u) throw std::invalid_argument("max-depth-bits must be positive");
             return [&selection,n] { selection.max_depth_bits=n; };
+        }));
+    result.append(make_valued_argument_parser(
+        "","max-replay-cells","Maximum precomputed enabled cells to replay per scenario",
+        [&selection](String const& value)->VoidFunction {
+            unsigned n=CLI::parse_unsigned<unsigned>(value);
+            if(n==0u) throw std::invalid_argument("max-replay-cells must be positive");
+            return [&selection,n] { selection.max_replay_cells=n; };
+        }));
+    result.append(make_valued_argument_parser(
+        "","retention-steps","Repeated/different compact sets per manager (1..64)",
+        [&selection](String const& value)->VoidFunction {
+            unsigned n=CLI::parse_unsigned<unsigned>(value);
+            if(n<1u or n>64u) throw std::invalid_argument("retention-steps must be in [1,64]");
+            return [&selection,n] { selection.retention_steps=n; };
+        }));
+    result.append(make_valued_argument_parser(
+        "","retention-fineness","Grid fineness for the standalone retention experiment (1..6)",
+        [&selection](String const& value)->VoidFunction {
+            unsigned n=CLI::parse_unsigned<unsigned>(value);
+            if(n<1u or n>6u) throw std::invalid_argument("retention-fineness must be in [1,6]");
+            return [&selection,n] { selection.retention_fineness=n; };
         }));
     result.append(make_unvalued_argument_parser(
         "","summary-only","Suppress per-operation table; show speed ratios only",
@@ -270,43 +294,49 @@ Timing median_mutation_ms(Factory&& factory,Mutate&& mutate,
         unsigned min_iterations,unsigned samples,unsigned minimum_ms,
         unsigned max_iterations) {
     using Clock=std::chrono::steady_clock;
-    unsigned limit=std::min(256u,max_iterations);
-    if(min_iterations>limit) {
-        throw std::invalid_argument(
-            "--iterations exceeds isolated mutation batch limit of 256");
-    }
+    // Allocate independent copies before each timed chunk, then destroy
+    // them afterwards. Repeated chunks accumulate an adequately long
+    // timing sample without retaining thousands of copies simultaneously.
+    constexpr unsigned maximum_live_copies=256u;
     unsigned iterations=min_iterations;
     auto run=[&](unsigned count) {
-        std::vector<decltype(factory())> copies;
-        copies.reserve(count);
-        for(unsigned i=0u;i<count;++i) {
-            copies.push_back(factory());
+        double elapsed_ms=0.0;
+        while(count!=0u) {
+            unsigned chunk=std::min(count,maximum_live_copies);
+            std::vector<decltype(factory())> copies;
+            copies.reserve(chunk);
+            for(unsigned i=0u;i<chunk;++i) {
+                copies.push_back(factory());
+            }
+            auto start=Clock::now();
+            for(auto& copy:copies) {
+                mutate(*copy);
+                keep_alive(*copy);
+            }
+            elapsed_ms+=std::chrono::duration<double,std::milli>(
+                Clock::now()-start).count();
+            count-=chunk;
         }
-        auto start=Clock::now();
-        for(auto& copy:copies) {
-            mutate(*copy);
-            keep_alive(*copy);
-        }
-        return std::chrono::duration<double,std::milli>(
-            Clock::now()-start).count();
+        return elapsed_ms;
     };
     double elapsed=run(iterations);
     while(elapsed<static_cast<double>(minimum_ms) and
-          iterations<limit) {
-        iterations=iterations>limit/2u?limit:iterations*2u;
+          iterations<max_iterations) {
+        iterations=iterations>max_iterations/2u
+            ?max_iterations:iterations*2u;
         elapsed=run(iterations);
     }
     std::vector<double> measured;
     measured.reserve(samples);
     for(unsigned sample=0u;sample<samples;++sample) {
-        measured.push_back(run(iterations)/static_cast<double>(iterations));
+        double per_operation=run(iterations)/static_cast<double>(iterations);
+        if(not std::isfinite(per_operation) or per_operation<=0.0) {
+            throw std::runtime_error("invalid isolated mutation timing");
+        }
+        measured.push_back(per_operation);
     }
     std::sort(measured.begin(),measured.end());
-    double result=measured[samples/2u];
-    if(not std::isfinite(result) or result<=0.0) {
-        throw std::runtime_error("invalid isolated mutation timing");
-    }
-    return {result,iterations};
+    return {measured[samples/2u],iterations};
 }
 
 SizeType count_tree_nodes(BinaryTreeNode const& node) {
@@ -537,42 +567,89 @@ void print_manager_statistics(std::vector<MemoryDatum> const& memory) {
     LOGGING_PRINTLN(std::string(105,'='))
 }
 
+EffectiveConstrainedImageSet make_shifted_box(unsigned variant) {
+    // Distinct exact compact inputs on an 8x8 lattice of translations:
+    // all bounds have a power-of-two denominator and remain in [0,1]^2.
+    // The first geometry is exactly the same in both retention runs.
+    unsigned translation_column=variant%8u;
+    unsigned translation_row=(variant/8u)%8u;
+    double first_lower=0.125+static_cast<double>(translation_column)/16.0;
+    double second_lower=0.125+static_cast<double>(translation_row)/16.0;
+    auto x=EffectiveScalarMultivariateFunction::coordinates(2u);
+    RealBox domain(2u,RealInterval(0,1));
+    EffectiveConstrainedImageSet compact(
+        domain,EffectiveVectorMultivariateFunction::identity(2u));
+    compact.new_parameter_constraint(x[0]>=ExactDouble(first_lower));
+    compact.new_parameter_constraint(x[0]<=ExactDouble(first_lower+0.25));
+    compact.new_parameter_constraint(x[1]>=ExactDouble(second_lower));
+    compact.new_parameter_constraint(x[1]<=ExactDouble(second_lower+0.25));
+    return compact;
+}
+
 void print_manager_retention(Selection const& selection) {
+    // Compare two *independent* managers:
+    // SAME: repeatedly construct identical compact geometry;
+    // VARIED: translate compact boxes by distinct dyadic offsets.
+    // Both use identical operation counts and fineness. Every paving
+    // and all root handles are destroyed BEFORE the corresponding row.
     Grid grid(2u);
     GridCell primary(grid,0u,BinaryWord{});
-    RobddManager manager;
-    LOGGING_PRINTLN("Shared manager after root destruction"
-        " (d=2 fineness=2; zero surviving paving roots)")
-    LOGGING_PRINTLN(std::string(96,'='))
-    LOGGING_PRINTLN(std::left<<std::setw(19)<<"Last shape"
-        <<"  "<<std::setw(10)<<"Mgr nodes"
-        <<"  "<<std::setw(10)<<"Capacity"
-        <<"  "<<std::setw(10)<<"Unique"
-        <<"  "<<std::setw(10)<<"ITE"
-        <<"  "<<std::setw(14)<<"Payload B>=")
-    auto show=[&](std::string const& name) {
-        auto stats=manager.statistics();
-        LOGGING_PRINTLN(std::left<<std::setw(19)<<name
-            <<"  "<<std::setw(10)<<stats.node_count
-            <<"  "<<std::setw(10)<<stats.node_capacity
-            <<"  "<<std::setw(10)<<stats.unique_table_entries
-            <<"  "<<std::setw(10)<<stats.ite_cache_entries
-            <<"  "<<std::setw(14)<<manager_payload_lower_bound(stats))
-    };
-    show("empty");
-    for(std::string const& shape:selection.shapes) {
-        {
-            EffectiveConstrainedImageSet compact=make_shape(2u,shape);
-            EffectiveEuclideanCompactSetInterface const& set=compact;
-            RobddPaving paving(manager,primary,manager.constant(false),0u);
-            paving.adjoin_outer_approximation(set,2u);
-            paving.recombine();
-            keep_alive(paving);
+    LOGGING_PRINTLN("Manager retention after destroying every paving root"
+        <<" (d=2, fineness="<<selection.retention_fineness
+        <<", steps="<<selection.retention_steps<<")")
+    LOGGING_PRINTLN("SAME repeats one exact box; VARIED uses distinct"
+        " translated exact boxes (discretizations can coincide).")
+    LOGGING_PRINTLN(std::string(128,'='))
+    LOGGING_PRINTLN(std::left<<std::setw(9)<<"Scenario"
+        <<"  "<<std::setw(5)<<"Step"
+        <<"  "<<std::setw(8)<<"Variant"
+        <<"  "<<std::setw(8)<<"Root N"
+        <<"  "<<std::setw(9)<<"Mgr N"
+        <<"  "<<std::setw(9)<<"Capacity"
+        <<"  "<<std::setw(9)<<"Unique"
+        <<"  "<<std::setw(9)<<"ITE"
+        <<"  "<<std::setw(13)<<"Payload B>=")
+    LOGGING_PRINTLN(std::string(128,'-'))
+    for(unsigned scenario=0u;scenario<2u;++scenario) {
+        RobddManager manager;
+        char const* label=scenario==0u?"SAME":"VARIED";
+        auto emit=[&](unsigned step,unsigned variant,SizeType reachable) {
+            RobddManagerStatistics stats=manager.statistics();
+            LOGGING_PRINTLN(std::left<<std::setw(9)<<label
+                <<"  "<<std::setw(5)<<step
+                <<"  "<<std::setw(8)<<variant
+                <<"  "<<std::setw(8)<<reachable
+                <<"  "<<std::setw(9)<<stats.node_count
+                <<"  "<<std::setw(9)<<stats.node_capacity
+                <<"  "<<std::setw(9)<<stats.unique_table_entries
+                <<"  "<<std::setw(9)<<stats.ite_cache_entries
+                <<"  "<<std::setw(13)<<manager_payload_lower_bound(stats))
+        };
+        emit(0u,0u,0u);
+        for(unsigned step=1u;step<=selection.retention_steps;++step) {
+            unsigned variant=scenario==0u?0u:step-1u;
+            SizeType reachable=0u;
+            {
+                EffectiveConstrainedImageSet compact=make_shifted_box(variant);
+                EffectiveEuclideanCompactSetInterface const& set=compact;
+                RobddPaving paving(
+                    manager,primary,manager.constant(false),0u);
+                paving.adjoin_outer_approximation(
+                    set,selection.retention_fineness);
+                paving.recombine();
+                reachable=reachable_robdd_node_count(
+                    manager,paving.robdd());
+                keep_alive(paving);
+            }
+            emit(step,variant,reachable);
         }
-        show(shape);
+        if(scenario==0u) {
+            LOGGING_PRINTLN(std::string(128,'-'))
+        }
     }
-    LOGGING_PRINTLN(std::string(96,'='))
+    LOGGING_PRINTLN(std::string(128,'='))
 }
+
 
 struct Datum {
     std::string shape;
@@ -684,14 +761,14 @@ void append_case(std::vector<Datum>& data,std::vector<MemoryDatum>& memory,
             BinaryTreePaving fresh(grid);
             fresh.adjoin_outer_approximation(set,fineness);
             fresh.recombine();
-            return fresh.size();
+            return fresh;
         },
         [&](unsigned) {
             RobddPaving fresh(
                 manager,primary,manager.constant(false),0u);
             fresh.adjoin_outer_approximation(set,fineness);
             fresh.recombine();
-            return fresh.size();
+            return fresh;
         });
 
     record("outer_cold",
@@ -709,6 +786,54 @@ void append_case(std::vector<Datum>& data,std::vector<MemoryDatum>& memory,
             fresh.recombine();
             return fresh.size();
         });
+
+    // Materialize one canonical sequence of source cells outside timing.
+    // Both backends replay the EXACT SAME cells; no geometric classification
+    // or tree iterator traversal occurs inside the timed workloads.
+    if(tree_leaves<=selection.max_replay_cells) {
+        std::vector<GridCell> prepared;
+        prepared.reserve(tree_leaves);
+        for(auto it=tree.begin(),end=tree.end();it!=end;++it) {
+            prepared.push_back(*it);
+        }
+        if(prepared.size()!=tree_leaves) {
+            throw std::runtime_error("inconsistent prepared-cell count");
+        }
+        {
+            BinaryTreePaving verification_tree(grid);
+            RobddManager verification_manager;
+            RobddPaving verification_bdd(
+                verification_manager,primary,
+                verification_manager.constant(false),0u);
+            for(GridCell const& cell:prepared) {
+                verification_tree.adjoin(cell);
+                verification_bdd.adjoin(cell);
+            }
+            verification_tree.recombine();
+            verification_bdd.recombine();
+            validate_geometry(tree,verification_tree);
+            validate_geometry(tree,verification_bdd);
+        }
+        record("replay_cells",
+            [&](unsigned) {
+                BinaryTreePaving rebuilt(grid);
+                for(GridCell const& cell:prepared) rebuilt.adjoin(cell);
+                rebuilt.recombine();
+                return rebuilt;
+            },
+            [&](unsigned) {
+                RobddPaving rebuilt(
+                    manager,primary,manager.constant(false),0u);
+                for(GridCell const& cell:prepared) rebuilt.adjoin(cell);
+                rebuilt.recombine();
+                return rebuilt;
+            });
+    } else {
+        LOGGING_PRINTLN("SKIP replay_cells: "<<shape
+            <<" d="<<dimension<<" f="<<fineness
+            <<" leaves="<<tree_leaves
+            <<" > max-replay-cells="<<selection.max_replay_cells)
+    }
 
     record("copy",
         [&](unsigned) { return BinaryTreePaving(tree); },

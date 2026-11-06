@@ -236,19 +236,37 @@ ROBDD node count remains the indicator of logical DAG compression.
 
 The copy workload constructs a copy without a following size().
 The adjoin_recombine workload prepares independent paving copies
-outside the timed interval, then times just the in-place adjoin and
-recombine. For allocation safety this isolated-mutation benchmark
-caps the number of prepared copies per timed batch at 256; requests
-for a larger --iterations value fail with a clear message. Time
-ratios from earlier versions labeled copy_adjoin_cell are therefore
-not directly interchangeable with the new isolated operation.
+outside each timed interval, then times just the in-place adjoin and
+recombine. Timed samples accumulate as many intervals as needed in
+chunks of at most 256 live copies, avoiding the prior 256-operation
+limit. Copy/destruction overhead is not included. Results from older
+copy_adjoin_cell tests are not directly comparable.
 
-A separate, untimed retention experiment reuses a single ROBDD
-manager across the selected compact shapes, at fixed d=2 and
-fineness=2. Each paving is destroyed before the next snapshot.
-The printed manager node count, vector capacity, unique table and
-ITE cache measure what remains allocated after all roots have
-gone out of scope. Use --no-retention to skip that experiment.
+The untimed retention experiments compare TWO independent 2D
+managers: SAME rebuilds the identical compact box, while VARIED
+builds distinct exact dyadic translations of one box. Every paving
+is destroyed before the next manager snapshot. --retention-steps
+(1..64, default 12) and --retention-fineness (1..6, default 3)
+control both runs. Each table row prints root-reachable node count
+before destruction and retained manager allocations afterwards.
+Distinct exact shapes may have the same coarse outer approximation.
+Use --no-retention to skip both experiments.
 Retained allocations do not necessarily indicate a memory leak;
 the current manager intentionally keeps canonical nodes and caches
 until the manager itself is destroyed.
+
+### Precomputed cell replay
+
+The replay_cells operation uses the exact enabled cells extracted from
+the completed source tree before any timing. Both backends receive
+the same prepared cells, and reconstruction is checked for geometric
+equivalence against the source using a fresh independent ROBDD manager.
+The timed operation creates a new paving, inserts the prepared cells
+and recombines. Geometric constraint solving and cell enumeration
+are excluded. --max-replay-cells (default 16384) skips the replay
+operation for excessive leaf counts without truncating the data.
+The outer_warm workload now returns a constructed paving instead of
+calling size(), so its sink resembles replay_cells. outer_cold still
+calls size() before returning because its manager must be destroyed,
+and that distinction should be taken into account when comparing
+the cold and warm construction timings.
