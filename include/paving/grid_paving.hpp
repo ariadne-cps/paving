@@ -416,6 +416,8 @@ class GridTreePaving
     typedef Grid GridType;
 
     typedef GridCell CellType;
+    // Expose the PavingInterface default batch overload on concrete trees.
+    using PavingInterface::adjoin;
 
   protected:
 

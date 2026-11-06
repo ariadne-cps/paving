@@ -651,54 +651,6 @@ void print_manager_retention(Selection const& selection) {
 }
 
 
-struct ReplayMemoryDatum {
-    std::string shape;
-    unsigned dimension;
-    unsigned fineness;
-    SizeType cells;
-    SizeType incremental_reachable;
-    SizeType bulk_reachable;
-    RobddManagerStatistics incremental;
-    RobddManagerStatistics bulk;
-};
-
-void print_replay_memory_results(
-        std::vector<ReplayMemoryDatum> const& replay_memory) {
-    if(replay_memory.empty()) { return; }
-    LOGGING_PRINTLN("Fresh-manager ROBDD cell replay: incremental vs bulk")
-    LOGGING_PRINTLN("Same prepared cell sequence; each construction has"
-        <<" a separate empty manager. Payload excludes allocator overhead.")
-    LOGGING_PRINTLN(std::string(149,'='))
-    LOGGING_PRINTLN(std::left<<std::setw(19)<<"Shape"
-        <<"  "<<std::setw(3)<<"D"
-        <<"  "<<std::setw(3)<<"F"
-        <<"  "<<std::right<<std::setw(7)<<"Cells"
-        <<"  "<<std::setw(9)<<"Inc N"
-        <<"  "<<std::setw(9)<<"Bulk N"
-        <<"  "<<std::setw(9)<<"Inc root"
-        <<"  "<<std::setw(9)<<"Bulk root"
-        <<"  "<<std::setw(9)<<"Inc ITE"
-        <<"  "<<std::setw(9)<<"Bulk ITE"
-        <<"  "<<std::setw(13)<<"Inc B>="
-        <<"  "<<std::setw(13)<<"Bulk B>=")
-    LOGGING_PRINTLN(std::string(149,'-'))
-    for(ReplayMemoryDatum const& datum:replay_memory) {
-        LOGGING_PRINTLN(std::left<<std::setw(19)<<datum.shape
-            <<"  "<<std::setw(3)<<datum.dimension
-            <<"  "<<std::setw(3)<<datum.fineness
-            <<"  "<<std::right<<std::setw(7)<<datum.cells
-            <<"  "<<std::setw(9)<<datum.incremental.node_count
-            <<"  "<<std::setw(9)<<datum.bulk.node_count
-            <<"  "<<std::setw(9)<<datum.incremental_reachable
-            <<"  "<<std::setw(9)<<datum.bulk_reachable
-            <<"  "<<std::setw(9)<<datum.incremental.ite_cache_entries
-            <<"  "<<std::setw(9)<<datum.bulk.ite_cache_entries
-            <<"  "<<std::setw(13)<<manager_payload_lower_bound(datum.incremental)
-            <<"  "<<std::setw(13)<<manager_payload_lower_bound(datum.bulk))
-    }
-    LOGGING_PRINTLN(std::string(149,'='))
-}
-
 struct Datum {
     std::string shape;
     std::string operation;
@@ -744,7 +696,6 @@ void validate_geometry(
 }
 
 void append_case(std::vector<Datum>& data,std::vector<MemoryDatum>& memory,
-                 std::vector<ReplayMemoryDatum>& replay_memory,
                  Selection const& selection,std::string const& shape,
                  unsigned dimension,unsigned fineness) {
     Grid grid(dimension);
@@ -836,9 +787,9 @@ void append_case(std::vector<Datum>& data,std::vector<MemoryDatum>& memory,
             return fresh.size();
         });
 
-    // Materialize one canonical sequence of source cells outside timing.
-    // Both backends replay the EXACT SAME cells; no geometric classification
-    // or tree iterator traversal occurs inside the timed workloads.
+    // Replay only the production bulk construction path. Extract and
+    // validate cells before timing so geometric set solving and iteration
+    // are not included in the cell-insertion cost.
     if(tree_leaves<=selection.max_replay_cells) {
         std::vector<GridCell> prepared;
         prepared.reserve(tree_leaves);
@@ -849,8 +800,8 @@ void append_case(std::vector<Datum>& data,std::vector<MemoryDatum>& memory,
             throw std::runtime_error("inconsistent prepared-cell count");
         }
         {
-            // Verify that the new bulk builder and the old incremental
-            // constructor encode the SAME geometry in an independent manager.
+            // The tree is an independent geometric oracle for replay.
+            // Use a separate manager so the checks cannot affect timings.
             BinaryTreePaving verification_tree(grid);
             RobddManager verification_manager;
             RobddPaving verification_bdd(
@@ -858,56 +809,13 @@ void append_case(std::vector<Datum>& data,std::vector<MemoryDatum>& memory,
                 verification_manager.constant(false),0u);
             for(GridCell const& cell:prepared) {
                 verification_tree.adjoin(cell);
-                verification_bdd.adjoin(cell);
             }
+            verification_bdd.adjoin(prepared);
             verification_tree.recombine();
             verification_bdd.recombine();
-            RobddPaving verification_bulk(
-                verification_manager,primary,
-                verification_manager.constant(false),0u);
-            verification_bulk.adjoin_cells_bulk(prepared);
-            verification_bulk.recombine();
             validate_geometry(tree,verification_tree);
             validate_geometry(tree,verification_bdd);
-            validate_geometry(tree,verification_bulk);
         }
-
-        // Independent fresh-manager construction statistics are recorded
-        // BEFORE timing and without running validation on those managers.
-        // This isolates temporary DAG nodes produced by repeated unions.
-        auto fresh_replay=[&](Bool use_bulk) {
-            RobddManager isolated;
-            RobddPaving candidate(
-                isolated,primary,isolated.constant(false),0u);
-            if(use_bulk) {
-                candidate.adjoin_cells_bulk(prepared);
-            } else {
-                for(GridCell const& cell:prepared) candidate.adjoin(cell);
-            }
-            candidate.recombine();
-            SizeType reachable=reachable_robdd_node_count(
-                isolated,candidate.robdd());
-            return std::make_pair(isolated.statistics(),reachable);
-        };
-        auto incremental_memory=fresh_replay(false);
-        auto bulk_memory=fresh_replay(true);
-        replay_memory.push_back({shape,dimension,fineness,tree_leaves,
-            incremental_memory.second,bulk_memory.second,
-            incremental_memory.first,bulk_memory.first});
-        record("replay_cells",
-            [&](unsigned) {
-                BinaryTreePaving rebuilt(grid);
-                for(GridCell const& cell:prepared) rebuilt.adjoin(cell);
-                rebuilt.recombine();
-                return rebuilt;
-            },
-            [&](unsigned) {
-                RobddPaving rebuilt(
-                    manager,primary,manager.constant(false),0u);
-                for(GridCell const& cell:prepared) rebuilt.adjoin(cell);
-                rebuilt.recombine();
-                return rebuilt;
-            });
         record("replay_bulk",
             [&](unsigned) {
                 BinaryTreePaving rebuilt(grid);
@@ -918,12 +826,12 @@ void append_case(std::vector<Datum>& data,std::vector<MemoryDatum>& memory,
             [&](unsigned) {
                 RobddPaving rebuilt(
                     manager,primary,manager.constant(false),0u);
-                rebuilt.adjoin_cells_bulk(prepared);
+                rebuilt.adjoin(prepared);
                 rebuilt.recombine();
                 return rebuilt;
             });
     } else {
-        LOGGING_PRINTLN("SKIP replay_cells: "<<shape
+        LOGGING_PRINTLN("SKIP replay_bulk: "<<shape
             <<" d="<<dimension<<" f="<<fineness
             <<" leaves="<<tree_leaves
             <<" > max-replay-cells="<<selection.max_replay_cells)
@@ -972,7 +880,6 @@ void append_case(std::vector<Datum>& data,std::vector<MemoryDatum>& memory,
 
 void report(std::vector<Datum> const& data,
             std::vector<MemoryDatum> const& memory,
-            std::vector<ReplayMemoryDatum> const& replay_memory,
             Selection const& selection,unsigned skipped) {
     constexpr int width=132;
     LOGGING_PRINTLN("BinaryTree / ROBDD compact-set benchmark")
@@ -1023,7 +930,6 @@ void report(std::vector<Datum> const& data,
 
     print_memory_results(memory);
     print_manager_statistics(memory);
-    print_replay_memory_results(replay_memory);
 
     std::map<std::string,Aggregate> by_operation;
     std::map<std::string,Aggregate> by_shape;
@@ -1093,7 +999,6 @@ int main(int argc,char const* argv[]) {
 
         std::vector<Datum> data;
         std::vector<MemoryDatum> memory;
-        std::vector<ReplayMemoryDatum> replay_memory;
         unsigned skipped=0u;
         for (unsigned d:selection.dimensions) {
             for (unsigned f:selection.finenesses) {
@@ -1113,8 +1018,7 @@ int main(int argc,char const* argv[]) {
                 for (auto const& shape:selection.shapes) {
                     LOGGING_PRINTLN("Measuring "<<shape<<" | d="<<d
                         <<" | fineness="<<f)
-                    append_case(data,memory,replay_memory,
-                        selection,shape,d,f);
+                    append_case(data,memory,selection,shape,d,f);
                 }
             }
         }
@@ -1122,7 +1026,7 @@ int main(int argc,char const* argv[]) {
             throw std::runtime_error("no nondegenerate cases within the selection"
                 " (lower --min-leaves or increase --finenesses)");
         }
-        report(data,memory,replay_memory,selection,skipped);
+        report(data,memory,selection,skipped);
         if(selection.run_retention) print_manager_retention(selection);
         return 0;
     } catch(std::exception const& error) {

@@ -381,6 +381,12 @@ class PavingInterface
     virtual Void restrict(const SubPavingInterface& paving) = 0;
     virtual Void remove(const SubPavingInterface& paving) = 0;
     virtual Void adjoin(const GridCell& cell) = 0; // Deprecated?
+    //! \brief Adjoin a sequence of cells, allowing backend-specific batching.
+    //! \details The default implementation inserts each cell separately;
+    //! backends may override this to perform one bulk construction.
+    virtual Void adjoin(std::vector<GridCell> const& cells) {
+        for(GridCell const& cell:cells) { this->adjoin(cell); }
+    }
     virtual Void remove(const GridCell& cell) = 0; // Deprecated?
 };
 
@@ -424,6 +430,9 @@ class PavingHandle
     Void restrict(const SubPavingInterface& paving) { return this->_ptr->restrict(paving); }
     Void remove(const SubPavingInterface& paving) { return this->_ptr->remove(paving); }
     Void adjoin(const GridCell& cell) { return this->_ptr->adjoin(cell); }
+    Void adjoin(std::vector<GridCell> const& cells) {
+        return this->_ptr->adjoin(cells);
+    }
     Void remove(const GridCell& cell) { return this->_ptr->remove(cell); }
     template<class Visitor>
     Void for_each_enabled_cell_at_exact_fineness(

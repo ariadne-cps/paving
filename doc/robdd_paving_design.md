@@ -1470,3 +1470,32 @@ unique/ITE entry counts across each entire batch of direct queries.
 A separate complemented-root query check compares with the previous
 reference subset implementation, followed by a no-allocation check.
 No changes to the BDD manager or its threading contracts are required.
+
+## 2026-11-06 - Polymorphic adjoin(vector<GridCell>) and explicit-import batching
+
+The batch overload is now part of PavingInterface, not only
+RobddPaving. The virtual default `adjoin(std::vector<GridCell> const&)` loops
+through `adjoin(GridCell const&)`, so the existing binary-tree backend
+continues to implement the same semantics without new storage code.
+GridTreePaving re-exposes the inherited overload using a using
+declaration; PavingHandle forwards it virtually. RobddPaving
+explicitly overrides the new virtual to invoke its bottom-up trie
+compiler, preserving its amortized efficient batch insertion.
+The generic design allows clients to request one batch through
+PavingInterface independently of the actual backend.
+
+The existing `RobddPaving::adjoin(SubPavingInterface const&)` remains
+a direct Boolean union when the operand is already a ROBDD or an
+attached ROBDD view. Implicit migration from a tree-backed source is
+still forbidden by design. Separately, the explicit conversion
+constructor `RobddPaving(manager, SubPavingInterface const&)` now collects
+source enabled cells into one vector and bulk-adjoins them, rather
+than executing one singleton union per source leaf. The specialized
+GridTreeSubpaving constructor already encodes its tree directly
+and is unchanged.
+
+Regression tests exercise direct and virtual batch dispatch on the
+tree, virtual dispatch on the ROBDD, PavingHandle forwarding, and
+explicit generic-subpaving conversion. They also check that the
+ROBDD's ITE cache stays empty for fresh batch construction and
+explicit imports.

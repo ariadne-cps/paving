@@ -327,3 +327,22 @@ patterns of three decision variables, including parent/descendant
 queries, different root extents, minced logical depth and complemented
 Boolean functions. For direct queries it checks that manager nodes,
 capacity, unique entries and ITE cache entries do not increase.
+
+### Polymorphic batch insertion and explicit subpaving import
+
+The virtual `PavingInterface::adjoin(std::vector<GridCell> const&)` allows
+callers using `PavingInterface&` or `PavingHandle` to request cell-batch
+insertion. The default implementation forwards each cell to the
+single-cell overload, which preserves the existing binary-tree
+semantics without requiring an additional concrete override.
+The `RobddPaving` implementation overrides this method to build a
+single canonical ROBDD and take at most one union.
+
+`adjoin(SubPavingInterface const&)` on ROBDD-backed pavings is
+different: it retains the direct Boolean union of an already-encoded
+ROBDD (or native view) and rejects foreign-backend operands. For
+**explicit conversion** from a generic subpaving,
+`RobddPaving(manager, SubPavingInterface const&)` now collects enabled
+cells from that source and calls batch `adjoin(cells)` once, instead
+of repeatedly adding singleton cells. The existing tree-specific
+conversion already uses direct tree encoding and is unchanged.

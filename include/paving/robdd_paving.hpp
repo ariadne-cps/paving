@@ -194,10 +194,11 @@ class RobddPaving : public virtual PavingInterface {
     //! \details Empty input is a no-op; the current paving need not be empty.
     //! The geometric root is enlarged as required by the input cells.
     //! Input validation precedes changes to this paving's root value.
-    Void adjoin_cells_bulk(std::vector<GridCell> const& cells);
+    Void adjoin(std::vector<GridCell> const& cells) override;
 
-    //! \brief In-place union with any subpaving on the same grid.
-    //! \details Imports its enabled cells into this paving's manager.
+    //! \brief In-place union with a ROBDD-backed paving or view.
+    //! \details Other backends require explicit construction from their
+    //! SubPavingInterface; implicit backend migration is not permitted.
     Void adjoin(SubPavingInterface const& other) override;
 
     //! \brief In-place intersection with a paving on the same grid and manager.

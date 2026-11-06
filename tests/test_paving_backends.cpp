@@ -247,6 +247,67 @@ class TestPavingBackends : public Ariadne::Testing::ContextFixture {
             complemented.superset(GridCell(other,0u,BinaryWord{})));
     }
 
+    Void test_polymorphic_cell_batch_and_explicit_import() {
+        Grid grid(1u);
+        GridCell root(grid,0u,BinaryWord{});
+        std::vector<GridCell> cells{
+            root.split(false),
+            root.split(true).split(false)};
+
+        // The tree uses PavingInterface's default per-cell implementation,
+        // both when called directly and through its abstract base.
+        BinaryTreePaving tree(grid);
+        tree.adjoin(cells);
+        ARIADNE_TESTING_PROVE(tree.superset(cells[0]));
+        ARIADNE_TESTING_PROVE(tree.superset(cells[1]));
+        ARIADNE_TESTING_PROVE(not tree.superset(root));
+
+        BinaryTreePaving via_base(grid);
+        PavingInterface& tree_base=via_base;
+        tree_base.adjoin(cells);
+        ARIADNE_TESTING_PROVE(via_base.superset(cells[0]));
+        ARIADNE_TESTING_PROVE(via_base.superset(cells[1]));
+
+        PavingHandle tree_handle(new BinaryTreePaving(grid));
+        tree_handle.adjoin(cells);
+        ARIADNE_TESTING_PROVE(tree_handle.superset(cells[0]));
+        ARIADNE_TESTING_PROVE(tree_handle.superset(cells[1]));
+
+        // Abstract-base dispatch must select the ROBDD bulk override.
+        RobddManager manager;
+        RobddPaving bdd(manager,root,manager.constant(false),0u);
+        PavingInterface& bdd_base=bdd;
+        bdd_base.adjoin(cells);
+        ARIADNE_TESTING_PROVE(bdd.superset(cells[0]));
+        ARIADNE_TESTING_PROVE(bdd.superset(cells[1]));
+        ARIADNE_TESTING_PROVE(not bdd.superset(root));
+        ARIADNE_TESTING_EXPECT_EQUAL(
+            manager.statistics().ite_cache_entries,0u);
+
+        RobddManager handle_manager;
+        PavingHandle handle(new RobddPaving(
+            handle_manager,root,handle_manager.constant(false),0u));
+        handle.adjoin(cells);
+        ARIADNE_TESTING_PROVE(handle.superset(cells[0]));
+        ARIADNE_TESTING_PROVE(handle.superset(cells[1]));
+        ARIADNE_TESTING_EXPECT_EQUAL(
+            handle_manager.statistics().ite_cache_entries,0u);
+
+        // The *explicit* generic-subpaving conversion should use bulk too,
+        // rather than populating the manager through singleton unions.
+        RobddManager conversion_manager;
+        SubPavingInterface const& source=tree;
+        RobddPaving imported(conversion_manager,source);
+        for(auto it=tree.begin(), end=tree.end();it!=end;++it) {
+            ARIADNE_TESTING_PROVE(imported.superset(*it));
+        }
+        for(auto it=imported.begin(), end=imported.end();it!=end;++it) {
+            ARIADNE_TESTING_PROVE(tree.superset(*it));
+        }
+        ARIADNE_TESTING_EXPECT_EQUAL(
+            conversion_manager.statistics().ite_cache_entries,0u);
+    }
+
     Void test_bulk_cell_construction_and_union() {
         RobddManager manager;
         Grid grid(1u);
@@ -271,7 +332,7 @@ class TestPavingBackends : public Ariadne::Testing::ContextFixture {
                 manager,root,manager.constant(false),0u);
             RobddPaving incremental(
                 manager,root,manager.constant(false),0u);
-            adjoined.adjoin_cells_bulk(cells);
+            adjoined.adjoin(cells);
             for(GridCell const& cell:cells) incremental.adjoin(cell);
             bulk.mince_to_depth(3u);
             adjoined.mince_to_depth(3u);
@@ -341,7 +402,7 @@ class TestPavingBackends : public Ariadne::Testing::ContextFixture {
         existing.adjoin(smaller.split(true));
         RobddPaving expected(existing);
         for(GridCell const& cell:mixed) expected.adjoin(cell);
-        existing.adjoin_cells_bulk(mixed);
+        existing.adjoin(mixed);
         ARIADNE_TESTING_PROVE(existing.root_cell()==expected.root_cell());
         ARIADNE_TESTING_PROVE(existing.subset(expected));
         ARIADNE_TESTING_PROVE(expected.subset(existing));
@@ -350,14 +411,14 @@ class TestPavingBackends : public Ariadne::Testing::ContextFixture {
         GridCell wrong(other_grid,0u,BinaryWord{});
         RobddPaving unchanged(existing);
         ARIADNE_TESTING_EXPECT_EXCEPTION(
-            existing.adjoin_cells_bulk({coarse,wrong}));
+            existing.adjoin(std::vector<GridCell>{coarse,wrong}));
         ARIADNE_TESTING_PROVE(existing.robdd()==unchanged.robdd());
         ARIADNE_TESTING_PROVE(existing.root_cell()==unchanged.root_cell());
         ARIADNE_TESTING_EXPECT_EXCEPTION(
             RobddPaving::from_cells(manager,smaller,{coarse}));
         ARIADNE_TESTING_EXPECT_EXCEPTION(
             RobddPaving::from_cells(manager,wider,{wrong}));
-        existing.adjoin_cells_bulk({});
+        existing.adjoin(std::vector<GridCell>{});
         ARIADNE_TESTING_PROVE(existing.robdd()==unchanged.robdd());
     }
 
@@ -2557,6 +2618,7 @@ int main(int argc, char** argv) {
     ARIADNE_TESTING_ADD_TEST(TestPavingBackends, test_import_and_explicit_tree_oracle);
     ARIADNE_TESTING_ADD_TEST(TestPavingBackends, test_compact_leaves_exhaustive_truth_tables);
     ARIADNE_TESTING_ADD_TEST(TestPavingBackends, test_superset_direct_no_manager_allocations);
+    ARIADNE_TESTING_ADD_TEST(TestPavingBackends, test_polymorphic_cell_batch_and_explicit_import);
     ARIADNE_TESTING_ADD_TEST(TestPavingBackends, test_bulk_cell_construction_and_union);
     ARIADNE_TESTING_ADD_TEST(TestPavingBackends, test_in_place_mutation_and_value_semantics);
     ARIADNE_TESTING_ADD_TEST(TestPavingBackends, test_in_place_mutation_across_extents);

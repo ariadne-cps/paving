@@ -286,9 +286,14 @@ RobddPaving::RobddPaving(
 RobddPaving::RobddPaving(
         RobddManager& manager, SubPavingInterface const& source)
     : RobddPaving(manager,source.root_cell(),manager.constant(false),0u) {
+    // Explicit conversion from a representation-neutral subpaving:
+    // collect its enabled cells and compile one canonical ROBDD batch.
+    // Do not perform one singleton union for every leaf.
+    std::vector<GridCell> cells;
     for (auto cell=source.begin(), end=source.end(); cell!=end; ++cell) {
-        adjoin(*cell);
+        cells.push_back(*cell);
     }
+    adjoin(cells);
 }
 
 RobddPaving::RobddPaving(
@@ -518,7 +523,7 @@ RobddPaving robdd_operand(SubPavingInterface const& other) {
 }
 
 
-Void RobddPaving::adjoin_cells_bulk(std::vector<GridCell> const& cells) {
+Void RobddPaving::adjoin(std::vector<GridCell> const& cells) {
     if(cells.empty()) { return; }
     GridCell root=_root_cell;
     for(GridCell const& cell:cells) {
@@ -605,7 +610,7 @@ Void RobddPaving::adjoin_outer_approximation(
             visit(cell.split(true),depth+1u);
         };
     visit(enclosing_root,0u);
-    adjoin_cells_bulk(selected);
+    adjoin(selected);
 }
 
 Void RobddPaving::adjoin_outer_approximation(
@@ -654,7 +659,7 @@ Void RobddPaving::adjoin_inner_approximation(
             visit(cell.split(true),depth+1u);
         };
     visit(enclosing_root,0u);
-    adjoin_cells_bulk(selected);
+    adjoin(selected);
 }
 
 Void RobddPaving::adjoin_inner_approximation(
