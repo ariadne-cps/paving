@@ -56,6 +56,23 @@ class RobddPaving {
     //! \brief Geometric root of the represented subpaving.
     GridCell const& root_cell() const { return _root_cell; }
 
+    //! \brief Axis-aligned bounding box of all enabled cells.
+    //! \details The empty paving returns an empty box of the grid dimension.
+    UpperBoxType bounding_box() const;
+
+    //! \brief Certify that the paving lies in the interior of a box.
+    //! \details Uses the same conservative narrowing convention as the
+    //! explicit binary-tree implementation.
+    ValidatedLowerKleenean inside(ExactBoxType const& box) const;
+
+    //! \brief Certify separation from a box, including its boundary.
+    //! \details Uses conservative widening of the query box.
+    ValidatedLowerKleenean separated(ExactBoxType const& box) const;
+
+    //! \brief Certify nonempty intersection of interiors with a box.
+    //! \details Uses conservative narrowing of the query box.
+    ValidatedLowerKleenean overlaps(ExactBoxType const& box) const;
+
     //! \brief Underlying grid shared by all cells in the paving.
     Grid const& grid() const { return _root_cell.grid(); }
 

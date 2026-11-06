@@ -722,6 +722,78 @@ class TestRobddPaving : public Ariadne::Testing::ContextFixture {
         }
     }
 
+    Void test_geometric_queries_against_explicit_tree() {
+        RobddManager manager;
+        Grid grid(1u);
+        GridCell root(grid,0u,BinaryWord{});
+        GridCell left(grid,0u,make_binary_word("0"));
+        GridCell right(grid,0u,make_binary_word("1"));
+        GridCell left_left(grid,0u,make_binary_word("00"));
+        GridCell left_right(grid,0u,make_binary_word("01"));
+        GridCell distant(grid,1u,make_binary_word("0"));
+
+        // Include both interior intersections and boundary-only contact.
+        std::vector<ExactBoxType> queries{
+            root.box(), left.box(), right.box(), left_left.box(),
+            left_right.box(), distant.box()
+        };
+        for (unsigned table=0u; table<256u; ++table) {
+            BinaryTreeNode explicit_tree(false);
+            for (unsigned mask=0u; mask<8u; ++mask) {
+                if ((table & (1u << mask)) == 0u) { continue; }
+                BinaryWord path;
+                path.push_back((mask & 4u) != 0u);
+                path.push_back((mask & 2u) != 0u);
+                path.push_back((mask & 1u) != 0u);
+                explicit_tree.add_enabled(path);
+            }
+            explicit_tree.recombine();
+            GridTreeSubpaving oracle(grid,0u,BinaryWord{},&explicit_tree);
+            RobddPaving snapshot(manager,oracle);
+            snapshot.mince_to_depth(3u);
+
+            ARIADNE_TESTING_EXPECT_EQUAL(
+                snapshot.bounding_box().dimension(),
+                oracle.bounding_box().dimension());
+            if (table != 0u) {
+                ARIADNE_TESTING_PROVE(same(
+                    cast_exact_box(snapshot.bounding_box()),
+                    cast_exact_box(oracle.bounding_box())));
+            }
+            for (auto const& box : queries) {
+                ARIADNE_TESTING_EXPECT_EQUAL(
+                    definitely(snapshot.inside(box)),
+                    definitely(oracle.inside(box)));
+                ARIADNE_TESTING_EXPECT_EQUAL(
+                    definitely(snapshot.separated(box)),
+                    definitely(oracle.separated(box)));
+                ARIADNE_TESTING_EXPECT_EQUAL(
+                    definitely(snapshot.overlaps(box)),
+                    definitely(oracle.overlaps(box)));
+            }
+        }
+
+        // The geometry is unchanged by changing only logical depth.
+        RobddPaving all(manager,root,manager.constant(true),0u);
+        auto full_bounds=all.bounding_box();
+        all.mince_to_depth(7u);
+        ARIADNE_TESTING_PROVE(same(
+            cast_exact_box(all.bounding_box()),cast_exact_box(full_bounds)));
+        ARIADNE_TESTING_EXPECT_EQUAL(all.size(),1u);
+
+        RobddPaving empty(manager,root,manager.constant(false),0u);
+        ARIADNE_TESTING_EXPECT_EQUAL(empty.bounding_box().dimension(),1u);
+        ARIADNE_TESTING_PROVE(definitely(empty.inside(root.box())));
+        ARIADNE_TESTING_PROVE(definitely(empty.separated(root.box())));
+        ARIADNE_TESTING_PROVE(not definitely(empty.overlaps(root.box())));
+
+        Grid two_dimensional(2u);
+        GridCell wrong_root(two_dimensional,0u,BinaryWord{});
+        ARIADNE_TESTING_EXPECT_EXCEPTION(all.inside(wrong_root.box()));
+        ARIADNE_TESTING_EXPECT_EXCEPTION(all.separated(wrong_root.box()));
+        ARIADNE_TESTING_EXPECT_EXCEPTION(all.overlaps(wrong_root.box()));
+    }
+
 };
 
 int main(int argc, char** argv) {
@@ -736,5 +808,6 @@ int main(int argc, char** argv) {
     ARIADNE_TESTING_ADD_TEST(TestRobddPaving, test_in_place_mutation_across_extents);
     ARIADNE_TESTING_ADD_TEST(TestRobddPaving, test_representation_neutral_subpaving_operations);
     ARIADNE_TESTING_ADD_TEST(TestRobddPaving, test_native_branch_cofactors);
+    ARIADNE_TESTING_ADD_TEST(TestRobddPaving, test_geometric_queries_against_explicit_tree);
     return ARIADNE_TESTING_RUN_TESTS_WITH_ARGS(argc,argv);
 }

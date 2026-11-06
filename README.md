@@ -69,8 +69,10 @@ The prototype also accepts `SubPavingInterface const&` inputs for
 import, union, intersection, difference, set predicates and equality.
 It implements `superset(GridCell)` and a native `branch(Bool)`
 that restricts the ROBDD to a child cell without constructing an
-explicit binary tree. This does not yet give it the full virtual
-`PavingInterface` contract.
+explicit binary tree. It also supports `bounding_box()`, `inside()`,
+`separated()` and `overlaps()` through compact-leaf iteration,
+matching the binary-tree backend's conservative box semantics.
+This does not yet give it the full virtual `PavingInterface` contract.
 
 The manager must outlive snapshots. Both operands in a set operation must
 share one manager and lie on the same grid; roots are aligned even when

@@ -423,3 +423,39 @@ increment does **not** make `RobddPaving` derive from
 operations, precise `mince(Nat)` semantics and writable subpaving
 views require further implementation. `reasoning`, `drawing`
 and `bdd` remain unchanged. CI must validate this increment.
+
+## 2026-11-06 - Exact grid-box queries without tree materialization
+
+Added `bounding_box()`, `inside(ExactBoxType const&)`,
+`separated(ExactBoxType const&)` and
+`overlaps(ExactBoxType const&)` to `RobddPaving`. All four
+are implemented over the native incremental compact-leaf
+iterator, rather than by converting the entire ROBDD to a
+`BinaryTreeNode`.
+
+`bounding_box` computes the coordinate-wise hull of enabled
+leaf-cell boxes and returns an empty box of the ambient
+dimension for an empty paving. The Boolean predicates preserve
+the exact box semantics of `GridTreeSubpaving`:
+`inside` compares every enabled cell with the narrowed query
+box; `separated` requires that no enabled cell's interior
+overlaps the widened query box; and `overlaps` succeeds when
+an enabled cell overlaps the narrowed query box. The
+conservative widen/narrow steps intentionally preserve the
+tree backend's handling of boundary contacts. All methods
+check dimension compatibility and leave the paving unchanged.
+
+A reference-oracle regression enumerates all 256 Boolean
+functions over three subdivision bits and compares the four
+queries against a recombined `GridTreeSubpaving` using six
+geometric boxes, including disjoint, touching, whole-root,
+and nested cases. It also checks empty/full roots, invariance
+of bounding geometry under logical mincing, and invalid
+query dimensions.
+
+These operations bring the ROBDD prototype closer to
+`SubPavingInterface`, but do not yet make it implement the
+abstract interface or support all approximation routines.
+The immutable DAG remains unexpanded by these queries; worst-case
+work is proportional to the compact leaves traversed. The
+`PavingHandle` name is unchanged. CI verification is pending.

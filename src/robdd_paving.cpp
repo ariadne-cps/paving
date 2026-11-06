@@ -245,6 +245,60 @@ Bool RobddPaving::is_enabled(BinaryWord const& path) const {
     return _manager->evaluate(_root,path);
 }
 
+UpperBoxType RobddPaving::bounding_box() const {
+    auto current=begin(), finish=end();
+    if (current == finish) {
+        return ExactBoxType(dimension());
+    }
+
+    UpperBoxType bounds=current->box();
+    for (++current; current!=finish; ++current) {
+        UpperBoxType cell_box=current->box();
+        for (DimensionType i=0u; i<dimension(); ++i) {
+            if (cell_box[i].lower_bound().raw() < bounds[i].lower_bound().raw()) {
+                bounds[i].set_lower_bound(cell_box[i].lower_bound());
+            }
+            if (cell_box[i].upper_bound().raw() > bounds[i].upper_bound().raw()) {
+                bounds[i].set_upper_bound(cell_box[i].upper_bound());
+            }
+        }
+    }
+    return bounds;
+}
+
+ValidatedLowerKleenean RobddPaving::inside(
+        ExactBoxType const& box) const {
+    ARIADNE_PRECONDITION_MSG(box.dimension() == dimension(),
+        "Paving and query-box dimensions must agree");
+    ExactBoxType narrowed=cast_exact_box(narrow(box));
+    for (auto cell=begin(), last=end(); cell!=last; ++cell) {
+        if (not cell->box().subset(narrowed)) { return false; }
+    }
+    return true;
+}
+
+ValidatedLowerKleenean RobddPaving::separated(
+        ExactBoxType const& box) const {
+    ARIADNE_PRECONDITION_MSG(box.dimension() == dimension(),
+        "Paving and query-box dimensions must agree");
+    ExactBoxType widened=cast_exact_box(widen(box));
+    for (auto cell=begin(), last=end(); cell!=last; ++cell) {
+        if (cell->box().overlaps(widened)) { return false; }
+    }
+    return true;
+}
+
+ValidatedLowerKleenean RobddPaving::overlaps(
+        ExactBoxType const& box) const {
+    ARIADNE_PRECONDITION_MSG(box.dimension() == dimension(),
+        "Paving and query-box dimensions must agree");
+    ExactBoxType narrowed=cast_exact_box(narrow(box));
+    for (auto cell=begin(), last=end(); cell!=last; ++cell) {
+        if (cell->box().overlaps(narrowed)) { return true; }
+    }
+    return false;
+}
+
 SizeType RobddPaving::enabled_cell_count() const {
     return _manager->model_count(_root,_depth);
 }
