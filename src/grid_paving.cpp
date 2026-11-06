@@ -33,6 +33,7 @@
 #include "set/function_set.hpp"
 #include "set/list_set.hpp"
 #include "paving/grid_paving.hpp"
+#include "paving/grid_cell_alignment.hpp"
 #include <limits>
 #include "paving/binary_tree.hpp"
 
@@ -1493,25 +1494,11 @@ Bool intersect( const GridCell& theCell, const GridTreeSubpaving& theSet ) {
 // with the information about the paths from the found primary cell to the
 // root binary tree nodes of both sets.
 static Void common_primary_cell_path(const GridTreeSubpaving& theSet1, const GridTreeSubpaving& theSet2, BinaryWord &pathCommonPCtoRC1, BinaryWord &pathCommonPCtoRC2 ) {
-    //Get the root cells for the subsets
-    GridCell rootCell1 = theSet1.root_cell();
-    GridCell rootCell2 = theSet2.root_cell();
-    //Get the extents of the primary cells for both subsets
-    const Nat extentPC1 = rootCell1.root_extent();
-    const Nat extentPC2 = rootCell2.root_extent();
-    if( extentPC2 > extentPC1 ) {
-        //Compute the path from the common primary cell to the root cell of theSet1
-        pathCommonPCtoRC1 = GridCell::primary_cell_path( rootCell1.dimension(), extentPC2, extentPC1 );
-        pathCommonPCtoRC1.append( rootCell1.word() );
-        //Compute the path from the common primary cell to the root cell of theSet2
-        pathCommonPCtoRC2 = rootCell2.word();
-    } else {
-        //Compute the path from the common primary cell to the root cell of theSet2
-        pathCommonPCtoRC1 = rootCell1.word();
-        //Compute the path from the common primary cell to the root cell of theSet1
-        pathCommonPCtoRC2 = GridCell::primary_cell_path( rootCell1.dimension(), extentPC1, extentPC2 );
-        pathCommonPCtoRC2.append( rootCell2.word() );
-    }
+    GridCell first = theSet1.root_cell();
+    GridCell second = theSet2.root_cell();
+    Nat extent = std::max(first.root_extent(),second.root_extent());
+    pathCommonPCtoRC1 = cell_path_at_extent(first,extent);
+    pathCommonPCtoRC2 = cell_path_at_extent(second,extent);
 }
 
 // This method locates the node in the tree rooted to pSuperTreeRootNode that corresponds to

@@ -30,6 +30,7 @@
 #include "paving/binary_tree.hpp"
 #include "paving/grid.hpp"
 #include "paving/grid_cell.hpp"
+#include "paving/grid_cell_alignment.hpp"
 #include "paving/grid_paving.hpp"
 #include "paving/binary_tree_paving.hpp"
 #include "paving/robdd_paving.hpp"

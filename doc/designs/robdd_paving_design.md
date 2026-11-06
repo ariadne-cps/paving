@@ -299,3 +299,32 @@ reference iterators. These changes are a prerequisite for an eventual
 `PavingInterface` implementation; they do not yet make
 `RobddPaving` derive from it or rename `PavingHandle` to `Paving`.
 `Reasoning` and `bdd` remain unchanged. CI validation is pending.
+
+## 2026-11-06 - Extract shared grid-cell root alignment
+
+Extracted representation-independent grid-cell alignment into
+`paving/grid_cell_alignment.hpp` and `src/grid_cell_alignment.cpp`.
+The three public functions are `cell_path_at_extent`,
+`common_root_cell`, and `relative_cell_path`. The first converts a
+cell's word to a chosen enclosing primary-cell extent; the second
+finds the smallest common binary-prefix ancestor; the third
+produces the path suffix from a containing cell to its descendant.
+
+Both storage implementations now use these geometric helpers:
+`RobddPaving::_common_root` calls `common_root_cell`, and its
+ROBDD-specific lifting uses `relative_cell_path`; the existing
+binary-tree helper `common_primary_cell_path` now calls
+`cell_path_at_extent` for both inputs. The binary-tree-specific
+pointer navigation and ROBDD-specific variable shifting remain
+separate, and no shared stateful superclass was introduced.
+
+A dedicated `test_grid_cell_alignment` executable checks common
+ancestors, reversed arguments, same and different primary-cell
+extents, geometrically equivalent cell representations, multi-
+dimensional primary-cell paths, and rejection of invalid grids,
+extents and ancestor relations. Existing backend regressions
+provide integration-level evidence of semantic preservation.
+
+No changes are made to `PavingInterface`, `PavingHandle`,
+`Reasoning` or `ariadne-cps/bdd`. GitHub CI validation for this
+refactor is pending.

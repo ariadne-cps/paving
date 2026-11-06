@@ -21,6 +21,7 @@
 
 #include "utility/macros.hpp"
 #include "paving/grid_paving.hpp"
+#include "paving/grid_cell_alignment.hpp"
 #include "paving/robdd_paving.hpp"
 
 namespace Ariadne {
@@ -316,40 +317,13 @@ Void RobddPaving::_check_compatible(
 GridCell RobddPaving::_common_root(
         RobddPaving const& other) const {
     _check_compatible(other);
-    Nat extent = std::max(
-        _root_cell.root_extent(),other._root_cell.root_extent());
-    auto align_path = [extent](GridCell const& cell) {
-        BinaryWord prefix = GridCell::primary_cell_path(
-            cell.grid().dimension(),extent,cell.root_extent());
-        prefix.append(cell.word());
-        return prefix;
-    };
-    BinaryWord first = align_path(_root_cell);
-    BinaryWord second = align_path(other._root_cell);
-    BinaryWord prefix;
-    SizeType limit = std::min(first.size(),second.size());
-    for (SizeType i=0u; i<limit and first[i]==second[i]; ++i) {
-        prefix.push_back(first[i]);
-    }
-    return GridCell(_root_cell.grid(),extent,prefix);
+    return common_root_cell(_root_cell,other._root_cell);
 }
 
 std::pair<Robdd,SizeType> RobddPaving::_lift_to(
         GridCell const& ancestor) const {
-    ARIADNE_PRECONDITION_MSG(ancestor.grid() == _root_cell.grid(),
-        "Cannot lift an ROBDD paving to another grid");
-    ARIADNE_PRECONDITION_MSG(
-        ancestor.root_extent() >= _root_cell.root_extent(),
-        "Common root extent must enclose the source primary cell");
-
-    BinaryWord path = GridCell::primary_cell_path(
-        _root_cell.grid().dimension(),
-        ancestor.root_extent(),_root_cell.root_extent());
-    path.append(_root_cell.word());
-    ARIADNE_PRECONDITION_MSG(
-        ancestor.word().is_prefix(path),
-        "Common root must contain the source paving root");
-    SizeType offset = path.size() - ancestor.word().size();
+    BinaryWord path = relative_cell_path(ancestor,_root_cell);
+    SizeType offset = path.size();
     ARIADNE_PRECONDITION_MSG(
         offset < std::numeric_limits<SizeType>::max() - _depth,
         "Aligned paving depth exceeds the valid ROBDD variable range");
@@ -362,7 +336,7 @@ std::pair<Robdd,SizeType> RobddPaving::_lift_to(
     Robdd disabled = _manager->constant(false);
     for (SizeType i=offset; i!=0u; ) {
         --i;
-        Bool right = path[ancestor.word().size()+i];
+        Bool right = path[i];
         lifted = right
             ? _manager->make_node(BddVariable(i),disabled,lifted)
             : _manager->make_node(BddVariable(i),lifted,disabled);

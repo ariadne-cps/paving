@@ -3,6 +3,7 @@ set(UNIT_TESTS
     test_affine_set_approximation
     test_binary_tree
     test_grid
+    test_grid_cell_alignment
     test_grid_paving
     test_grid_paving_extensions
     test_robdd_paving

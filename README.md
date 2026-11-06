@@ -43,6 +43,10 @@ The types do not yet offer identical functionality. In particular,
 the ROBDD prototype does not yet implement the complete
 `PavingInterface`; the alias does not create a new concrete class.
 
+The two backends share representation-independent geometric alignment
+through `paving/grid_cell_alignment.hpp`, including paths relative to a
+primary-cell extent, common root cells and relative subdivision paths.
+
 ## Experimental ROBDD paving snapshot
 
 `RobddPaving` is an additive prototype for comparing immutable
