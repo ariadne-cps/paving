@@ -190,6 +190,12 @@ class RobddPaving {
     //! \brief In-place removal of any subpaving on the same grid.
     Void remove(SubPavingInterface const& other);
 
+    //! \brief Adjoin a grid-aligned outer approximation of a box.
+    //! \details Matches GridTreePaving's primary-cell extent, conservative
+    //! separation, coverage and fineness rules, but builds the result
+    //! directly from ROBDD cell insertions without a binary tree.
+    Void adjoin_outer_approximation(UpperBoxType const& box, Nat fineness);
+
     //! \brief Adjoin a cell from the same grid.
     Void adjoin(GridCell const& cell);
 

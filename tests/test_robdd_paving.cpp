@@ -1241,6 +1241,54 @@ class TestRobddPaving : public Ariadne::Testing::ContextFixture {
         ARIADNE_TESTING_PROVE(robdd_old==robdd_view.end());
     }
 
+    Void test_outer_box_approximation_between_backends() {
+        RobddManager manager;
+        for (Nat dimensions : {1u,2u}) {
+            Grid grid(dimensions);
+            GridCell root(grid,0u,BinaryWord{});
+            GridCell left=root.split(false);
+            GridCell right=root.split(true);
+            std::vector<UpperBoxType> boxes{
+                root.box(),left.box(),right.box(),
+                left.split(false).box(),right.split(true).box()
+            };
+            for (Nat fineness : {0u,1u,2u}) {
+                for (SizeType index=0u; index<boxes.size(); ++index) {
+                    BinaryTreePaving tree(grid);
+                    RobddPaving robdd(
+                        manager,root,manager.constant(false),0u);
+                    tree.adjoin_outer_approximation(boxes[index],fineness);
+                    robdd.adjoin_outer_approximation(boxes[index],fineness);
+                    tree.recombine();
+                    ARIADNE_TESTING_EXPECT_EQUAL(
+                        tree.size(),robdd.size());
+                    for (auto it=tree.begin(), end=tree.end(); it!=end; ++it) {
+                        ARIADNE_TESTING_PROVE(robdd.superset(*it));
+                    }
+                    for (auto it=robdd.begin(), end=robdd.end(); it!=end; ++it) {
+                        ARIADNE_TESTING_PROVE(tree.superset(*it));
+                    }
+                    ARIADNE_TESTING_PROVE(same(
+                        cast_exact_box(tree.bounding_box()),
+                        cast_exact_box(robdd.bounding_box())));
+                    // Repeating the approximation is set-idempotent.
+                    RobddPaving snapshot(robdd);
+                    robdd.adjoin_outer_approximation(boxes[index],fineness);
+                    ARIADNE_TESTING_PROVE(robdd.subset(snapshot));
+                    ARIADNE_TESTING_PROVE(snapshot.subset(robdd));
+                }
+            }
+        }
+        Grid grid(1u);
+        GridCell root(grid,0u,BinaryWord{});
+        RobddPaving robdd(manager,root,manager.constant(false),0u);
+        Grid incompatible(2u);
+        ARIADNE_TESTING_EXPECT_EXCEPTION(
+            robdd.adjoin_outer_approximation(
+                GridCell(incompatible,0u,BinaryWord{}).box(),1u));
+        ARIADNE_TESTING_PROVE(robdd.is_empty());
+    }
+
     Void test_common_writable_cell_views() {
         RobddManager manager;
         Grid grid(1u);
@@ -1334,5 +1382,6 @@ int main(int argc, char** argv) {
     ARIADNE_TESTING_ADD_TEST(TestRobddPaving, test_common_view_enabled_leaf_traversal);
     ARIADNE_TESTING_ADD_TEST(TestRobddPaving, test_common_view_geometric_queries);
     ARIADNE_TESTING_ADD_TEST(TestRobddPaving, test_common_view_forward_iterator);
+    ARIADNE_TESTING_ADD_TEST(TestRobddPaving, test_outer_box_approximation_between_backends);
     return ARIADNE_TESTING_RUN_TESTS_WITH_ARGS(argc,argv);
 }

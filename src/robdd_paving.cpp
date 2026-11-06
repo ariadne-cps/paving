@@ -435,6 +435,51 @@ Void RobddPaving::remove(SubPavingInterface const& other) {
     remove(RobddPaving(*_manager,other));
 }
 
+Void RobddPaving::adjoin_outer_approximation(
+        UpperBoxType const& box, Nat fineness) {
+    ARIADNE_PRECONDITION_MSG(box.dimension() == dimension(),
+        "Cannot approximate a box of another dimension");
+    ExactBoxType exact_box=cast_exact_box(box);
+    ExactBoxSetType set=exact_box;
+    Nat extent=GridCell::smallest_enclosing_primary_cell_extent(
+        set.bounding_box(),grid());
+    Nat dimensions=static_cast<Nat>(dimension());
+    constexpr SizeType limit=std::numeric_limits<SizeType>::max();
+    constexpr Nat nat_limit=std::numeric_limits<Nat>::max();
+    ARIADNE_PRECONDITION_MSG(dimensions <= nat_limit and
+        extent <= nat_limit-dimensions,
+        "Outer approximation primary-cell extent overflows");
+    Nat enclosing_extent=extent+dimensions;
+    ARIADNE_PRECONDITION_MSG(fineness <= nat_limit and
+        enclosing_extent <= nat_limit-fineness,
+        "Outer approximation fineness overflows");
+    SizeType levels=static_cast<SizeType>(enclosing_extent)+fineness;
+    ARIADNE_PRECONDITION_MSG(
+        dimensions == 0u or levels <= limit/dimensions,
+        "Outer approximation subdivision depth overflows");
+    SizeType target_depth=levels*dimensions;
+    GridCell enclosing_root(grid(),enclosing_extent,BinaryWord{});
+
+    // Stage all selected cells before applying any mutation. This leaves
+    // the paving unchanged if a geometric query or subdivision fails.
+    std::vector<GridCell> selected;
+    std::function<Void(GridCell const&,SizeType)> visit =
+        [&](GridCell const& cell, SizeType depth) {
+            if (definitely(set.separated(cell.box()))) { return; }
+            if (superset(cell)) { return; }
+            if (cell.box().subset(exact_box) or depth==target_depth) {
+                selected.push_back(cell);
+                return;
+            }
+            visit(cell.split(false),depth+1u);
+            visit(cell.split(true),depth+1u);
+        };
+    visit(enclosing_root,0u);
+    for (GridCell const& cell : selected) {
+        adjoin(cell);
+    }
+}
+
 Void RobddPaving::adjoin(GridCell const& cell) {
     RobddPaving singleton(*_manager,cell,_manager->constant(true),0u);
     adjoin(singleton);

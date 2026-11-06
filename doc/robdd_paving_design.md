@@ -696,3 +696,28 @@ remain non-owning, and this change does not add an incomplete
 `SubPavingInterface` implementation. `PavingHandle`, `bdd`,
 `drawing` and `reasoning` are unchanged. CI verification
 is pending.
+
+## 2026-11-06 - Direct ROBDD outer approximation of geometric boxes
+
+Implemented `RobddPaving::adjoin_outer_approximation(UpperBoxType const&,Nat)`
+as a first native geometric approximation operation. It reproduces the
+primary-cell alignment and target subdivision depth of the explicit
+`GridTreePaving` backend, and visits cells recursively. Cells proved
+separated from the input box are skipped; already-enabled cells are
+skipped; cells provably covered by the query set or at the target
+depth are staged for insertion. Selected cells are then adjoined to
+the canonical ROBDD via existing `adjoin(GridCell)`; no explicit
+`BinaryTreeNode` is constructed. Dimension and depth overflow
+checks reject invalid inputs before mutating the set.
+
+A cross-backend regression constructs the same outer box approximations
+independently in `BinaryTreePaving` and `RobddPaving`, comparing
+normalized enabled leaf counts, two-way geometric inclusion of leaves,
+and bounding boxes across one- and two-dimensional grids and
+multiple fineness levels. It checks idempotence and wrong dimensions.
+
+This does not yet implement the other three abstract geometric
+approximation overloads. In particular, `RobddPaving` is not yet
+derived from `PavingInterface`. No `RobddSubpaving` was introduced.
+`PavingHandle`, `bdd`, `drawing` and `reasoning` are unchanged.
+CI must validate this increment.
