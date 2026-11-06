@@ -1156,3 +1156,30 @@ covered by a dedicated polymorphic handle test for both backends in
 results and unchanged sibling geometry. These tests do not change
 existing geometric assertions or legacy mince/recombine behavior.
 
+
+## 2026-11-06 - Independent exact-uniformity regression oracle
+
+Added test_exact_uniform_oracle_exhaustive_and_nested_views to the
+comparative paving suite. Earlier tests exercised selected positive and
+negative examples; this regression computes expected exact-depth cells
+from an independent three-bit occupancy truth table. It exhausts all
+256 tables for one-dimensional extent-zero roots and covers a diverse
+deterministic subset for the other combinations of 1D/2D and primary
+extent 0/1. It tests four root regions: the primary root, left child,
+nested left-right child, and nested right-left-right child.
+
+For each root and grid-relative fineness 0..3, the oracle independently
+checks if every target cell is fully occupied or fully vacant. If
+partial occupancy is present, exact traversal and materialization must
+throw before emitting any output. A nonempty child view deeper than the
+target resolution must also reject coarsening, while an empty child
+view is legal and produces an empty result. For valid target depths,
+both backends must return exactly the oracle's ordered cells and
+materialized leaf counts. The detached results are probed against every
+original depth-three occupancy bit, including cells outside child views.
+After removing one cell from a detached result, both original sources
+must remain unchanged. Every case also checks source tree structure
+and ROBDD root/depth stability around enumeration, with the separate
+known caveat that the tree's branch() may materialize mutable nodes
+before these checks begin. No implementation behavior was changed.
+

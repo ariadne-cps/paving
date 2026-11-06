@@ -2013,6 +2013,266 @@ class TestPavingBackends : public Ariadne::Testing::ContextFixture {
         }
     }
 
+    Void test_exact_uniform_oracle_exhaustive_and_nested_views() {
+        // The oracle is independent of both paving iterators and superset():
+        // bits in a three-decision occupancy table specify the geometry.
+        // All target cells must either be completely enabled or disabled.
+        RobddManager manager;
+        auto bits_to_word=[](unsigned value, Nat length) {
+            BinaryWord word;
+            for (Nat i=0u; i<length; ++i) {
+                word.push_back(
+                    (value & (1u << (length-i-1u))) != 0u);
+            }
+            return word;
+        };
+
+        for (Nat dimension : {1u,2u}) {
+            Grid grid(dimension);
+            for (Nat extent : {0u,1u}) {
+                GridCell primary(grid,extent,BinaryWord{});
+                for (unsigned mask=0u; mask<256u; ++mask) {
+                    // Exhaust all 256 three-bit truth tables in 1D at
+                    // extent zero; exercise a diverse, deterministic
+                    // collection at the other dimension/extent pairs.
+                    if ((dimension!=1u or extent!=0u)
+                            and mask%17u!=0u
+                            and mask!=0x55u and mask!=0xAAu
+                            and mask!=0xFEu and mask!=0xEFu
+                            and mask!=0xFFu) { continue; }
+                    BinaryTreePaving tree(
+                        grid,extent,new BinaryTreeNode(false));
+                    RobddPaving robdd(
+                        manager,primary,manager.constant(false),0u);
+                    for (unsigned bit=0u; bit<8u; ++bit) {
+                        if ((mask & (1u<<bit))==0u) { continue; }
+                        GridCell enabled(
+                            grid,extent,bits_to_word(bit,3u));
+                        tree.adjoin(enabled);
+                        robdd.adjoin(enabled);
+                    }
+                    tree.recombine();
+                    // Keep redundant enabled subdivisions in a subset
+                    // of the explicit trees, exercising coalescing.
+                    if (mask%3u==0u) { tree.mince_to_tree_depth(4u); }
+
+                    auto evaluate=[&](SubPavingInterface const& tree_view,
+                            SubPavingInterface const& robdd_view,
+                            unsigned prefix_value, Nat prefix_length) {
+                        GridCell view_root(
+                            grid,extent,
+                            bits_to_word(prefix_value,prefix_length));
+                        ARIADNE_TESTING_PROVE(
+                            tree_view.root_cell()==view_root);
+                        ARIADNE_TESTING_PROVE(
+                            robdd_view.root_cell()==view_root);
+                        BinaryTreePaving tree_before(tree);
+                        auto robdd_root_before=robdd.robdd();
+                        SizeType robdd_depth_before=robdd.depth();
+
+                        for (Nat fineness : {0u,1u,2u,3u}) {
+                            unsigned target=(extent+fineness)*dimension;
+                            ARIADNE_TESTING_PROVE(target<=8u);
+                            std::vector<GridCell> expected;
+                            Bool impossible=false;
+                            if (target<prefix_length) {
+                                for (unsigned bit=0u; bit<8u; ++bit) {
+                                    if ((mask & (1u<<bit))!=0u and
+                                            (bit>>(3u-prefix_length))
+                                                ==prefix_value) {
+                                        impossible=true;
+                                    }
+                                }
+                            } else {
+                                unsigned cells=1u<<target;
+                                for (unsigned cell=0u; cell<cells; ++cell) {
+                                    if (prefix_length!=0u and
+                                            (cell>>(target-prefix_length))
+                                                !=prefix_value) { continue; }
+                                    if (target<=3u) {
+                                        unsigned group=1u<<(3u-target);
+                                        unsigned first=cell*group;
+                                        unsigned selected=0u;
+                                        for (unsigned bit=first;
+                                                bit<first+group; ++bit) {
+                                            if ((mask & (1u<<bit))!=0u) {
+                                                ++selected;
+                                            }
+                                        }
+                                        if (selected!=0u and selected!=group) {
+                                            impossible=true;
+                                        } else if (selected==group) {
+                                            expected.emplace_back(
+                                                grid,extent,
+                                                bits_to_word(cell,target));
+                                        }
+                                    } else {
+                                        unsigned parent=cell>>(target-3u);
+                                        if ((mask & (1u<<parent))!=0u) {
+                                            expected.emplace_back(
+                                                grid,extent,
+                                                bits_to_word(cell,target));
+                                        }
+                                    }
+                                }
+                            }
+
+                            std::vector<GridCell> observed_tree;
+                            std::vector<GridCell> observed_robdd;
+                            if (impossible) {
+                                ARIADNE_TESTING_EXPECT_EXCEPTION(
+                                    tree_view.for_each_enabled_cell_at_exact_fineness(
+                                        fineness,[&](GridCell const& cell) {
+                                            observed_tree.push_back(cell);
+                                        }));
+                                ARIADNE_TESTING_EXPECT_EXCEPTION(
+                                    robdd_view.for_each_enabled_cell_at_exact_fineness(
+                                        fineness,[&](GridCell const& cell) {
+                                            observed_robdd.push_back(cell);
+                                        }));
+                                // An invalid coarsening is atomic for
+                                // callers: no prefix may be emitted.
+                                ARIADNE_TESTING_EXPECT_EQUAL(
+                                    observed_tree.size(),0u);
+                                ARIADNE_TESTING_EXPECT_EQUAL(
+                                    observed_robdd.size(),0u);
+                                ARIADNE_TESTING_EXPECT_EXCEPTION(
+                                    tree_view.uniform_cell_paving(fineness));
+                                ARIADNE_TESTING_EXPECT_EXCEPTION(
+                                    robdd_view.uniform_cell_paving(fineness));
+                            } else {
+                                tree_view.for_each_enabled_cell_at_exact_fineness(
+                                    fineness,[&](GridCell const& cell) {
+                                        observed_tree.push_back(cell);
+                                    });
+                                robdd_view.for_each_enabled_cell_at_exact_fineness(
+                                    fineness,[&](GridCell const& cell) {
+                                        observed_robdd.push_back(cell);
+                                    });
+                                ARIADNE_TESTING_PROVE(observed_tree==expected);
+                                ARIADNE_TESTING_PROVE(observed_robdd==expected);
+
+                                PavingHandle tree_uniform=
+                                    tree_view.uniform_cell_paving(fineness);
+                                PavingHandle robdd_uniform=
+                                    robdd_view.uniform_cell_paving(fineness);
+                                ARIADNE_TESTING_EXPECT_EQUAL(
+                                    tree_uniform.size(),expected.size());
+                                ARIADNE_TESTING_EXPECT_EQUAL(
+                                    robdd_uniform.size(),expected.size());
+                                auto tree_it=tree_uniform.begin();
+                                auto robdd_it=robdd_uniform.begin();
+                                for (GridCell const& cell : expected) {
+                                    ARIADNE_TESTING_EXPECT_EQUAL(
+                                        cell.word().size(),target);
+                                    ARIADNE_TESTING_PROVE(
+                                        tree_it!=tree_uniform.end());
+                                    ARIADNE_TESTING_PROVE(
+                                        robdd_it!=robdd_uniform.end());
+                                    ARIADNE_TESTING_PROVE(*tree_it==cell);
+                                    ARIADNE_TESTING_PROVE(*robdd_it==cell);
+                                    ++tree_it;
+                                    ++robdd_it;
+                                }
+                                ARIADNE_TESTING_PROVE(
+                                    tree_it==tree_uniform.end());
+                                ARIADNE_TESTING_PROVE(
+                                    robdd_it==robdd_uniform.end());
+
+                                // Verify actual geometry at the input
+                                // table's finest independent resolution,
+                                // including points outside child views.
+                                for (unsigned bit=0u; bit<8u; ++bit) {
+                                    GridCell probe(
+                                        grid,extent,bits_to_word(bit,3u));
+                                    Bool within=(prefix_length==0u) or
+                                        ((bit>>(3u-prefix_length))
+                                            ==prefix_value);
+                                    Bool occupied=within and
+                                        ((mask & (1u<<bit))!=0u);
+                                    ARIADNE_TESTING_EXPECT_EQUAL(
+                                        tree_uniform.superset(probe),occupied);
+                                    ARIADNE_TESTING_EXPECT_EQUAL(
+                                        robdd_uniform.superset(probe),occupied);
+                                }
+
+                                // Detached outputs must not share
+                                // mutable state with their sources.
+                                if (not expected.empty()) {
+                                    GridCell removed=expected.front();
+                                    tree_uniform.remove(removed);
+                                    robdd_uniform.remove(removed);
+                                    ARIADNE_TESTING_PROVE(
+                                        not tree_uniform.superset(removed));
+                                    ARIADNE_TESTING_PROVE(
+                                        not robdd_uniform.superset(removed));
+                                    ARIADNE_TESTING_PROVE(
+                                        tree_view.superset(removed));
+                                    ARIADNE_TESTING_PROVE(
+                                        robdd_view.superset(removed));
+                                }
+                            }
+                            ARIADNE_TESTING_PROVE(
+                                static_cast<GridTreeSubpaving const&>(tree)
+                                == static_cast<GridTreeSubpaving const&>(
+                                    tree_before));
+                            ARIADNE_TESTING_PROVE(
+                                robdd.robdd()==robdd_root_before);
+                            ARIADNE_TESTING_EXPECT_EQUAL(
+                                robdd.depth(),robdd_depth_before);
+                        }
+                    };
+
+                    evaluate(tree,robdd,0u,0u);
+
+                    // Branch() creates live child views. Their explicit
+                    // tree layout may be materialized by branch(), but
+                    // uniform-cell enumeration must cause no further
+                    // mutation and must not escape each view's region.
+                    SubPavingInterface const& ti=tree;
+                    SubPavingInterface const& ri=robdd;
+                    auto t0=ti.branch(false);
+                    auto r0=ri.branch(false);
+                    SubPavingInterface const& tv0=t0;
+                    SubPavingInterface const& rv0=r0;
+                    evaluate(tv0,rv0,0u,1u);
+
+                    auto t01=tv0.branch(true);
+                    auto r01=rv0.branch(true);
+                    SubPavingInterface const& tv01=t01;
+                    SubPavingInterface const& rv01=r01;
+                    evaluate(tv01,rv01,1u,2u);
+
+                    auto t1=ti.branch(true);
+                    auto r1=ri.branch(true);
+                    SubPavingInterface const& tv1=t1;
+                    SubPavingInterface const& rv1=r1;
+                    auto t10=tv1.branch(false);
+                    auto r10=rv1.branch(false);
+                    SubPavingInterface const& tv10=t10;
+                    SubPavingInterface const& rv10=r10;
+                    auto t101=tv10.branch(true);
+                    auto r101=rv10.branch(true);
+                    SubPavingInterface const& tv101=t101;
+                    SubPavingInterface const& rv101=r101;
+                    evaluate(tv101,rv101,5u,3u);
+
+                    // The same three-bit geometry is still present in
+                    // both owners, including siblings of the views.
+                    for (unsigned bit=0u; bit<8u; ++bit) {
+                        GridCell cell(
+                            grid,extent,bits_to_word(bit,3u));
+                        Bool enabled=(mask & (1u<<bit))!=0u;
+                        ARIADNE_TESTING_EXPECT_EQUAL(
+                            tree.superset(cell),enabled);
+                        ARIADNE_TESTING_EXPECT_EQUAL(
+                            robdd.superset(cell),enabled);
+                    }
+                }
+            }
+        }
+    }
+
     Void test_common_writable_cell_views() {
         RobddManager manager;
         Grid grid(1u);
@@ -2112,5 +2372,6 @@ int main(int argc, char** argv) {
     ARIADNE_TESTING_ADD_TEST(TestPavingBackends, test_polymorphic_child_enumeration_at_fineness);
     ARIADNE_TESTING_ADD_TEST(TestPavingBackends, test_uniform_cell_paving_contract);
     ARIADNE_TESTING_ADD_TEST(TestPavingBackends, test_polymorphic_handle_uniform_cell_enumeration);
+    ARIADNE_TESTING_ADD_TEST(TestPavingBackends, test_exact_uniform_oracle_exhaustive_and_nested_views);
     return ARIADNE_TESTING_RUN_TESTS_WITH_ARGS(argc,argv);
 }
