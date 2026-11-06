@@ -306,6 +306,37 @@ std::unique_ptr<BinaryTreeNode> RobddPaving::to_binary_tree() const {
     return expand_tree(*_manager,_root,0u,_depth);
 }
 
+Void RobddPaving::set_root_cell(Bool enabled) {
+    _root = _manager->constant(enabled);
+    _depth = 0u;
+}
+
+Void RobddPaving::clear() {
+    set_root_cell(false);
+}
+
+Void RobddPaving::adjoin(RobddPaving const& other) {
+    *this = join(other);
+}
+
+Void RobddPaving::restrict(RobddPaving const& other) {
+    *this = intersection(other);
+}
+
+Void RobddPaving::remove(RobddPaving const& other) {
+    *this = difference(other);
+}
+
+Void RobddPaving::adjoin(GridCell const& cell) {
+    RobddPaving singleton(*_manager,cell,_manager->constant(true),0u);
+    adjoin(singleton);
+}
+
+Void RobddPaving::remove(GridCell const& cell) {
+    RobddPaving singleton(*_manager,cell,_manager->constant(true),0u);
+    remove(singleton);
+}
+
 Void RobddPaving::_check_compatible(
         RobddPaving const& other) const {
     ARIADNE_PRECONDITION_MSG(_manager == other._manager,

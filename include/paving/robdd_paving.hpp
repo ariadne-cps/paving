@@ -29,12 +29,12 @@ namespace Ariadne {
 
 class GridTreeSubpaving;
 
-//! \brief Experimental immutable ROBDD-backed snapshot of a grid subpaving.
+//! \brief Experimental ROBDD-backed paving with value-like root updates.
 //! \details The GridCell stores the geometric root, while the Robdd stores
 //! membership as a Boolean function of successive binary subdivision bits.
-//! The fixed natural variable order is the subdivision order. This type is
-//! additive: existing GridTreePaving/GridTreeCursor semantics are unchanged.
-//! A shared RobddManager must outlive every snapshot and returned Robdd.
+//! Copies share immutable canonical ROBDD nodes, but changing one paving's
+//! root leaves other copies unchanged. GridTreePaving/GridTreeCursor semantics
+//! are unaffected. A shared RobddManager must outlive pavings and iterators.
 class RobddPaving {
   public:
     //! \brief Encode an existing explicit tree without retaining its node pointers.
@@ -128,6 +128,28 @@ class RobddPaving {
     //! \brief Reconstruct a mutable explicit tree for migration comparisons.
     //! \details Expands all enabled paths to depth() and may be exponential.
     std::unique_ptr<BinaryTreeNode> to_binary_tree() const;
+
+    //! \brief Enable or disable the entire root cell.
+    //! \details Replaces the ROBDD root with a terminal and resets depth to 0.
+    Void set_root_cell(Bool enabled);
+
+    //! \brief Disable all cells without changing the geometric root.
+    Void clear();
+
+    //! \brief In-place union with a paving on the same grid and manager.
+    Void adjoin(RobddPaving const& other);
+
+    //! \brief In-place intersection with a paving on the same grid and manager.
+    Void restrict(RobddPaving const& other);
+
+    //! \brief In-place difference with a paving on the same grid and manager.
+    Void remove(RobddPaving const& other);
+
+    //! \brief Adjoin a cell from the same grid.
+    Void adjoin(GridCell const& cell);
+
+    //! \brief Remove a cell from the same grid.
+    Void remove(GridCell const& cell);
 
     //! \brief Return an immutable union with a paving on the same grid and manager.
     RobddPaving join(RobddPaving const& other) const;

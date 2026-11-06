@@ -14,6 +14,7 @@ Although independently maintained and usable, this repository is also part of th
 
 - Public headers: `include/paving/`, with umbrella header `include/ariadne-paving.hpp`.
 - C++ implementations: `src/`.
+- Design journal: [`doc/robdd_paving_design.md`](doc/robdd_paving_design.md).
 - C++ tests: `tests/` (66 independently registered fixture cases across eight executables).
 - Python bindings, tests and tutorial: `python/bindings/`, `python/tests/` and `python/tutorials/`.
 - Standalone installed C++ example: `tutorials/tutorial_paving/`.
@@ -58,7 +59,8 @@ compact enabled-leaf counting/iteration (`enabled_leaf_count`,
 `for_each_enabled_leaf`, `size`, `begin`, `end`), immutable
 union/intersection/difference,
 inclusion/intersection predicates, logical mincing and recombination,
-and re-materialization as a `BinaryTreeNode`.
+in-place union/intersection/difference, adding or removing `GridCell` objects,
+`clear()`/`set_root_cell()`, and re-materialization as a `BinaryTreeNode`.
 Compact leaves are the leaves of the recombined ordered binary-tree
 interpretation, not all fixed-depth cells or the leaves of an
 unrecombined historical tree.

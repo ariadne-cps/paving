@@ -328,3 +328,49 @@ provide integration-level evidence of semantic preservation.
 No changes are made to `PavingInterface`, `PavingHandle`,
 `Reasoning` or `ariadne-cps/bdd`. GitHub CI validation for this
 refactor is pending.
+
+## 2026-11-06 - In-place paving updates and design-journal relocation
+
+Added value-like in-place operations to `RobddPaving`:
+`adjoin(RobddPaving const&)`, `restrict(RobddPaving const&)`,
+`remove(RobddPaving const&)`, `adjoin(GridCell const&)`,
+`remove(GridCell const&)`, `set_root_cell(Bool)`, and `clear()`.
+
+The set operations compute the immutable result using the existing
+`join`/`intersection`/`difference` implementations, then
+assign its root, root cell and logical depth to the receiver. This
+preserves the independence of copied pavings and prior iterators,
+which retain a snapshot of the old Boolean root and metadata.
+A cell is converted into a temporary true-terminal paving, and
+alignment uses the existing geometric helpers. The manager
+continues to own canonical Boolean nodes and must outlive pavings
+and their iterators. Self-union, self-intersection and self-
+difference are supported. Preconditions on the manager and grid
+are checked before assignment; invalid inputs do not change
+the receiver.
+
+`set_root_cell` enables or disables the entire geometric root
+with a terminal and resets the logical depth to zero.
+`clear` calls `set_root_cell(false)` without changing the
+root cell. The fixed-depth versus compact-leaf distinction is
+preserved.
+
+Regression cases cover cell-by-cell updates compared with the
+explicit `BinaryTreePaving`, independent copies and iterators,
+cross-extent changes, self-operations, root clearing/enabling,
+and invalid manager or grid arguments.
+
+This increment does **not** complete `PavingInterface`: mixed
+`SubPavingInterface` operands, subpaving branches, geometric
+bounding/overlap predicates, and approximation methods still
+need faithful native implementations.
+
+### Journal location
+
+This file moves from `doc/designs/robdd_paving_design.md`
+to `doc/robdd_paving_design.md`. It was the only tracked file
+in `doc/designs`, so deleting its old path also eliminates the
+now-empty directory. There is no compatibility copy.
+
+No changes were made to `ariadne-cps/bdd` or
+`ariadne-cps/reasoning`. CI verification remains necessary.
