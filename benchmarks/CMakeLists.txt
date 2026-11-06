@@ -26,3 +26,22 @@ if(WIN32)
         ENVIRONMENT_MODIFICATION
             "PATH=path_list_prepend:$<TARGET_FILE_DIR:ariadne-paving>")
 endif()
+
+# Dedicated read-only cell-containment microbenchmark. Its unit timings
+# exclude geometric classification and never change the manager on queries.
+add_executable(benchmark_paving_superset benchmark_paving_superset.cpp)
+target_link_libraries(benchmark_paving_superset PRIVATE ariadne-paving paving)
+add_dependencies(benchmarks benchmark_paving_superset)
+add_dependencies(tests benchmark_paving_superset)
+add_test(
+    NAME benchmark_paving_superset_smoke
+    COMMAND $<TARGET_FILE:benchmark_paving_superset>
+        --dimension 2 --probes-per-class 4 --iterations 1 --samples 3
+        --min-sample-ms 1 --max-iterations 2 --concurrency 0
+)
+set_property(TEST benchmark_paving_superset_smoke PROPERTY LABELS "paving;benchmark-smoke")
+if(WIN32)
+    set_tests_properties(benchmark_paving_superset_smoke PROPERTIES
+        ENVIRONMENT_MODIFICATION
+            "PATH=path_list_prepend:$<TARGET_FILE_DIR:ariadne-paving>")
+endif()

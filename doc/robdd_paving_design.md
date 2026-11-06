@@ -1499,3 +1499,46 @@ tree, virtual dispatch on the ROBDD, PavingHandle forwarding, and
 explicit generic-subpaving conversion. They also check that the
 ROBDD's ITE cache stays empty for fresh batch construction and
 explicit imports.
+
+## 2026-11-06 - Dedicated superset microbenchmark and allocation-free prefix alignment
+
+The separate executable benchmark_paving_superset constructs a
+deterministic, partially occupied ROBDD and the corresponding binary
+tree, then generates four query groups before timing: internal enabled
+cells, external/disjoint or disabled cells, ancestors containing mixed
+enabled/disabled regions, and enabled descendants including different
+primary-cell extents. For every query, the tree oracle, the former
+common_root_cell/relative_cell_path alignment implementation (retained
+only as an executable-local reference), and the current optimized
+RobddPaving::superset must produce exactly the same result. The manager
+snapshot before and after all timed queries must be identical.
+
+Each backend and category has independently calibrated timing batches,
+an odd-sample median and query-normalized nanosecond output, with
+--probes-per-class, --dimension, --iterations, --samples,
+--min-sample-ms and --max-iterations controls. The CLI uses the
+existing threading/logging conventions; CTest executes a short
+smoke scenario in every build platform.
+
+The production superset(GridCell) no longer builds a common GridCell
+or either temporary concatenated relative BinaryWord. Instead it
+compares the two normalized root/query bit sequences directly.
+When primary extents agree, no prefix buffer is constructed at all.
+When extents differ, exactly the primary-cell alignment prefix is
+generated, then referenced together with each cell's existing word.
+Any query that is shorter than the root prefix or differs at any
+position returns false; for a descendant, the remaining bits select
+ROBDD cofactors and the remaining function must be the true terminal.
+This preserves root equivalence, mixed extents, skipped variables and
+complemented edges, without mutating the BDD manager or any stored root.
+
+The old alignment path is *not* exposed as a production option or a
+second set implementation. It appears only as a local timing and
+correctness reference in the microbenchmark. Full structural correctness
+remains tested by the exhaustive 256-mask tree oracle; its query set
+now includes more mixed-primary-extent descendants.
+
+The benchmark is intended to be measured in Release mode on the
+same hardware; the resulting relative speedups are not claimed
+until measured. It does not compare against an external process or
+claim precise heap allocation counts.

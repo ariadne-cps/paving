@@ -792,33 +792,60 @@ Bool RobddPaving::equals(SubPavingInterface const& other) const {
 Bool RobddPaving::superset(GridCell const& cell) const {
     ARIADNE_PRECONDITION_MSG(grid() == cell.grid(),
         "Cannot test cell containment across different grids");
-    if (_root.is_false()) { return false; }
+    if(_root.is_false()) { return false; }
 
-    // Every dyadic GridCell pair is nested or disjoint. A query that
-    // extends outside the paving's geometric root cannot be fully covered.
-    // common_root_cell normalizes differing primary-cell extents. Comparing
-    // relative paths instead of GridCell objects also accepts two distinct
-    // representations of the SAME geometric root.
-    GridCell common=common_root_cell(_root_cell,cell);
-    if (not relative_cell_path(common,_root_cell).empty()) {
-        return false;
+    // A dyadic cell is either a descendant of the paving's root, an
+    // ancestor, or disjoint. Compare their normalized prefixes directly
+    // without constructing a common GridCell or any concatenated/sliced
+    // BinaryWord. On the usual same-primary-extent query, this path makes
+    // no binary-word allocations at all.
+    BinaryWord const& root_word=_root_cell.word();
+    BinaryWord const& query_word=cell.word();
+    Nat root_extent=_root_cell.root_extent();
+    Nat query_extent=cell.root_extent();
+
+    BinaryWord alignment;
+    SizeType root_prefix=0u;
+    SizeType query_prefix=0u;
+    if(root_extent>query_extent) {
+        // The queried word starts with the primary-cell path that
+        // descends from root_extent to query_extent.
+        alignment=GridCell::primary_cell_path(
+            dimension(),root_extent,query_extent);
+        query_prefix=alignment.size();
+    } else if(query_extent>root_extent) {
+        // The root word starts with the primary-cell path that
+        // descends from query_extent to root_extent.
+        alignment=GridCell::primary_cell_path(
+            dimension(),query_extent,root_extent);
+        root_prefix=alignment.size();
     }
 
-    // The common root is geometrically identical to _root_cell. Use its
-    // normalized descendant path to inspect only the cofactors selected by
-    // the queried cell; skipped variables leave the ROBDD unchanged.
-    // When the requested prefix ends, the entire remaining subfunction
-    // must equal true. No BDD node or computed-table entry is allocated.
-    BinaryWord path=relative_cell_path(common,cell);
+    SizeType root_length=root_prefix+root_word.size();
+    SizeType query_length=query_prefix+query_word.size();
+    if(query_length<root_length) { return false; }
+    auto root_bit=[&](SizeType index)->Bool {
+        return index<root_prefix
+            ?alignment[index] : root_word[index-root_prefix];
+    };
+    auto query_bit=[&](SizeType index)->Bool {
+        return index<query_prefix
+            ?alignment[index] : query_word[index-query_prefix];
+    };
+    for(SizeType i=0u;i<root_length;++i) {
+        if(root_bit(i)!=query_bit(i)) { return false; }
+    }
+
     Robdd value=_root;
-    for(SizeType i=0u;i<path.size();++i) {
+    for(SizeType i=0u;i<query_length-root_length;++i) {
         if(value.is_terminal()) { return value.is_true(); }
         auto top=_manager->top_variable(value);
         ARIADNE_PRECONDITION_MSG(
             top.has_value() and top->index()>=i,
             "ROBDD support is incompatible with paving subdivision order");
         if(top->index()==i) {
-            value=path[i] ? _manager->high(value) : _manager->low(value);
+            Bool branch=query_bit(root_length+i);
+            value=branch?_manager->high(value):_manager->low(value);
         }
     }
     return value.is_true();

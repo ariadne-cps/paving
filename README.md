@@ -346,3 +346,37 @@ ROBDD (or native view) and rejects foreign-backend operands. For
 cells from that source and calls batch `adjoin(cells)` once, instead
 of repeatedly adding singleton cells. The existing tree-specific
 conversion already uses direct tree encoding and is unchanged.
+
+### Read-only cell-containment microbenchmark
+
+`benchmark_paving_superset` isolates the cost of
+`superset(GridCell)`, separately from geometric approximation.
+It measures a binary-tree oracle, the previous common-root/relative-path
+alignment (reference only, local to the benchmark), and the optimized
+production ROBDD lookup. Queries are prepared before timing and
+classified as internal, external, ancestor or descendant, including
+queries crossing primary-cell extents. Every case must agree with the
+tree and the manager statistics must not change during the timed
+read-only queries.
+
+The optimized lookup compares root and query prefix bits directly,
+without allocating or concatenating binary words for the common
+same-primary-extent case. When extents differ, it constructs only
+the necessary primary-cell alignment prefix. A single traversal then
+reads the remaining query bits as ROBDD cofactors, including skipped
+variables and complemented edges.
+
+To run the microbenchmark in a Release build:
+
+```sh
+cmake --build build-release --target benchmark_paving_superset
+./build-release/benchmarks/benchmark_paving_superset \
+  --dimension 2 --probes-per-class 64 \
+  --samples 7 --min-sample-ms 12 --concurrency 0
+```
+
+Use --dimension (1..6), --probes-per-class (4..1024),
+--iterations, --samples, --min-sample-ms and --max-iterations to
+control the workload. Times are medians in nanoseconds per query,
+calibrated separately by category/implementation. CTest also runs
+a small functional smoke scenario on all CI platforms.

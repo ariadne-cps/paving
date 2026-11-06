@@ -181,7 +181,14 @@ class TestPavingBackends : public Ariadne::Testing::ContextFixture {
             GridCell(grid,1u,make_binary_word("101")),
             GridCell(grid,1u,make_binary_word("110")),
             GridCell(grid,1u,make_binary_word("111")),
-            GridCell(grid,1u,make_binary_word("1111"))};
+            GridCell(grid,1u,make_binary_word("1111")),
+            // Equivalent and strict descendants expressed through a wider
+            // primary-cell extent (both succeed and fail depending on mask).
+            GridCell(grid,2u,make_binary_word("001")),
+            GridCell(grid,2u,make_binary_word("0010")),
+            GridCell(grid,2u,make_binary_word("00101")),
+            GridCell(grid,3u,make_binary_word("0000010")),
+            GridCell(grid,3u,make_binary_word("0000011"))};
 
         for(unsigned mask=0u;mask<256u;++mask) {
             BinaryTreePaving oracle(grid,1u,new BinaryTreeNode(false));
