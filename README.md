@@ -112,6 +112,31 @@ performing an outer/inner approximation. A subview cannot use cells
 coarser than its own nonempty root. The detached result uses the primary
 root cell at the source's root extent, even for child views.
 
+
+## Comparative backend benchmark
+
+Build explicitly with:
+
+
+```bash
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
+cmake --build build --target benchmark_paving_backends
+./build/benchmarks/benchmark_paving_backends --help
+./build/benchmarks/benchmark_paving_backends --dimensions 2,3 --finenesses 1,2 --shapes aligned-box,rotated-box,aligned-ellipsoid,rotated-ellipsoid,ball --iterations 1 --samples 5
+```
+
+The CLI, logger, fixed-width result table, median timing and
+geometric-mean speed ratio follow ariadne-cps/numeric benchmarks.
+Results identify geometry, dimension, grid-relative fineness, backend,
+operation, compact leaf count and node count. The ratio is ROBDD/tree:
+above 1 means the tree is faster. The --max-depth-bits option skips
+combinations with an excessive theoretical subdivision depth. Manager
+nodes are shared and must not be read as exclusive ROBDD memory use.
+The first version measures warmed manager behavior, not manager startup,
+and refuses to compare approximations that disagree geometrically.
+A small CTest smoke exercise checks build/invocation without being used
+as a performance result.
+
 ## Build
 
 ```bash

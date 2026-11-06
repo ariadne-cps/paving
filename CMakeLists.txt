@@ -86,6 +86,9 @@ setup_standalone_project_tests(
         "${PROJECT_SOURCE_DIR}/src"
 )
 
+# Build benchmarks explicitly; register only a small functional smoke test.
+add_subdirectory(benchmarks)
+
 if(BUILD_PYTHON_BINDINGS)
     add_subdirectory(python)
 endif()

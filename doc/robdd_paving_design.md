@@ -1183,3 +1183,51 @@ and ROBDD root/depth stability around enumeration, with the separate
 known caveat that the tree's branch() may materialize mutable nodes
 before these checks begin. No implementation behavior was changed.
 
+
+## 2026-11-06 - Native backend benchmark and numeric CLI conventions
+
+The paving benchmark intentionally follows the established
+ariadne-cps/numeric/benchmarks CLI and reporting conventions:
+LoggingCommandLineInterface, CommandLineContribution, validated unsigned
+named options with optional short aliases, Ariadne logger initialization
+with a single-thread registry, LOGGING_PRINTLN for progress/results,
+one unmeasured warm-up sample, odd measured sample counts, median sample
+time per invocation, aligned detailed tables and geometric-mean speed
+ratios. The executable is benchmark_paving_backends in benchmarks/.
+It is an explicit CMake benchmark target, with only a tiny functional
+smoke invocation registered for CI. Normal performance experiments
+must run as Release builds on a quiet host, not under instrumented CI.
+
+The initial compact-set families are an axis-aligned rectangle,
+its orthogonally rotated counterpart, aligned/rotated ellipsoids with
+matching principal radii, and an isotropic Euclidean ball, in d>=2
+dimensions. They all use the identical EffectiveConstrainedImageSet
+objects for tree and ROBDD approximation; in higher dimensions axes
+2...d-1 use a common radius/half-width. Rotated-box bounds use finite
+decimal approximations to sqrt(2), so equal volume is approximate
+rather than exact; the other rotated quadratic pairs use exact rational
+quadratic forms. Domain [0,1]^d contains all five compact families.
+
+CLI options: --dimensions/-d (list), --finenesses/-f (list),
+--shapes/-g (list), --iterations/-i, --samples/-n, --max-depth-bits/-m,
+--summary-only, plus shared logging flags (verbosity, theme, scheduler)
+and --help. A conservative (d+f)*d bit budget skips impractical
+cartesian-product combinations and reports the skip count. Results
+include shape, space dimension, fineness, backend, operation, median
+milliseconds, compact leaf count and node count, followed by
+paired ROBDD/tree time ratios and group geometric means. ROBDD's
+node count is explicitly a manager-level total, not per-paving memory.
+
+Initial operations: fresh geometric outer approximation + recombination,
+copy, compact enabled-leaf iteration, nonmutating minimum-fineness
+cell iteration, a deterministic 16-query superset batch, and copy
+followed by in-place adjoin of one grid cell and recombination.
+The source geometry is checked for exact equality between independent
+backend approximations outside timing, failing rather than timing
+incomparable geometric sets. Each case reuses one ROBDD manager for
+timed constructions, so reported construction figures represent a
+warm-manager regime: manager creation and cold-cache effects are
+deliberately NOT measured in this increment. No unsupported claim of
+exclusive ROBDD memory usage is made; future cold-manager and resident
+memory measurements are separate work.
+
