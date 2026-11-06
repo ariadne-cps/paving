@@ -1,5 +1,5 @@
 /***************************************************************************
- *            test_robdd_grid_tree_paving.cpp
+ *            test_robdd_grid_paving.cpp
  *
  *  Copyright  2026  Luca Geretti
  ****************************************************************************/
@@ -13,15 +13,20 @@
  *  (at your option) any later version.
  */
 
+#include <type_traits>
 #include <vector>
 
+#include "paving/binary_tree_grid_paving.hpp"
 #include "paving/grid_paving.hpp"
-#include "paving/robdd_grid_tree_paving.hpp"
+#include "paving/robdd_grid_paving.hpp"
 #include "ariadne-testing.hpp"
 
 using namespace Ariadne;
 
-class TestRobddGridTreePaving : public Ariadne::Testing::ContextFixture {
+static_assert(std::is_same_v<BinaryTreeGridPaving,GridTreePaving>);
+
+
+class TestRobddGridPaving : public Ariadne::Testing::ContextFixture {
   public:
     using ContextFixture::ContextFixture;
 
@@ -35,7 +40,7 @@ class TestRobddGridTreePaving : public Ariadne::Testing::ContextFixture {
         tree.recombine();
 
         GridTreeSubpaving source(grid,2u,prefix,&tree);
-        RobddGridTreePaving snapshot(manager,source);
+        RobddGridPaving snapshot(manager,source);
         ARIADNE_TESTING_EXPECT_EQUAL(snapshot.depth(),3u);
         ARIADNE_TESTING_PROVE(snapshot.root_cell() == source.root_cell());
         ARIADNE_TESTING_PROVE(not snapshot.is_empty());
@@ -81,8 +86,8 @@ class TestRobddGridTreePaving : public Ariadne::Testing::ContextFixture {
         RobddManager manager;
         Grid grid(1u);
         GridCell root(grid,0u,BinaryWord{});
-        auto full = RobddGridTreePaving(manager,root,manager.constant(true),0u);
-        auto empty = RobddGridTreePaving(manager,root,manager.constant(false),0u);
+        auto full = RobddGridPaving(manager,root,manager.constant(true),0u);
+        auto empty = RobddGridPaving(manager,root,manager.constant(false),0u);
         ARIADNE_TESTING_PROVE(full.is_enabled(BinaryWord{}));
         ARIADNE_TESTING_PROVE(not empty.is_enabled(BinaryWord{}));
         ARIADNE_TESTING_EXPECT_EQUAL(full.enabled_cell_count(),1u);
@@ -107,7 +112,7 @@ class TestRobddGridTreePaving : public Ariadne::Testing::ContextFixture {
 
         BinaryTreeNode enabled(true);
         GridTreeSubpaving source(grid,0u,BinaryWord{},&enabled);
-        RobddGridTreePaving imported(manager,source);
+        RobddGridPaving imported(manager,source);
         ARIADNE_TESTING_PROVE(imported.robdd().is_true());
         ARIADNE_TESTING_PROVE(imported.to_binary_tree()->is_enabled());
     }
@@ -127,8 +132,8 @@ class TestRobddGridTreePaving : public Ariadne::Testing::ContextFixture {
 
         GridTreeSubpaving left_explicit(grid,0u,BinaryWord{},&left_tree);
         GridTreeSubpaving right_explicit(grid,0u,BinaryWord{},&right_tree);
-        RobddGridTreePaving lhs(manager,left_explicit);
-        RobddGridTreePaving rhs(manager,right_explicit);
+        RobddGridPaving lhs(manager,left_explicit);
+        RobddGridPaving rhs(manager,right_explicit);
         ARIADNE_TESTING_PROVE(not lhs.intersects(rhs));
         ARIADNE_TESTING_PROVE(not lhs.subset(rhs));
         ARIADNE_TESTING_PROVE(lhs.subset(lhs));
@@ -161,14 +166,14 @@ class TestRobddGridTreePaving : public Ariadne::Testing::ContextFixture {
         RobddManager foreign;
         auto foreign_value = foreign.variable(0u);
         ARIADNE_TESTING_EXPECT_EXCEPTION(
-            RobddGridTreePaving(manager,root,foreign_value,1u));
+            RobddGridPaving(manager,root,foreign_value,1u));
         ARIADNE_TESTING_EXPECT_EXCEPTION(
-            RobddGridTreePaving(manager,root,manager.variable(2u),2u));
-        RobddGridTreePaving other_manager(foreign,root,foreign.variable(0u),1u);
+            RobddGridPaving(manager,root,manager.variable(2u),2u));
+        RobddGridPaving other_manager(foreign,root,foreign.variable(0u),1u);
         ARIADNE_TESTING_EXPECT_EXCEPTION(lhs.join(other_manager));
         ARIADNE_TESTING_EXPECT_EXCEPTION(lhs.subset(other_manager));
         GridCell different_root(grid,0u,make_binary_word("0"));
-        RobddGridTreePaving wrong_cell(manager,different_root,manager.variable(0u),1u);
+        RobddGridPaving wrong_cell(manager,different_root,manager.variable(0u),1u);
         ARIADNE_TESTING_EXPECT_EXCEPTION(lhs.difference(wrong_cell));
         ARIADNE_TESTING_EXPECT_EXCEPTION(lhs.for_each_enabled_cell(
             std::function<void(GridCell const&)>{}));
@@ -176,9 +181,9 @@ class TestRobddGridTreePaving : public Ariadne::Testing::ContextFixture {
 };
 
 int main(int argc, char** argv) {
-    ARIADNE_TESTING_SUITE("test_robdd_grid_tree_paving");
-    ARIADNE_TESTING_ADD_TEST(TestRobddGridTreePaving, test_import_and_explicit_tree_oracle);
-    ARIADNE_TESTING_ADD_TEST(TestRobddGridTreePaving, test_terminals_and_complemented_roots);
-    ARIADNE_TESTING_ADD_TEST(TestRobddGridTreePaving, test_set_operations_and_preconditions);
+    ARIADNE_TESTING_SUITE("test_robdd_grid_paving");
+    ARIADNE_TESTING_ADD_TEST(TestRobddGridPaving, test_import_and_explicit_tree_oracle);
+    ARIADNE_TESTING_ADD_TEST(TestRobddGridPaving, test_terminals_and_complemented_roots);
+    ARIADNE_TESTING_ADD_TEST(TestRobddGridPaving, test_set_operations_and_preconditions);
     return ARIADNE_TESTING_RUN_TESTS_WITH_ARGS(argc,argv);
 }

@@ -1,5 +1,5 @@
 /***************************************************************************
- *            robdd_grid_tree_paving.hpp
+ *            robdd_grid_paving.hpp
  *
  *  Copyright  2026  Luca Geretti
  ****************************************************************************/
@@ -13,8 +13,8 @@
  *  (at your option) any later version.
  */
 
-#ifndef ARIADNE_PAVING_ROBDD_GRID_TREE_PAVING_HPP
-#define ARIADNE_PAVING_ROBDD_GRID_TREE_PAVING_HPP
+#ifndef ARIADNE_PAVING_ROBDD_GRID_PAVING_HPP
+#define ARIADNE_PAVING_ROBDD_GRID_PAVING_HPP
 
 #include <functional>
 #include <memory>
@@ -33,15 +33,15 @@ class GridTreeSubpaving;
 //! The fixed natural variable order is the subdivision order. This type is
 //! additive: existing GridTreePaving/GridTreeCursor semantics are unchanged.
 //! A shared RobddManager must outlive every snapshot and returned Robdd.
-class RobddGridTreePaving {
+class RobddGridPaving {
   public:
     //! \brief Encode an existing explicit tree without retaining its node pointers.
     //! \details The root cell and maximal tree depth are copied.
-    RobddGridTreePaving(RobddManager& manager, GridTreeSubpaving const& source);
+    RobddGridPaving(RobddManager& manager, GridTreeSubpaving const& source);
 
     //! \brief Construct a snapshot from a Boolean root and grid metadata.
     //! \pre root belongs to manager, and its support lies in [0, depth).
-    RobddGridTreePaving(
+    RobddGridPaving(
         RobddManager& manager, GridCell const& root_cell,
         Robdd const& root, SizeType depth);
 
@@ -84,22 +84,22 @@ class RobddGridTreePaving {
     std::unique_ptr<BinaryTreeNode> to_binary_tree() const;
 
     //! \brief Return an immutable union with a compatible paving.
-    RobddGridTreePaving join(RobddGridTreePaving const& other) const;
+    RobddGridPaving join(RobddGridPaving const& other) const;
 
     //! \brief Return an immutable intersection with a compatible paving.
-    RobddGridTreePaving intersection(RobddGridTreePaving const& other) const;
+    RobddGridPaving intersection(RobddGridPaving const& other) const;
 
     //! \brief Return an immutable set difference with a compatible paving.
-    RobddGridTreePaving difference(RobddGridTreePaving const& other) const;
+    RobddGridPaving difference(RobddGridPaving const& other) const;
 
     //! \brief Test subset inclusion for compatible roots.
-    Bool subset(RobddGridTreePaving const& other) const;
+    Bool subset(RobddGridPaving const& other) const;
 
     //! \brief Test whether two compatible pavings intersect.
-    Bool intersects(RobddGridTreePaving const& other) const;
+    Bool intersects(RobddGridPaving const& other) const;
 
   private:
-    Void _check_compatible(RobddGridTreePaving const& other) const;
+    Void _check_compatible(RobddGridPaving const& other) const;
 
     RobddManager* _manager;
     GridCell _root_cell;
@@ -109,4 +109,4 @@ class RobddGridTreePaving {
 
 } // namespace Ariadne
 
-#endif // ARIADNE_PAVING_ROBDD_GRID_TREE_PAVING_HPP
+#endif // ARIADNE_PAVING_ROBDD_GRID_PAVING_HPP

@@ -7,7 +7,7 @@ provide only general-purpose Boolean functions, canonical ROBDD nodes,
 model counting and satisfying-assignment enumeration. The geometric
 interpretation is entirely owned by `ariadne-cps/paving`.
 
-The new `RobddGridTreePaving` snapshot stores a `GridCell` root, a
+The new `RobddGridPaving` snapshot stores a `GridCell` root, a
 logical subdivision depth, a semantic `Robdd` handle, and a pointer to
 the shared `RobddManager`. The manager must outlive the snapshot. Variable
 indices start at zero and correspond to successive binary splits below
@@ -76,3 +76,26 @@ Next milestone: real `GridTreePaving` parity under root-cell
 alignment/height changes, projection and efficient path-based snapshot
 iteration. Do not replace pointer-based cursors with raw pointers into
 an immutable ROBDD DAG.
+
+## 2026-11-06 - Explicit backend naming
+
+Standardized the public representation-specific C++ names:
+`BinaryTreeGridPaving` for the existing explicit binary tree backend,
+and `RobddGridPaving` for the new ROBDD prototype.
+
+`BinaryTreeGridPaving` is currently a type alias for the longstanding
+`GridTreePaving`, declared in
+`include/paving/binary_tree_grid_paving.hpp`. The old name remains valid,
+preserving the numerous existing references and virtual interface
+implementations. No legacy class or algorithm was changed.
+
+Renamed the experimental ROBDD implementation and its source, public
+header, dedicated tests, CMake references and umbrella inclusion to
+`RobddGridPaving` / `robdd_grid_paving`. This is a naming change only:
+the new prototype still does not implement `PavingInterface` and is not
+yet interchangeable with the tree-based class. A compile-time test
+confirms the intended tree-backend alias.
+
+No change was made to `ariadne-cps/bdd`, the pinned BDD version, or
+the semantics of grid paving operations. Build and regression validation
+are pending the CI for the naming commit.

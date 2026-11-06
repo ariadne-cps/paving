@@ -1,5 +1,5 @@
 /***************************************************************************
- *            robdd_grid_tree_paving.cpp
+ *            robdd_grid_paving.cpp
  *
  *  Copyright  2026  Luca Geretti
  ****************************************************************************/
@@ -18,7 +18,7 @@
 
 #include "utility/macros.hpp"
 #include "paving/grid_paving.hpp"
-#include "paving/robdd_grid_tree_paving.hpp"
+#include "paving/robdd_grid_paving.hpp"
 
 namespace Ariadne {
 
@@ -71,13 +71,13 @@ std::unique_ptr<BinaryTreeNode> expand_tree(
 
 } // anonymous namespace
 
-RobddGridTreePaving::RobddGridTreePaving(
+RobddGridPaving::RobddGridPaving(
         RobddManager& manager, GridTreeSubpaving const& source)
-    : RobddGridTreePaving(
+    : RobddGridPaving(
         manager,source.root_cell(),
         encode_tree(manager,source.binary_tree(),0u),source.tree_depth()) { }
 
-RobddGridTreePaving::RobddGridTreePaving(
+RobddGridPaving::RobddGridPaving(
         RobddManager& manager, GridCell const& root_cell,
         Robdd const& root, SizeType depth)
     : _manager(&manager), _root_cell(root_cell), _root(root), _depth(depth) {
@@ -89,17 +89,17 @@ RobddGridTreePaving::RobddGridTreePaving(
         "ROBDD root refers to a subdivision outside the declared depth");
 }
 
-Bool RobddGridTreePaving::is_enabled(BinaryWord const& path) const {
+Bool RobddGridPaving::is_enabled(BinaryWord const& path) const {
     ARIADNE_PRECONDITION_MSG(path.size() == _depth,
         "Paving membership requires a path of the snapshot's logical depth");
     return _manager->evaluate(_root,path);
 }
 
-SizeType RobddGridTreePaving::enabled_cell_count() const {
+SizeType RobddGridPaving::enabled_cell_count() const {
     return _manager->model_count(_root,_depth);
 }
 
-Void RobddGridTreePaving::for_each_enabled_cell(
+Void RobddGridPaving::for_each_enabled_cell(
         std::function<void(GridCell const&)> const& visitor) const {
     ARIADNE_PRECONDITION_MSG(static_cast<Bool>(visitor),
         "Enabled-cell visitor must be nonempty");
@@ -112,63 +112,63 @@ Void RobddGridTreePaving::for_each_enabled_cell(
         });
 }
 
-Void RobddGridTreePaving::mince_to_depth(SizeType new_depth) {
+Void RobddGridPaving::mince_to_depth(SizeType new_depth) {
     ARIADNE_PRECONDITION_MSG(new_depth < std::numeric_limits<SizeType>::max(),
         "Requested subdivision depth exceeds the valid index range");
     _depth = std::max(_depth,new_depth);
 }
 
-Void RobddGridTreePaving::recombine() {
+Void RobddGridPaving::recombine() {
     auto variables = _manager->support(_root);
     _depth = variables.empty() ? 0u : variables.back().index()+1u;
 }
 
-std::unique_ptr<BinaryTreeNode> RobddGridTreePaving::to_binary_tree() const {
+std::unique_ptr<BinaryTreeNode> RobddGridPaving::to_binary_tree() const {
     return expand_tree(*_manager,_root,0u,_depth);
 }
 
-Void RobddGridTreePaving::_check_compatible(
-        RobddGridTreePaving const& other) const {
+Void RobddGridPaving::_check_compatible(
+        RobddGridPaving const& other) const {
     ARIADNE_PRECONDITION_MSG(_manager == other._manager,
         "ROBDD paving set operations require the same manager");
     ARIADNE_PRECONDITION_MSG(_root_cell == other._root_cell,
         "ROBDD paving set operations require an identical root cell");
 }
 
-RobddGridTreePaving RobddGridTreePaving::join(
-        RobddGridTreePaving const& other) const {
+RobddGridPaving RobddGridPaving::join(
+        RobddGridPaving const& other) const {
     _check_compatible(other);
-    return RobddGridTreePaving(
+    return RobddGridPaving(
         *_manager,_root_cell,_manager->disjunction(_root,other._root),
         std::max(_depth,other._depth));
 }
 
-RobddGridTreePaving RobddGridTreePaving::intersection(
-        RobddGridTreePaving const& other) const {
+RobddGridPaving RobddGridPaving::intersection(
+        RobddGridPaving const& other) const {
     _check_compatible(other);
-    return RobddGridTreePaving(
+    return RobddGridPaving(
         *_manager,_root_cell,_manager->conjunction(_root,other._root),
         std::max(_depth,other._depth));
 }
 
-RobddGridTreePaving RobddGridTreePaving::difference(
-        RobddGridTreePaving const& other) const {
+RobddGridPaving RobddGridPaving::difference(
+        RobddGridPaving const& other) const {
     _check_compatible(other);
-    return RobddGridTreePaving(
+    return RobddGridPaving(
         *_manager,_root_cell,
         _manager->conjunction(_root,_manager->negation(other._root)),
         std::max(_depth,other._depth));
 }
 
-Bool RobddGridTreePaving::subset(
-        RobddGridTreePaving const& other) const {
+Bool RobddGridPaving::subset(
+        RobddGridPaving const& other) const {
     _check_compatible(other);
     return _manager->conjunction(
         _root,_manager->negation(other._root)).is_false();
 }
 
-Bool RobddGridTreePaving::intersects(
-        RobddGridTreePaving const& other) const {
+Bool RobddGridPaving::intersects(
+        RobddGridPaving const& other) const {
     _check_compatible(other);
     return not _manager->conjunction(_root,other._root).is_false();
 }
