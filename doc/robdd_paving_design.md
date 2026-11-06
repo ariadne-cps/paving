@@ -1307,3 +1307,41 @@ Neither number is per-root ownership or RSS. The rooted physical DAG
 node count and indicative payload bytes continue to be reported
 separately. Cold/warm comparisons are not claimed to isolate only
 manager startup: they also measure allocator/cache effects, as desired.
+
+## 2026-11-06 - Manager allocation diagnostics, isolated mutations and retention
+
+The BDD dependency was updated to the new main commit exposing
+RobddManager::statistics(), an immutable under-lock snapshot with:
+physical node vector count/capacity, sizeof internal node, unique table
+size and sizeof value_type, ITE computed cache size and sizeof value_type.
+The sizes are exact ABI measurements for these C++ container elements;
+even their summed payload is only a conservative estimate, not full
+memory accounting (std::map tree links, allocators and other allocations
+are excluded). No garbage collection or canonicalization behavior was
+changed in BDD.
+
+The paving benchmark captures baseline and after-timing statistics for
+every geometry, and separately reports the root-reachable DAG node
+count. Its detailed manager table includes vector capacity, unique
+entries, cache entries and a lower-bound payload byte estimate.
+Timing output now uses reachable ROBDD node count rather than manager-
+global count in its per-operation Nodes column; the manager totals are
+reported only in memory tables.
+
+The copy workload no longer invokes size() on the copied object.
+The former mixed copy_adjoin_cell timing was replaced by
+adjoin_recombine: for each timed sample, independently copied
+pavings are prepared outside the timed portion, and only adjoin()
+and recombine() are measured. A maximum batch length of 256 caps
+temporary working memory; larger --iterations requests fail rather
+than silently violating input semantics. Calibration and medians
+otherwise follow the numeric benchmark conventions.
+
+A separate sequential retention experiment (disable using
+--no-retention) creates the selected geometries in one 2D manager
+at fineness 2. Each paving object is destroyed before its manager
+snapshot, so the report demonstrates growth/retention of nodes,
+capacity and tables in the absence of surviving paving roots.
+The observation is not a proof of an unintended memory leak:
+RobddManager has no root-tracked reclamation/GC by design.
+The experiment is not included in operation-time speedup aggregates.

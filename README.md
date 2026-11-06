@@ -220,3 +220,35 @@ the root), Mgr N (fresh manager after initial construction), and Mgr
 warm (manager nodes remaining after all timed measurements). These
 manager node counts are not an allocation size or full heap profile.
 
+
+### Manager allocation diagnostics and isolated mutations
+
+The benchmark now requires the pinned BDD version exposing
+RobddManager::statistics(). Its snapshot reports the actual number
+and capacity of canonical decision nodes in the manager, along with
+the unique-table and ITE-cache element counts and the ABI-dependent
+sizeof each element payload. A dedicated table compares statistics
+before geometry validation/timing with those after the workload.
+The total estimated payload includes vector capacity and table
+value payloads; it excludes standard-library tree links, allocator
+bookkeeping and other heap allocations. The separate root-reachable
+ROBDD node count remains the indicator of logical DAG compression.
+
+The copy workload constructs a copy without a following size().
+The adjoin_recombine workload prepares independent paving copies
+outside the timed interval, then times just the in-place adjoin and
+recombine. For allocation safety this isolated-mutation benchmark
+caps the number of prepared copies per timed batch at 256; requests
+for a larger --iterations value fail with a clear message. Time
+ratios from earlier versions labeled copy_adjoin_cell are therefore
+not directly interchangeable with the new isolated operation.
+
+A separate, untimed retention experiment reuses a single ROBDD
+manager across the selected compact shapes, at fixed d=2 and
+fineness=2. Each paving is destroyed before the next snapshot.
+The printed manager node count, vector capacity, unique table and
+ITE cache measure what remains allocated after all roots have
+gone out of scope. Use --no-retention to skip that experiment.
+Retained allocations do not necessarily indicate a memory leak;
+the current manager intentionally keeps canonical nodes and caches
+until the manager itself is destroyed.

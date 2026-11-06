@@ -25,6 +25,7 @@
 #include <iostream>
 #include <limits>
 #include <map>
+#include <memory>
 #include <stdexcept>
 #include <string>
 #include <tuple>
@@ -49,6 +50,7 @@ struct Selection {
         "aligned-box","rotated-box","aligned-ellipsoid",
         "rotated-ellipsoid","ball"};
     bool summary_only=false;
+    bool run_retention=true;
 };
 
 std::vector<std::string> parse_shapes(String const& value) {
@@ -143,6 +145,9 @@ List<ArgumentParser> parsers(Selection& selection) {
     result.append(make_unvalued_argument_parser(
         "","summary-only","Suppress per-operation table; show speed ratios only",
         [&selection] { selection.summary_only=true; }));
+    result.append(make_unvalued_argument_parser(
+        "","no-retention","Skip shared-manager post-root-destruction experiment",
+        [&selection] { selection.run_retention=false; }));
     return result;
 }
 
@@ -256,6 +261,52 @@ Timing median_ms(Operation&& operation,unsigned min_iterations,
     }
     std::sort(measurements.begin(),measurements.end());
     return {measurements[samples/2u],iterations};
+}
+
+// Only insertion/recombination occurs inside timed batches. All input
+// paving copies are constructed outside the timed interval.
+template<class Factory,class Mutate>
+Timing median_mutation_ms(Factory&& factory,Mutate&& mutate,
+        unsigned min_iterations,unsigned samples,unsigned minimum_ms,
+        unsigned max_iterations) {
+    using Clock=std::chrono::steady_clock;
+    unsigned limit=std::min(256u,max_iterations);
+    if(min_iterations>limit) {
+        throw std::invalid_argument(
+            "--iterations exceeds isolated mutation batch limit of 256");
+    }
+    unsigned iterations=min_iterations;
+    auto run=[&](unsigned count) {
+        std::vector<decltype(factory())> copies;
+        copies.reserve(count);
+        for(unsigned i=0u;i<count;++i) {
+            copies.push_back(factory());
+        }
+        auto start=Clock::now();
+        for(auto& copy:copies) {
+            mutate(*copy);
+            keep_alive(*copy);
+        }
+        return std::chrono::duration<double,std::milli>(
+            Clock::now()-start).count();
+    };
+    double elapsed=run(iterations);
+    while(elapsed<static_cast<double>(minimum_ms) and
+          iterations<limit) {
+        iterations=iterations>limit/2u?limit:iterations*2u;
+        elapsed=run(iterations);
+    }
+    std::vector<double> measured;
+    measured.reserve(samples);
+    for(unsigned sample=0u;sample<samples;++sample) {
+        measured.push_back(run(iterations)/static_cast<double>(iterations));
+    }
+    std::sort(measured.begin(),measured.end());
+    double result=measured[samples/2u];
+    if(not std::isfinite(result) or result<=0.0) {
+        throw std::runtime_error("invalid isolated mutation timing");
+    }
+    return {result,iterations};
 }
 
 SizeType count_tree_nodes(BinaryTreeNode const& node) {
@@ -386,6 +437,8 @@ struct MemoryDatum {
     SizeType robdd_reachable_bytes;
     SizeType robdd_manager_payload_bytes;
     SizeType robdd_manager_after_nodes;
+    RobddManagerStatistics fresh;
+    RobddManagerStatistics after_warm;
 };
 
 void print_memory_results(std::vector<MemoryDatum> const& memory) {
@@ -437,6 +490,88 @@ void print_memory_results(std::vector<MemoryDatum> const& memory) {
             <<std::setw(11)<<ratio<<"x")
     }
     LOGGING_PRINTLN(std::string(width,'='))
+}
+
+SizeType manager_payload_lower_bound(RobddManagerStatistics const& stats) {
+    SizeType nodes=checked_node_bytes(stats.node_capacity,stats.node_size_bytes);
+    SizeType unique=checked_node_bytes(
+        stats.unique_table_entries,stats.unique_table_entry_payload_bytes);
+    SizeType computed=checked_node_bytes(
+        stats.ite_cache_entries,stats.ite_cache_entry_payload_bytes);
+    if(nodes>std::numeric_limits<SizeType>::max()-unique or
+       nodes+unique>std::numeric_limits<SizeType>::max()-computed) {
+        throw std::overflow_error("estimated manager payload overflow");
+    }
+    return nodes+unique+computed;
+}
+
+void print_manager_statistics(std::vector<MemoryDatum> const& memory) {
+    LOGGING_PRINTLN("ROBDD manager statistics (fresh vs after workload)")
+    LOGGING_PRINTLN("Payload B>= is a lower bound excluding std::map node"
+        " links, allocator overhead and all other runtime allocations.")
+    LOGGING_PRINTLN(std::string(105,'='))
+    LOGGING_PRINTLN(std::left<<std::setw(19)<<"Shape"
+        <<"  "<<std::setw(3)<<"D"<<"  "<<std::setw(3)<<"F"
+        <<"  "<<std::setw(9)<<"Nodes"
+        <<"  "<<std::setw(9)<<"Capacity"
+        <<"  "<<std::setw(9)<<"Unique"
+        <<"  "<<std::setw(9)<<"ITE"
+        <<"  "<<std::setw(14)<<"Payload B>="
+        <<"  "<<std::setw(7)<<"Stage")
+    LOGGING_PRINTLN(std::string(105,'-'))
+    for(auto const& datum:memory) {
+        auto line=[&](RobddManagerStatistics const& stats,char const* stage) {
+            LOGGING_PRINTLN(std::left<<std::setw(19)<<datum.shape
+                <<"  "<<std::setw(3)<<datum.dimension
+                <<"  "<<std::setw(3)<<datum.fineness
+                <<"  "<<std::setw(9)<<stats.node_count
+                <<"  "<<std::setw(9)<<stats.node_capacity
+                <<"  "<<std::setw(9)<<stats.unique_table_entries
+                <<"  "<<std::setw(9)<<stats.ite_cache_entries
+                <<"  "<<std::setw(14)<<manager_payload_lower_bound(stats)
+                <<"  "<<std::setw(7)<<stage)
+        };
+        line(datum.fresh,"fresh");
+        line(datum.after_warm,"after");
+    }
+    LOGGING_PRINTLN(std::string(105,'='))
+}
+
+void print_manager_retention(Selection const& selection) {
+    Grid grid(2u);
+    GridCell primary(grid,0u,BinaryWord{});
+    RobddManager manager;
+    LOGGING_PRINTLN("Shared manager after root destruction"
+        " (d=2 fineness=2; zero surviving paving roots)")
+    LOGGING_PRINTLN(std::string(96,'='))
+    LOGGING_PRINTLN(std::left<<std::setw(19)<<"Last shape"
+        <<"  "<<std::setw(10)<<"Mgr nodes"
+        <<"  "<<std::setw(10)<<"Capacity"
+        <<"  "<<std::setw(10)<<"Unique"
+        <<"  "<<std::setw(10)<<"ITE"
+        <<"  "<<std::setw(14)<<"Payload B>=")
+    auto show=[&](std::string const& name) {
+        auto stats=manager.statistics();
+        LOGGING_PRINTLN(std::left<<std::setw(19)<<name
+            <<"  "<<std::setw(10)<<stats.node_count
+            <<"  "<<std::setw(10)<<stats.node_capacity
+            <<"  "<<std::setw(10)<<stats.unique_table_entries
+            <<"  "<<std::setw(10)<<stats.ite_cache_entries
+            <<"  "<<std::setw(14)<<manager_payload_lower_bound(stats))
+    };
+    show("empty");
+    for(std::string const& shape:selection.shapes) {
+        {
+            EffectiveConstrainedImageSet compact=make_shape(2u,shape);
+            EffectiveEuclideanCompactSetInterface const& set=compact;
+            RobddPaving paving(manager,primary,manager.constant(false),0u);
+            paving.adjoin_outer_approximation(set,2u);
+            paving.recombine();
+            keep_alive(paving);
+        }
+        show(shape);
+    }
+    LOGGING_PRINTLN(std::string(96,'='))
 }
 
 struct Datum {
@@ -513,7 +648,7 @@ void append_case(std::vector<Datum>& data,std::vector<MemoryDatum>& memory,
         checked_node_bytes(tree_nodes,sizeof(BinaryTreeNode)),
         checked_node_bytes(reachable_nodes,sizeof(RobddDecisionNodeLayoutEstimate)),
         checked_node_bytes(manager_nodes,sizeof(RobddDecisionNodeLayoutEstimate)),
-        manager_nodes});
+        manager_nodes,manager.statistics(),manager.statistics()});
 
     validate_geometry(tree,robdd);
     SizeType tree_leaves=tree.size();
@@ -538,7 +673,7 @@ void append_case(std::vector<Datum>& data,std::vector<MemoryDatum>& memory,
                         tree_time.milliseconds,tree_leaves,tree_nodes,
                         tree_time.iterations});
         data.push_back({shape,name,"robdd",dimension,fineness,
-                        robdd_time.milliseconds,robdd_leaves,manager_nodes,
+                        robdd_time.milliseconds,robdd_leaves,reachable_nodes,
                         robdd_time.iterations});
     };
     // The BDD manager is reused for all timed operations in this case.
@@ -576,8 +711,8 @@ void append_case(std::vector<Datum>& data,std::vector<MemoryDatum>& memory,
         });
 
     record("copy",
-        [&](unsigned) { BinaryTreePaving copy(tree); return copy.size(); },
-        [&](unsigned) { RobddPaving copy(robdd); return copy.size(); });
+        [&](unsigned) { return BinaryTreePaving(tree); },
+        [&](unsigned) { return RobddPaving(robdd); });
 
     record("iterate_leaves",
         [&](unsigned) { return visit_leaves(tree); },
@@ -592,20 +727,28 @@ void append_case(std::vector<Datum>& data,std::vector<MemoryDatum>& memory,
         [&](unsigned) { return probe_coverage(robdd,probes); });
 
     GridCell right_half=primary.split(true);
-    record("copy_adjoin_cell",
-        [&](unsigned) {
-            BinaryTreePaving copy(tree);
+    Timing tree_adjoin=median_mutation_ms(
+        [&] { return std::make_unique<BinaryTreePaving>(tree); },
+        [&](BinaryTreePaving& copy) {
             copy.adjoin(right_half);
             copy.recombine();
-            return copy.size();
-        },
-        [&](unsigned) {
-            RobddPaving copy(robdd);
+        },selection.iterations,selection.samples,selection.min_sample_ms,
+        selection.max_iterations);
+    Timing robdd_adjoin=median_mutation_ms(
+        [&] { return std::make_unique<RobddPaving>(robdd); },
+        [&](RobddPaving& copy) {
             copy.adjoin(right_half);
             copy.recombine();
-            return copy.size();
-        });
+        },selection.iterations,selection.samples,selection.min_sample_ms,
+        selection.max_iterations);
+    data.push_back({shape,"adjoin_recombine","tree",dimension,fineness,
+        tree_adjoin.milliseconds,tree_leaves,tree_nodes,
+        tree_adjoin.iterations});
+    data.push_back({shape,"adjoin_recombine","robdd",dimension,fineness,
+        robdd_adjoin.milliseconds,robdd_leaves,reachable_nodes,
+        robdd_adjoin.iterations});
     memory.back().robdd_manager_after_nodes=manager.node_count();
+    memory.back().after_warm=manager.statistics();
 }
 
 void report(std::vector<Datum> const& data,
@@ -622,8 +765,8 @@ void report(std::vector<Datum> const& data,
         <<"  concurrency="<<ThreadManager::instance().concurrency()) 
     LOGGING_PRINTLN("BDDs are still sequential: --concurrency configures"
                    " the threading runtime but does not parallelize BDD operations.")
-    LOGGING_PRINTLN("Node column: tree = physical nodes; ROBDD = manager total"
-                   " at baseline (not exclusive memory).")
+    LOGGING_PRINTLN("Node column: tree physical nodes; ROBDD root-reachable"
+                   " distinct nodes (not manager total).")
     if (not selection.summary_only) {
         LOGGING_PRINTLN(std::string(width,'='))
         LOGGING_PRINTLN(std::left
@@ -659,6 +802,7 @@ void report(std::vector<Datum> const& data,
     }
 
     print_memory_results(memory);
+    print_manager_statistics(memory);
 
     std::map<std::string,Aggregate> by_operation;
     std::map<std::string,Aggregate> by_shape;
@@ -756,6 +900,7 @@ int main(int argc,char const* argv[]) {
                 " (lower --min-leaves or increase --finenesses)");
         }
         report(data,memory,selection,skipped);
+        if(selection.run_retention) print_manager_retention(selection);
         return 0;
     } catch(std::exception const& error) {
         LOGGING_PRINTLN("benchmark_paving_backends: "<<error.what())
