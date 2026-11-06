@@ -1091,6 +1091,9 @@ GridTreeSubpaving& GridTreeSubpaving::operator=( const GridTreeSubpaving &otherS
 }
 
 SubPavingInterface* GridTreeSubpaving::_branch(Bool left_or_right) const {
+    // A uniform leaf has no child pointers. Split it without changing its
+    // geometric set before returning a live, mutable child view.
+    this->_pRootTreeNode->split();
     BinaryWord word=this->_theGridCell.word();
     word.append(left_or_right);
     BinaryTreeNode* node=this->_pRootTreeNode->child_node(left_or_right);
@@ -1135,6 +1138,9 @@ GridTreeSubpaving* GridTreeSubpaving::clone( ) const {
 
 
 GridTreeSubpaving GridTreeSubpaving::branch(Bool left_or_right) const {
+    // Concrete branch views have the same mutable semantics as the
+    // SubPavingInterface branch: children must exist even for a leaf.
+    this->_pRootTreeNode->split();
     BinaryWord theWord=this->_theGridCell.word();
     theWord.append(left_or_right);
     BinaryTreeNode* pBinaryTreeNode=this->_pRootTreeNode->child_node(left_or_right);

@@ -2832,6 +2832,69 @@ void test_products() {
 
 }
 
+    Void test_branch_from_uniform_leaf() {
+        Grid grid(1u);
+        GridTreePaving enabled(grid,true);
+        GridCell root=enabled.root_cell();
+        GridCell left=root.split(false);
+        GridCell right=root.split(true);
+        GridCell left_left=left.split(false);
+        GridCell left_right=left.split(true);
+        PavingInterface& as_interface=enabled;
+
+        // The root starts as one enabled leaf. Virtual branch() must
+        // materialize a mutable child without changing its geometry.
+        ARIADNE_TESTING_PROVE(enabled.superset(root));
+        {
+            SubPavingHandle left_view=as_interface.branch(false);
+            ARIADNE_TESTING_PROVE(left_view.root_cell()==left);
+            ARIADNE_TESTING_PROVE(left_view.superset(left));
+            ARIADNE_TESTING_PROVE(enabled.superset(root));
+
+            // A second branch must also split an enabled leaf.
+            {
+                SubPavingHandle grandchild=
+                    static_cast<SubPavingInterface const&>(left_view).branch(true);
+                ARIADNE_TESTING_PROVE(grandchild.root_cell()==left_right);
+                ARIADNE_TESTING_PROVE(grandchild.superset(left_right));
+                grandchild.set_root_cell(false);
+            }
+            ARIADNE_TESTING_PROVE(not enabled.superset(left_right));
+            ARIADNE_TESTING_PROVE(enabled.superset(left_left));
+            ARIADNE_TESTING_PROVE(enabled.superset(right));
+        }
+        enabled.recombine();
+        ARIADNE_TESTING_PROVE(not enabled.superset(left_right));
+        ARIADNE_TESTING_PROVE(enabled.superset(right));
+
+        // A disabled leaf also needs real children so it can be enabled
+        // locally without changing its sibling.
+        GridTreePaving disabled(grid,false);
+        {
+            SubPavingHandle right_view=
+                static_cast<SubPavingInterface const&>(disabled).branch(true);
+            ARIADNE_TESTING_PROVE(not right_view.superset(right));
+            right_view.set_root_cell(true);
+            ARIADNE_TESTING_PROVE(disabled.superset(right));
+            ARIADNE_TESTING_PROVE(not disabled.superset(left));
+        }
+        disabled.recombine();
+        ARIADNE_TESTING_PROVE(disabled.superset(right));
+        ARIADNE_TESTING_PROVE(not disabled.superset(left));
+
+        // The concrete GridTreeSubpaving::branch() has the same contract.
+        GridTreePaving concrete(grid,true);
+        {
+            GridTreeSubpaving child=concrete.branch(false);
+            ARIADNE_TESTING_PROVE(child.root_cell()==left);
+            ARIADNE_TESTING_PROVE(child.superset(left));
+            child.set_root_cell(false);
+        }
+        concrete.recombine();
+        ARIADNE_TESTING_PROVE(not concrete.superset(left));
+        ARIADNE_TESTING_PROVE(concrete.superset(right));
+    }
+
 };
 
 } // namespace
@@ -2872,5 +2935,6 @@ int main(int argc, char** argv) {
     ARIADNE_TESTING_ADD_TEST(TestBinaryTreePaving, test_subset_subset_box);
     ARIADNE_TESTING_ADD_TEST(TestBinaryTreePaving, test_subset_superset_box);
     ARIADNE_TESTING_ADD_TEST(TestBinaryTreePaving, test_products);
+    ARIADNE_TESTING_ADD_TEST(TestBinaryTreePaving, test_branch_from_uniform_leaf);
     return ARIADNE_TESTING_RUN_TESTS_WITH_ARGS(argc, argv);
 }

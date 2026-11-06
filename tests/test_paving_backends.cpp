@@ -1114,19 +1114,32 @@ class TestPavingBackends : public Ariadne::Testing::ContextFixture {
                     ARIADNE_TESTING_PROVE(tree_snapshot.superset(left));
                     ARIADNE_TESTING_PROVE(robdd_snapshot.superset(left));
 
-                    auto tree_child=
-                        static_cast<SubPavingInterface const&>(tree_left)
-                            .branch(true);
-                    auto robdd_child=
-                        static_cast<SubPavingInterface const&>(robdd_left)
-                            .branch(true);
-                    tree_child.set_root_cell(false);
-                    robdd_child.set_root_cell(false);
+                    {
+                        auto tree_child=
+                            static_cast<SubPavingInterface const&>(tree_left)
+                                .branch(true);
+                        auto robdd_child=
+                            static_cast<SubPavingInterface const&>(robdd_left)
+                                .branch(true);
+                        ARIADNE_TESTING_PROVE(
+                            tree_child.root_cell()==left.split(true));
+                        ARIADNE_TESTING_PROVE(
+                            robdd_child.root_cell()==left.split(true));
+                        ARIADNE_TESTING_PROVE(
+                            tree_child.superset(left.split(true)));
+                        ARIADNE_TESTING_PROVE(
+                            robdd_child.superset(left.split(true)));
+                        tree_child.set_root_cell(false);
+                        robdd_child.set_root_cell(false);
+                    }
                     ARIADNE_TESTING_PROVE(not tree.superset(left.split(true)));
                     ARIADNE_TESTING_PROVE(not robdd.superset(left.split(true)));
                     ARIADNE_TESTING_PROVE(tree.superset(right_left));
                     ARIADNE_TESTING_PROVE(robdd.superset(right_left));
 
+                    // Child views are destroyed before clearing their
+                    // parent: the tree would otherwise delete the nodes
+                    // borrowed by those descendants.
                     tree_left.set_root_cell(false);
                     robdd_left.set_root_cell(false);
                     ARIADNE_TESTING_PROVE(not tree.superset(left));

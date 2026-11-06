@@ -949,3 +949,45 @@ This supplements the exhaustive extent-zero truth-table
 regressions with a different geometric alignment path;
 it is not a performance benchmark and does not change
 any production API. The full CI matrix must validate it.
+
+## 2026-11-06 - Fix crash when branching a uniform tree leaf
+
+The new `test_polymorphic_alignment_across_primary_extents` uncovered
+a real `GridTreeSubpaving` bug: after a uniform enabled region is
+recombined to a leaf, the tree's virtual `_branch()` unconditionally
+returned `child_node(side)`, which is null for any leaf.
+`SubPavingHandle` consequently exposed a live view with a null
+`BinaryTreeNode*`; mutating its root dereferenced the null pointer.
+The reported crash followed the check
+`robdd_snapshot.superset(left)`, immediately before taking and
+mutating the nested child views. The ROBDD snapshot was not the
+origin of this failure.
+
+Fixed both `GridTreeSubpaving::_branch(Bool)` and the concrete
+`GridTreeSubpaving::branch(Bool)`: each splits the current node
+when necessary before constructing the borrowed child view.
+`BinaryTreeNode::split()` copies a uniform leaf's enabled/disabled
+state into its two children, so this changes only the *tree's
+representation*, never its geometric set. This preserves the
+intended mutable branch-view contract even when the owning tree is
+fully enabled or fully disabled and avoids changing ROBDD logic.
+The header documents this representation-only split and the
+borrowed-pointer lifetime constraint.
+
+Added `test_branch_from_uniform_leaf` to the backend-local
+`test_binary_tree_paving.cpp`, covering virtual and concrete
+branch creation on both enabled and disabled uniform roots,
+nested mutable branches, sibling preservation and recombination.
+The existing `test_paving_backends.cpp` cross-backend scenario
+remains intact, with additional nested-view root and membership
+assertions. Grandchild handles are now explicitly destroyed before
+their ancestor is cleared: clearing an ancestor can delete tree
+nodes borrowed by the descendants, which must not subsequently
+be accessed.
+
+This is a genuine production tree bug exposed by the new test,
+not a wrong assertion or an allowable backend-representation
+difference. No test scenario was removed or weakened. The
+fix preserves the agreed same-backend restriction for all
+paving set operations. CI validation is required before
+declaring the regression repaired.

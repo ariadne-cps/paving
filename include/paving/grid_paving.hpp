@@ -226,7 +226,11 @@ class GridTreeSubpaving
     //! The measure (area, volume) of the set in Euclidean space.
     FloatDPApproximation measure() const;
 
-    //! The a branch along the binary tree.
+    //! \brief Return a live, non-owning view of a child cell.
+    //! \details A uniform leaf is split first, without changing the
+    //! represented geometric set, so both child node pointers exist.
+    //! \warning Views must not be used after an ancestor mutation or
+    //! recombination deletes their borrowed binary-tree nodes.
     GridTreeSubpaving branch(Bool left_or_right) const;
 
     //! \brief Returns the \a GridCell corresponding to the ROOT NODE of this \a GridTreeSubset
