@@ -459,3 +459,35 @@ abstract interface or support all approximation routines.
 The immutable DAG remains unexpanded by these queries; worst-case
 work is proportional to the compact leaves traversed. The
 `PavingHandle` name is unchanged. CI verification is pending.
+
+## 2026-11-06 - Independent concrete-backend geometry oracle
+
+Reworked `test_geometric_queries_against_explicit_tree` as
+`test_geometric_queries_between_backends`. The previous test
+constructed a `GridTreeSubpaving` from a `BinaryTreeNode` and then
+imported it into `RobddPaving`; this validated the tree-to-ROBDD
+conversion alongside the geometry, rather than fully independent
+backend construction.
+
+The rewritten test constructs a fresh `BinaryTreePaving` and a
+fresh `RobddPaving` for every one of the 256 three-bit truth
+tables, and calls `adjoin(GridCell)` on both with the exact same
+geometric input cells. Only the binary-tree instance is
+`recombine()`d to normalize its explicit leaf representation;
+the ROBDD depth is extended to three for the full-depth membership
+checks. Neither backend is constructed from or imported through
+the other. The test checks identical geometric roots, compact-leaf
+counts and traversal order, enabled membership for every
+three-bit cell, bounding boxes, and `inside`/`separated`/
+`overlaps` for all six original geometric query boxes.
+
+The existing `GridTreeSubpaving` cases remain in the suite
+solely for scenarios that specifically require importing an
+explicit subtree, exercising non-primary root paths, or
+checking polymorphism through `SubPavingInterface`.
+The backend-to-backend regression does not need that
+intermediate representation.
+
+No production code or public APIs were changed in this
+increment. The test must pass the usual CI before its
+equivalence claims can be considered verified.

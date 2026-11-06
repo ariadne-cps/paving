@@ -722,7 +722,7 @@ class TestRobddPaving : public Ariadne::Testing::ContextFixture {
         }
     }
 
-    Void test_geometric_queries_against_explicit_tree() {
+    Void test_geometric_queries_between_backends() {
         RobddManager manager;
         Grid grid(1u);
         GridCell root(grid,0u,BinaryWord{});
@@ -737,39 +737,59 @@ class TestRobddPaving : public Ariadne::Testing::ContextFixture {
             root.box(), left.box(), right.box(), left_left.box(),
             left_right.box(), distant.box()
         };
+        // Generate one common geometric input set; independently populate
+        // each backend without importing or sharing the other backend's tree.
+        std::vector<GridCell> cells;
+        for (unsigned mask=0u; mask<8u; ++mask) {
+            BinaryWord path;
+            path.push_back((mask & 4u) != 0u);
+            path.push_back((mask & 2u) != 0u);
+            path.push_back((mask & 1u) != 0u);
+            cells.emplace_back(grid,0u,path);
+        }
         for (unsigned table=0u; table<256u; ++table) {
-            BinaryTreeNode explicit_tree(false);
+            BinaryTreePaving binary_tree(grid);
+            RobddPaving robdd(manager,root,manager.constant(false),0u);
             for (unsigned mask=0u; mask<8u; ++mask) {
                 if ((table & (1u << mask)) == 0u) { continue; }
-                BinaryWord path;
-                path.push_back((mask & 4u) != 0u);
-                path.push_back((mask & 2u) != 0u);
-                path.push_back((mask & 1u) != 0u);
-                explicit_tree.add_enabled(path);
+                binary_tree.adjoin(cells[mask]);
+                robdd.adjoin(cells[mask]);
             }
-            explicit_tree.recombine();
-            GridTreeSubpaving oracle(grid,0u,BinaryWord{},&explicit_tree);
-            RobddPaving snapshot(manager,oracle);
-            snapshot.mince_to_depth(3u);
+            binary_tree.recombine();
+            robdd.mince_to_depth(3u);
+
+            ARIADNE_TESTING_PROVE(robdd.root_cell() == binary_tree.root_cell());
+            ARIADNE_TESTING_EXPECT_EQUAL(robdd.size(),binary_tree.size());
+            for (auto const& cell : cells) {
+                ARIADNE_TESTING_EXPECT_EQUAL(
+                    robdd.is_enabled(cell.word()),binary_tree.superset(cell));
+            }
+            auto tree_it=binary_tree.begin(), tree_end=binary_tree.end();
+            for (auto it=robdd.begin(), end=robdd.end(); it!=end; ++it) {
+                ARIADNE_TESTING_PROVE(tree_it != tree_end);
+                ARIADNE_TESTING_PROVE(it->word() == tree_it->word());
+                ++tree_it;
+            }
+            ARIADNE_TESTING_PROVE(tree_it == tree_end);
 
             ARIADNE_TESTING_EXPECT_EQUAL(
-                snapshot.bounding_box().dimension(),
-                oracle.bounding_box().dimension());
+                robdd.bounding_box().dimension(),
+                binary_tree.bounding_box().dimension());
             if (table != 0u) {
                 ARIADNE_TESTING_PROVE(same(
-                    cast_exact_box(snapshot.bounding_box()),
-                    cast_exact_box(oracle.bounding_box())));
+                    cast_exact_box(robdd.bounding_box()),
+                    cast_exact_box(binary_tree.bounding_box())));
             }
             for (auto const& box : queries) {
                 ARIADNE_TESTING_EXPECT_EQUAL(
-                    definitely(snapshot.inside(box)),
-                    definitely(oracle.inside(box)));
+                    definitely(robdd.inside(box)),
+                    definitely(binary_tree.inside(box)));
                 ARIADNE_TESTING_EXPECT_EQUAL(
-                    definitely(snapshot.separated(box)),
-                    definitely(oracle.separated(box)));
+                    definitely(robdd.separated(box)),
+                    definitely(binary_tree.separated(box)));
                 ARIADNE_TESTING_EXPECT_EQUAL(
-                    definitely(snapshot.overlaps(box)),
-                    definitely(oracle.overlaps(box)));
+                    definitely(robdd.overlaps(box)),
+                    definitely(binary_tree.overlaps(box)));
             }
         }
 
@@ -808,6 +828,6 @@ int main(int argc, char** argv) {
     ARIADNE_TESTING_ADD_TEST(TestRobddPaving, test_in_place_mutation_across_extents);
     ARIADNE_TESTING_ADD_TEST(TestRobddPaving, test_representation_neutral_subpaving_operations);
     ARIADNE_TESTING_ADD_TEST(TestRobddPaving, test_native_branch_cofactors);
-    ARIADNE_TESTING_ADD_TEST(TestRobddPaving, test_geometric_queries_against_explicit_tree);
+    ARIADNE_TESTING_ADD_TEST(TestRobddPaving, test_geometric_queries_between_backends);
     return ARIADNE_TESTING_RUN_TESTS_WITH_ARGS(argc,argv);
 }
