@@ -283,6 +283,132 @@ class TestRobddGridPaving : public Ariadne::Testing::ContextFixture {
         ARIADNE_TESTING_EXPECT_EXCEPTION(lhs.subset(incompatible));
     }
 
+    Void test_compact_leaf_iteration() {
+        RobddManager manager;
+        Grid grid(1u);
+        GridCell root(grid,0u,BinaryWord{});
+
+        RobddGridPaving full(manager,root,manager.constant(true),4u);
+        RobddGridPaving empty(manager,root,manager.constant(false),4u);
+        ARIADNE_TESTING_EXPECT_EQUAL(full.enabled_cell_count(),16u);
+        ARIADNE_TESTING_EXPECT_EQUAL(full.enabled_leaf_count(),1u);
+        ARIADNE_TESTING_EXPECT_EQUAL(empty.enabled_leaf_count(),0u);
+        SizeType empty_visits=0u;
+        empty.for_each_enabled_leaf([&](GridCell const&) { ++empty_visits; });
+        ARIADNE_TESTING_EXPECT_EQUAL(empty_visits,0u);
+        std::vector<BinaryWord> full_leaves;
+        full.for_each_enabled_leaf([&](GridCell const& cell) {
+            full_leaves.push_back(cell.word());
+        });
+        ARIADNE_TESTING_EXPECT_EQUAL(full_leaves.size(),1u);
+        ARIADNE_TESTING_PROVE(full_leaves[0u] == BinaryWord{});
+        ARIADNE_TESTING_EXPECT_EXCEPTION(full.for_each_enabled_leaf(
+            std::function<void(GridCell const&)>{}));
+
+        // x0 OR x1: the true branch at x0 yields a single prefix leaf.
+        auto x0 = manager.variable(0u);
+        auto x1 = manager.variable(1u);
+        RobddGridPaving either(
+            manager,root,manager.disjunction(x0,x1),3u);
+        ARIADNE_TESTING_EXPECT_EQUAL(either.enabled_cell_count(),6u);
+        ARIADNE_TESTING_EXPECT_EQUAL(either.enabled_leaf_count(),2u);
+        std::vector<BinaryWord> either_leaves;
+        either.for_each_enabled_leaf([&](GridCell const& cell) {
+            either_leaves.push_back(cell.word());
+        });
+        ARIADNE_TESTING_EXPECT_EQUAL(either_leaves.size(),2u);
+        ARIADNE_TESTING_PROVE(either_leaves[0u] == make_binary_word("01"));
+        ARIADNE_TESTING_PROVE(either_leaves[1u] == make_binary_word("1"));
+
+        // x1 ignores x0, so its true leaf occurs under both x0 branches.
+        RobddGridPaving skipped(manager,root,x1,3u);
+        ARIADNE_TESTING_EXPECT_EQUAL(skipped.enabled_cell_count(),4u);
+        ARIADNE_TESTING_EXPECT_EQUAL(skipped.enabled_leaf_count(),2u);
+        std::vector<BinaryWord> skipped_leaves;
+        skipped.for_each_enabled_leaf([&](GridCell const& cell) {
+            skipped_leaves.push_back(cell.word());
+        });
+        ARIADNE_TESTING_EXPECT_EQUAL(skipped_leaves.size(),2u);
+        ARIADNE_TESTING_PROVE(skipped_leaves[0u] == make_binary_word("01"));
+        ARIADNE_TESTING_PROVE(skipped_leaves[1u] == make_binary_word("11"));
+
+        // A complemented reference has the same short-leaf semantics.
+        auto conjunction = manager.conjunction(x0,x1);
+        RobddGridPaving complemented(
+            manager,root,manager.negation(conjunction),3u);
+        ARIADNE_TESTING_EXPECT_EQUAL(complemented.enabled_cell_count(),6u);
+        ARIADNE_TESTING_EXPECT_EQUAL(complemented.enabled_leaf_count(),2u);
+        std::vector<BinaryWord> complemented_leaves;
+        complemented.for_each_enabled_leaf([&](GridCell const& cell) {
+            complemented_leaves.push_back(cell.word());
+        });
+        ARIADNE_TESTING_EXPECT_EQUAL(complemented_leaves.size(),2u);
+        ARIADNE_TESTING_PROVE(complemented_leaves[0u] == make_binary_word("0"));
+        ARIADNE_TESTING_PROVE(complemented_leaves[1u] == make_binary_word("10"));
+
+        SizeType before=manager.node_count();
+        complemented.for_each_enabled_leaf([&](GridCell const&) {});
+        ARIADNE_TESTING_EXPECT_EQUAL(manager.node_count(),before);
+        full.mince_to_depth(6u);
+        ARIADNE_TESTING_EXPECT_EQUAL(full.enabled_leaf_count(),1u);
+        ARIADNE_TESTING_EXPECT_EQUAL(full.enabled_cell_count(),64u);
+    }
+
+    Void test_compact_leaves_exhaustive_truth_tables() {
+        RobddManager manager;
+        Grid grid(1u);
+        BinaryWord prefix=make_binary_word("01");
+        // All 256 truth tables of three subdivision variables.
+        for (unsigned table=0u; table<256u; ++table) {
+            BinaryTreeNode explicit_tree(false);
+            for (unsigned mask=0u; mask<8u; ++mask) {
+                if ((table & (1u<<mask)) == 0u) { continue; }
+                BinaryWord path;
+                for (unsigned bit=0u; bit<3u; ++bit) {
+                    path.push_back(((mask>>(2u-bit)) & 1u) != 0u);
+                }
+                explicit_tree.add_enabled(path);
+            }
+            explicit_tree.recombine();
+            GridTreeSubpaving source(grid,2u,prefix,&explicit_tree);
+            RobddGridPaving snapshot(manager,source);
+            // A fully uniform truth table can recombine to a terminal.
+            // Restore the declared three-variable universe for evaluation.
+            snapshot.mince_to_depth(3u);
+
+            std::vector<BinaryWord> expected;
+            for (auto it=source.begin(), end=source.end(); it!=end; ++it) {
+                expected.push_back(it->word());
+            }
+            std::vector<BinaryWord> actual;
+            snapshot.for_each_enabled_leaf([&](GridCell const& cell) {
+                actual.push_back(cell.word());
+            });
+            ARIADNE_TESTING_EXPECT_EQUAL(actual.size(),expected.size());
+            ARIADNE_TESTING_EXPECT_EQUAL(snapshot.enabled_leaf_count(),expected.size());
+            for (SizeType i=0u; i<expected.size(); ++i) {
+                ARIADNE_TESTING_PROVE(actual[i] == expected[i]);
+            }
+            auto reconstructed=snapshot.to_binary_tree();
+            reconstructed->recombine();
+            ARIADNE_TESTING_EXPECT_EQUAL(
+                snapshot.enabled_leaf_count(),
+                BinaryTreeNode::count_enabled_leaf_nodes(reconstructed.get()));
+            SizeType expected_satisfying=0u;
+            for (unsigned mask=0u; mask<8u; ++mask) {
+                BinaryWord path;
+                for (unsigned bit=0u; bit<3u; ++bit) {
+                    path.push_back(((mask>>(2u-bit)) & 1u) != 0u);
+                }
+                Bool enabled=(table & (1u<<mask)) != 0u;
+                ARIADNE_TESTING_EXPECT_EQUAL(snapshot.is_enabled(path),enabled);
+                if (enabled) { ++expected_satisfying; }
+            }
+            ARIADNE_TESTING_EXPECT_EQUAL(
+                snapshot.enabled_cell_count(),expected_satisfying);
+        }
+    }
+
 };
 
 int main(int argc, char** argv) {
@@ -291,5 +417,7 @@ int main(int argc, char** argv) {
     ARIADNE_TESTING_ADD_TEST(TestRobddGridPaving, test_terminals_and_complemented_roots);
     ARIADNE_TESTING_ADD_TEST(TestRobddGridPaving, test_set_operations_and_preconditions);
     ARIADNE_TESTING_ADD_TEST(TestRobddGridPaving, test_distinct_roots_and_extents);
+    ARIADNE_TESTING_ADD_TEST(TestRobddGridPaving, test_compact_leaf_iteration);
+    ARIADNE_TESTING_ADD_TEST(TestRobddGridPaving, test_compact_leaves_exhaustive_truth_tables);
     return ARIADNE_TESTING_RUN_TESTS_WITH_ARGS(argc,argv);
 }

@@ -156,3 +156,54 @@ changed from two to three.
 No change was made to the ROBDD root-alignment implementation or
 to the `bdd` repository. CI results for the amended test remain
 to be confirmed.
+
+## 2026-11-06 - Compact enabled-leaf iteration versus fixed-depth cells
+
+The explicit `GridTreeSubpaving::begin/end` iterator visits enabled
+leaves, and its `size()` counts those leaves. The ROBDD M5 prototype
+previously only enumerated satisfying *full-length* assignments.
+These two representations must not silently conflate the number of
+compact enabled leaves with the number of cells at a chosen depth.
+
+Added two **paving-level** methods to `RobddGridPaving`:
+`enabled_leaf_count()` and
+`for_each_enabled_leaf(std::function<void(GridCell const&)>)`.
+These traverse the semantic ROBDD directly in low-before-high order.
+A false terminal contributes no leaf; a true terminal contributes
+one enabled leaf at the current prefix; and variables absent from
+the support are expanded into both branches before the next
+supported variable. Thus a compact leaf may correspond to many
+uniform-depth satisfying assignments, and the same canonical
+BDD subfunction can be reached through multiple prefixes.
+
+The interpretation is the fully recombined ordered binary tree:
+it deliberately matches `BinaryTreeNode::recombine()` applied to the
+finite-depth explicit interpretation, not an arbitrary unrecombined
+tree that stores redundant split structure. In particular,
+`mince_to_depth` changes the count of **fixed-depth cells** but
+does not change the count of **compact enabled leaves**: the
+ROBDD snapshot does not retain historical artificial subdivision
+structure. Both existing fixed-depth methods are preserved with
+their original semantics.
+
+`enabled_leaf_count` detects SizeType overflow. The compact iterator
+does not instantiate a `BinaryTreeNode`, and only creates a
+`GridCell` when delivering an actual leaf. As with the fixed-depth
+iterator, the visitor receives a temporary reference.
+
+Regression cases cover constant true/false, early true terminals,
+skipped levels, complemented edges, stable visitation order,
+invalid visitor, and invariance of the manager's node count.
+All 256 three-variable truth tables are compared against
+`GridTreeSubpaving`'s leaf iterator after explicit-tree
+recombination. A second independent oracle checks all eight
+membership assignments and the fixed-depth model count.
+The implementation, tests and documentation are modified only
+in `ariadne-cps/paving`; `bdd` remains unchanged.
+
+CI compilation and runtime results for this increment must still
+be verified before claiming parity. The next step toward a
+common `PavingInterface` is deciding what `size()` means for
+an immutable ROBDD paving after logical mincing, and
+implementing iterator/geometry operations without prematurely
+materializing the full decision tree.

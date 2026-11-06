@@ -73,6 +73,33 @@ std::unique_ptr<BinaryTreeNode> expand_tree(
     return node;
 }
 
+// Enumerate enabled leaves in the ordered binary-tree interpretation.
+// A true terminal closes a leaf, but skipped variables still introduce
+// distinct left and right subtrees. Do not materialize an explicit tree.
+void visit_enabled_leaf_paths(
+        RobddManager& manager, Robdd const& root,
+        SizeType level, SizeType depth, BinaryWord& path,
+        std::function<void(BinaryWord const&)> const& visitor) {
+    if (root.is_false()) { return; }
+    if (root.is_true()) {
+        visitor(path);
+        return;
+    }
+    ARIADNE_PRECONDITION_MSG(level < depth,
+        "ROBDD leaf traversal exceeded the declared logical depth");
+    auto top = manager.top_variable(root);
+    ARIADNE_PRECONDITION_MSG(top.has_value() and top->index() >= level,
+        "ROBDD variable order is invalid during paving leaf traversal");
+
+    Robdd low = top->index() == level ? manager.low(root) : root;
+    Robdd high = top->index() == level ? manager.high(root) : root;
+    path.push_back(false);
+    visit_enabled_leaf_paths(manager,low,level+1u,depth,path,visitor);
+    path.back() = true;
+    visit_enabled_leaf_paths(manager,high,level+1u,depth,path,visitor);
+    path.pop_back();
+}
+
 } // anonymous namespace
 
 RobddGridPaving::RobddGridPaving(
@@ -112,6 +139,33 @@ Void RobddGridPaving::for_each_enabled_cell(
             BinaryWord path = _root_cell.word();
             path.append(assignment);
             GridCell cell(_root_cell.grid(),_root_cell.root_extent(),path);
+            visitor(cell);
+        });
+}
+
+SizeType RobddGridPaving::enabled_leaf_count() const {
+    SizeType count=0u;
+    BinaryWord path;
+    visit_enabled_leaf_paths(*_manager,_root,0u,_depth,path,
+        [&](BinaryWord const&) {
+            ARIADNE_PRECONDITION_MSG(
+                count < std::numeric_limits<SizeType>::max(),
+                "Enabled-leaf count exceeds SizeType capacity");
+            ++count;
+        });
+    return count;
+}
+
+Void RobddGridPaving::for_each_enabled_leaf(
+        std::function<void(GridCell const&)> const& visitor) const {
+    ARIADNE_PRECONDITION_MSG(static_cast<Bool>(visitor),
+        "Enabled-leaf visitor must be nonempty");
+    BinaryWord path;
+    visit_enabled_leaf_paths(*_manager,_root,0u,_depth,path,
+        [&](BinaryWord const& relative_path) {
+            BinaryWord complete_path = _root_cell.word();
+            complete_path.append(relative_path);
+            GridCell cell(_root_cell.grid(),_root_cell.root_extent(),complete_path);
             visitor(cell);
         });
 }

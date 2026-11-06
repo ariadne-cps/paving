@@ -50,14 +50,19 @@ the ROBDD prototype does not yet implement the complete
 ROBDD storage with the current explicit binary-tree backend. It imports a
 `GridTreeSubpaving`, retains the geometric `GridCell` root and a logical
 subdivision depth, and stores membership in a shared `RobddManager`.
-It supports finite-depth membership, counting and visiting cells, immutable
-union/intersection/difference, inclusion/intersection predicates, logical
-mincing and recombination, and re-materialization as a `BinaryTreeNode`.
+It supports finite-depth membership, counting and visiting cells,
+compact enabled-leaf counting/iteration (`enabled_leaf_count` and
+`for_each_enabled_leaf`), immutable union/intersection/difference,
+inclusion/intersection predicates, logical mincing and recombination,
+and re-materialization as a `BinaryTreeNode`.
+Compact leaves are the leaves of the recombined ordered binary-tree
+interpretation, not all fixed-depth cells or the leaves of an
+unrecombined historical tree.
 
 The manager must outlive snapshots. Both operands in a set operation must
-have identical root cells and share one manager; alignment between different
-geometric roots, projection, geometry queries and integration with
-`GridTreeCursor` are deliberately deferred. Existing paving APIs and
+share one manager and lie on the same grid; roots are aligned even when
+their paths and primary-cell extents differ. Projection, geometry queries
+and integration with `GridTreeCursor` are deliberately deferred. Existing paving APIs and
 representation choices remain unchanged.
 
 ## Build

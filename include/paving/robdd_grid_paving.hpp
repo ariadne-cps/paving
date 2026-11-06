@@ -62,15 +62,35 @@ class RobddGridPaving {
     //! \pre path.size() equals depth().
     Bool is_enabled(BinaryWord const& path) const;
 
-    //! \brief Number of enabled cells at the current logical depth.
-    //! \details Counts full-length paths, not the number of compact leaves.
+    //! \brief Count enabled cells at the declared logical depth.
+    //! \details Every satisfying full-length path is a distinct cell, including
+    //! all choices of absent (don't-care) variables. This differs from the
+    //! number of enabled leaves in a recombined binary tree.
     SizeType enabled_cell_count() const;
 
-    //! \brief Stream enabled cells in left-before-right binary path order.
-    //! \details Each GridCell is passed by temporary reference; do not retain
-    //! the reference after the callback. A longer logical depth may enumerate
-    //! exponentially many cells even when the ROBDD is small.
+    //! \brief Stream enabled cells at the declared depth, left before right.
+    //! \details Emits full-length paths; true terminals expand over every
+    //! remaining subdivision level. The callback's GridCell reference is
+    //! valid only during the call. Enumeration may be exponential.
     Void for_each_enabled_cell(
+        std::function<void(GridCell const&)> const& visitor) const;
+
+    //! \brief Count enabled leaves of the canonically expanded, recombined tree.
+    //! \details True terminals end an enabled leaf immediately; false terminals
+    //! emit nothing. Skipped BDD variables are expanded in both directions, as
+    //! they would be in an ordered binary tree. Unlike enabled_cell_count(),
+    //! this count does not expand a true terminal to the declared depth.
+    //! It matches the size of to_binary_tree() after recombine(), but an
+    //! unrecombined explicit tree can contain additional redundant leaves.
+    SizeType enabled_leaf_count() const;
+
+    //! \brief Visit enabled leaves of the compact ordered binary tree.
+    //! \details A true terminal emits the shortest path at its current level.
+    //! Skipped variables still yield separate left/right subtrees, and
+    //! iteration is in left-before-right depth-first order, matching a
+    //! recombined BinaryTreeNode representation. The callback's GridCell
+    //! reference is temporary and must not be retained.
+    Void for_each_enabled_leaf(
         std::function<void(GridCell const&)> const& visitor) const;
 
     //! \brief Increase logical depth without changing any ROBDD node.
