@@ -1,0 +1,82 @@
+name: Backend Scaling Matrix
+
+on:
+  workflow_dispatch:
+    inputs:
+      phase:
+        description: 'baseline (25 cases), expanded (five 4D/f3 cases), or all'
+        required: true
+        type: choice
+        options:
+          - expanded
+          - baseline
+          - all
+        default: expanded
+      timeout_sec:
+        description: 'Wall-clock timeout per geometric case'
+        required: true
+        type: number
+        default: 180
+      memory_mb:
+        description: 'Maximum virtual address space per case (MiB)'
+        required: true
+        type: number
+        default: 4096
+
+permissions:
+  contents: read
+
+env:
+  SCCACHE_GHA_ENABLED: "true"
+  SCCACHE_IGNORE_SERVER_IO_ERROR: "1"
+  SCCACHE_CONF: ${{ github.workspace }}/ss/bui/cmake/sccache.toml
+
+jobs:
+  scaling:
+    name: Release scaling on Ubuntu x86
+    runs-on: ubuntu-24.04
+    timeout-minutes: 150
+    steps:
+      - uses: actions/checkout@v7
+      - name: Set up sccache
+        uses: mozilla-actions/sccache-action@v0.0.11
+        continue-on-error: true
+        with:
+          version: "v0.18.0"
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.13"
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y cmake ninja-build pkg-config clang-16
+      - name: Initialize build submodule and sccache
+        run: |
+          git submodule update --init -- ss/bui
+          cmake -P ss/bui/cmake/InitializeSccache.cmake
+      - name: Configure Release
+        run: |
+          cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_CXX_COMPILER=clang++-16 \
+            -DCMAKE_CXX_COMPILER_LAUNCHER="$SCCACHE_LAUNCHER" \
+            -DWARNINGS_AS_ERRORS=ON -DBUILD_PYTHON_BINDINGS=OFF
+      - name: Build benchmark
+        run: cmake --build build --parallel 4 --target benchmark_paving_backends
+      - name: Verify result parser
+        run: python -m unittest discover -s benchmarks -p test_scalability_runner.py -v
+      - name: Execute bounded matrix
+        run: |
+          python benchmarks/run_scalability_matrix.py \
+            --binary build/benchmarks/benchmark_paving_backends \
+            --output scaling-results \
+            --phase "${{ inputs.phase }}" \
+            --timeout-sec "${{ inputs.timeout_sec }}" \
+            --memory-mb "${{ inputs.memory_mb }}"
+      - name: Upload complete experiment data
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: paving-backend-scaling-${{ inputs.phase }}-${{ github.sha }}
+          path: scaling-results/
+          if-no-files-found: warn
+          retention-days: 30
