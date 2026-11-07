@@ -41,6 +41,7 @@ class SubPavingInterface;
 class RobddPaving : public virtual PavingInterface {
   public:
     //! Snapshot copies and assignments synchronize with concurrent adjoin.
+    //! Assignment requires the same grid; the manager and root may change.
     RobddPaving(RobddPaving const& other);
     RobddPaving& operator=(RobddPaving const& other);
     //! \brief Create an independent paving value for polymorphic handles.

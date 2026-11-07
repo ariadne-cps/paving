@@ -555,7 +555,9 @@ class GridTreePaving
     //!@{
     //! \name Cloning/Copying/Assignment
 
-    //! \brief The copy assignment operator, which copies all the data
+    //! \brief Copy assignment requires the same grid for the entire lifetime
+    //! of the paving. The root extent and tree subdivisions may change.
+    //! The copy assignment operator, which copies all the data
     //! including the paving tree if necessary.
     GridTreePaving& operator=( const GridTreePaving & theGridTreeSet );
 

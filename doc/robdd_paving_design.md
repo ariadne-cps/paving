@@ -1930,3 +1930,23 @@ A new threaded regression alternates assignment from two compatible
 pavings managed by distinct live `RobddManager` instances, while another
 thread repeatedly adjoins/removes a cell and checks the synchronized
 dimension and enclosing geometry.
+
+
+## 2026-11-07 - Enforce lifetime-invariant grid in copy assignment
+
+The grid of an owning paving is immutable after construction. Previously,
+`GridTreePaving::operator=` and `RobddPaving::operator=` could replace it
+with an incompatible grid while changing the root. Both operators now
+reject cross-grid assignment before changing the destination: tree
+assignment checks inside the joint owner lock, while ROBDD assignment
+checks the snapshotted source against the destination under the latter's
+mutex. Assignments within one grid remain supported and may change root
+extent, tree subdivision, or the ROBDD manager and logical depth.
+
+This removes the incorrect assumption that the grid may legitimately
+change during a paving's lifetime. It does not guarantee that a reference
+returned by `grid()` remains safe to retain while an equivalent-grid
+assignment replaces the embedded `GridCell`. Value-returning
+`root_cell()` is the safe cross-call geometric snapshot. The regression
+covers rejected cross-grid assignment without changing state and accepted
+same-grid assignment across different extents and ROBDD managers.

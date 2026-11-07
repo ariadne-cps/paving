@@ -2081,6 +2081,8 @@ GridTreePaving::GridTreePaving( const GridTreePaving & other )
 GridTreePaving& GridTreePaving::operator=( const GridTreePaving & other ) {
     if(this!=&other) {
         std::scoped_lock lock(_adjoin_mutex,other._adjoin_mutex);
+        ARIADNE_PRECONDITION_MSG(_theGridCell.grid()==other._theGridCell.grid(),
+            "Cannot assign a paving from a different grid");
         auto root=std::make_unique<BinaryTreeNode>(*other._pRootTreeNode);
         GridCell cell=other._theGridCell;
         delete this->_pRootTreeNode;

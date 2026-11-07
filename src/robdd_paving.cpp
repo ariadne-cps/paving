@@ -322,6 +322,8 @@ RobddPaving& RobddPaving::operator=(RobddPaving const& other) {
     if(this!=&other) {
         CopyState state=_snapshot_copy(other);
         std::lock_guard<std::mutex> lock(_adjoin_mutex);
+        ARIADNE_PRECONDITION_MSG(_root_cell.grid()==state.root_cell.grid(),
+            "Cannot assign a paving from a different grid");
         _manager=state.manager;
         _root_cell=std::move(state.root_cell);
         _root=state.root;

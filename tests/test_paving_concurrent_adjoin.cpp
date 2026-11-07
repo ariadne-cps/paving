@@ -17,6 +17,7 @@
 #include "paving/grid_paving.hpp"
 #include "geometry/set_wrapper.hpp"
 #include "paving/robdd_paving.hpp"
+#include "tree/binary_tree.hpp"
 
 using namespace Ariadne;
 
@@ -649,6 +650,41 @@ class TestPavingConcurrentAdjoin : public Ariadne::Testing::ContextFixture {
         ARIADNE_TESTING_PROVE(destination.superset(left));
     }
 
+
+    Void test_grid_is_invariant_across_owner_assignment() {
+        Grid grid(1u);
+        Grid incompatible_grid(1u,0.5);
+        GridCell cell(grid,0u,make_binary_word("0"));
+        GridCell other_cell(incompatible_grid,0u,make_binary_word("0"));
+
+        GridTreePaving tree(cell);
+        GridTreePaving foreign_tree(other_cell);
+        ARIADNE_TESTING_EXPECT_EXCEPTION(tree=foreign_tree);
+        ARIADNE_TESTING_PROVE(tree.root_cell().grid()==grid);
+        ARIADNE_TESTING_PROVE(tree.superset(cell));
+
+        // Geometry may change within the same immutable grid.
+        GridTreePaving same_grid_tree(grid,2u,new BinaryTreeNode(true));
+        tree=same_grid_tree;
+        ARIADNE_TESTING_PROVE(tree.root_cell().grid()==grid);
+        ARIADNE_TESTING_PROVE(tree.root_cell().root_extent()==2u);
+
+        RobddManager manager;
+        RobddPaving paving(manager,cell,manager.constant(true),0u);
+        RobddPaving foreign_paving(manager,other_cell,manager.constant(true),0u);
+        ARIADNE_TESTING_EXPECT_EXCEPTION(paving=foreign_paving);
+        ARIADNE_TESTING_PROVE(paving.root_cell().grid()==grid);
+        ARIADNE_TESTING_PROVE(paving.superset(cell));
+
+        // The manager is separate from the immutable grid identity.
+        RobddManager other_manager;
+        RobddPaving same_grid_paving(other_manager,cell,
+            other_manager.constant(true),0u);
+        paving=same_grid_paving;
+        ARIADNE_TESTING_PROVE(paving.root_cell().grid()==grid);
+        ARIADNE_TESTING_PROVE(paving.superset(cell));
+    }
+
     Void test_grid_tree_concurrent_adjoin() {
         Grid grid(1u);
         auto cells=make_cells(grid);
@@ -711,6 +747,7 @@ int main(int argc, char** argv) {
     ARIADNE_TESTING_ADD_TEST(TestPavingConcurrentAdjoin,test_robdd_concurrent_set_mutations);
     ARIADNE_TESTING_ADD_TEST(TestPavingConcurrentAdjoin,test_robdd_native_algebra_with_concurrent_owner_updates);
     ARIADNE_TESTING_ADD_TEST(TestPavingConcurrentAdjoin,test_robdd_assignment_concurrent_single_cell_mutations);
+    ARIADNE_TESTING_ADD_TEST(TestPavingConcurrentAdjoin,test_grid_is_invariant_across_owner_assignment);
     ARIADNE_TESTING_ADD_TEST(TestPavingConcurrentAdjoin,test_robdd_concurrent_root_mutations);
     ARIADNE_TESTING_ADD_TEST(TestPavingConcurrentAdjoin,test_robdd_reader_writer_adjoin);
     return ARIADNE_TESTING_RUN_TESTS_WITH_ARGS(argc,argv);
