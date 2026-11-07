@@ -576,6 +576,10 @@ class GridTreePaving
     DimensionType dimension() const override { return GridTreeSubpaving::dimension(); }
     const Grid& grid() const override { return GridTreeSubpaving::grid(); }
     GridCell root_cell() const override;
+    //! \brief Stable snapshot iterators; the owning tree may be mutated later.
+    //! \details Borrowed GridTreeSubpaving iterators do not acquire ownership.
+    ConstIterator begin() const;
+    ConstIterator end() const;
     UpperBoxType bounding_box() const override { return GridTreeSubpaving::bounding_box(); }
     Bool equals(const SubPavingInterface& paving) const override { return GridTreeSubpaving::equals(paving); }
     Bool subset(const SubPavingInterface& paving) const override { return GridTreeSubpaving::subset(paving); }
@@ -590,9 +594,9 @@ class GridTreePaving
 
   protected:
     OutputStream& _write(OutputStream& os) const override { return GridTreeSubpaving::_write(os); }
-    SubPavingInterface* _branch(Bool left_or_right) const override { return GridTreeSubpaving::_branch(left_or_right); }
-    ForwardConstantIteratorInterface<GridCell>* _begin() const override { return GridTreeSubpaving::_begin(); }
-    ForwardConstantIteratorInterface<GridCell>* _end() const override { return GridTreeSubpaving::_end(); }
+    SubPavingInterface* _branch(Bool left_or_right) const override;
+    ForwardConstantIteratorInterface<GridCell>* _begin() const override;
+    ForwardConstantIteratorInterface<GridCell>* _end() const override;
 
   public:
 
@@ -895,6 +899,10 @@ class GridTreeConstIterator
     Bool _is_in_end_state;
 
     //! \brief the cursor object that is created based on the given sub paving*/
+    // The owning copy outlives the cursor's borrowed node stack.
+    // Iterators produced by GridTreeSubpaving remain borrowed.
+    std::shared_ptr<GridTreePaving> _owned_snapshot;
+    GridTreePaving const* _snapshot_source = nullptr; // Identity only.
     GridTreeCursor _pGridTreeCursor;
 
     friend class IteratorCoreAccess;
@@ -943,6 +951,10 @@ class GridTreeConstIterator
     //! on the first enabled leaf node (firstLastNone == true) or the last one (firstLastNone == false)
     //! or we are constructing the "end Iterator" that does not point anywhere.
     explicit GridTreeConstIterator( const GridTreeSubpaving * pSubPaving, const ValidatedKleenean firstLastNone );
+    //! \brief Iterator retaining a detached snapshot of the owning paving.
+    GridTreeConstIterator(std::shared_ptr<GridTreePaving> snapshot,
+                          GridTreePaving const* source,
+                          ValidatedKleenean firstLastNone);
 
     //! \brief The copy constructor that copies the current state by copying the
     //! underlying GridTreeCursor. The latter is copied by it's copy constructor.

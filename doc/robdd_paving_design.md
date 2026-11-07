@@ -1709,3 +1709,27 @@ polymorphic restrict/remove with two distinct owners, as well as self-set
 operations. CTest limits that test to 20 seconds and the pre-existing
 concurrent-paving stress suite to 60 seconds to fail promptly on future
 lock-order regressions instead of indefinitely blocking CI.
+
+
+## 2026-11-07 - Owning tree snapshot iterators
+
+The owning `GridTreePaving` now returns deep-copy snapshot iterators via
+both concrete `begin()/end()` and the polymorphic `PavingInterface`
+iterator API. The copy is made under the owner's existing mutex, and
+`GridTreeConstIterator` retains the copied `GridTreePaving` through
+`shared_ptr`. The stack of node pointers therefore remains valid after
+concurrent owner mutations and even after the owner is destroyed.
+Copies of iterators share the same snapshot. Two fresh `begin()`
+iterators from the same source compare their logical `GridCell` positions,
+not allocation addresses; comparing historical snapshots from different
+versions is not a supported ordering relation. An `end()` iterator is
+stateless.
+
+`GridTreeSubpaving` still represents a borrowed mutable view. Its
+`GridTreeCursor` and direct `begin/end` do not keep an owner alive;
+callers must stabilize the owner through any traversal and must not
+retain these views across subtree mutations. Owner `_branch()` now
+serializes initial splitting with other owner operations, but the
+returned live branch remains borrowed and is not safe to retain across
+concurrent mutations. Use a deep copy of the owning paving for
+independent traversal.

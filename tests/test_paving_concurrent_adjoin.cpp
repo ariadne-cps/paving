@@ -257,6 +257,60 @@ class TestPavingConcurrentAdjoin : public Ariadne::Testing::ContextFixture {
             });
     }
 
+
+    Void test_tree_snapshot_iterators_survive_concurrent_mutations() {
+        Grid grid(1u);
+        auto cells=make_cells(grid);
+        GridTreePaving destination(grid,false);
+        destination.adjoin(cells);
+
+        auto saved_first=destination.begin();
+        auto saved_end=destination.end();
+        ARIADNE_TESTING_PROVE(saved_first==destination.begin());
+
+        PavingInterface const& api=destination;
+        auto saved_interface_first=api.begin();
+        auto saved_interface_end=api.end();
+
+        std::atomic<bool> start{false};
+        std::thread writer([&] {
+            while(!start.load(std::memory_order_acquire)) {
+                std::this_thread::yield();
+            }
+            for(unsigned i=0u;i<48u;++i) {
+                destination.set_root_cell(false);
+                destination.adjoin(cells);
+                destination.mince(7u);
+                destination.recombine();
+            }
+        });
+        start.store(true,std::memory_order_release);
+
+        SizeType concrete_count=0u;
+        for(auto it=saved_first;it!=saved_end;++it) {
+            ARIADNE_TESTING_PROVE(it->grid()==grid);
+            ++concrete_count;
+        }
+        SizeType interface_count=0u;
+        for(auto it=saved_interface_first;it!=saved_interface_end;++it) {
+            ARIADNE_TESTING_PROVE(it->grid()==grid);
+            ++interface_count;
+        }
+        writer.join();
+        ARIADNE_TESTING_EXPECT_EQUAL(concrete_count,static_cast<SizeType>(cells.size()));
+        ARIADNE_TESTING_EXPECT_EQUAL(interface_count,static_cast<SizeType>(cells.size()));
+
+        // The snapshot also survives destruction of the original owner.
+        GridTreePaving::ConstIterator retained;
+        {
+            GridTreePaving ephemeral(grid,false);
+            ephemeral.adjoin(cells.front());
+            retained=ephemeral.begin();
+        }
+        ARIADNE_TESTING_PROVE(retained!=GridTreePaving::ConstIterator());
+        ARIADNE_TESTING_PROVE(retained->grid()==grid);
+    }
+
     Void test_grid_tree_concurrent_adjoin() {
         Grid grid(1u);
         auto cells=make_cells(grid);
@@ -310,6 +364,7 @@ int main(int argc, char** argv) {
     ARIADNE_TESTING_ADD_TEST(TestPavingConcurrentAdjoin,test_tree_reader_writer_adjoin);
     ARIADNE_TESTING_ADD_TEST(TestPavingConcurrentAdjoin,test_tree_concurrent_root_mutations);
     ARIADNE_TESTING_ADD_TEST(TestPavingConcurrentAdjoin,test_tree_concurrent_set_mutations);
+    ARIADNE_TESTING_ADD_TEST(TestPavingConcurrentAdjoin,test_tree_snapshot_iterators_survive_concurrent_mutations);
     ARIADNE_TESTING_ADD_TEST(TestPavingConcurrentAdjoin,test_robdd_concurrent_set_mutations);
     ARIADNE_TESTING_ADD_TEST(TestPavingConcurrentAdjoin,test_robdd_concurrent_root_mutations);
     ARIADNE_TESTING_ADD_TEST(TestPavingConcurrentAdjoin,test_robdd_reader_writer_adjoin);

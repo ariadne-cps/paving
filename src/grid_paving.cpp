@@ -853,6 +853,25 @@ GridTreeConstIterator::GridTreeConstIterator( const GridTreeSubpaving * pSubPavi
     }
 }
 
+GridTreeConstIterator::GridTreeConstIterator(
+        std::shared_ptr<GridTreePaving> snapshot,
+        GridTreePaving const* source,
+        ValidatedKleenean firstLastNone)
+    : _owned_snapshot(std::move(snapshot)),
+      _snapshot_source(source),
+      _pGridTreeCursor(_owned_snapshot.get()) {
+    if( is_determinate( firstLastNone ) ) {
+        //If the first/last enabled node is not found, it means that there are no elements
+        //to iterate on, then we switch to the "end Iterator" state
+        _is_in_end_state = ! navigate_to( definitely( firstLastNone ) );
+    } else {
+        //In this case if we do nothing, the cursor in the Iterator will point to the root node
+        //Since this can be the only node in the tre we should add a marker that indicates that
+        //the Iterator is at the end state.
+        _is_in_end_state = true;
+    }
+}
+
 Void GridTreeConstIterator::find_next_enabled_leaf() {
     if( _pGridTreeCursor.is_left_child() ) {
         //Move to the parent node
@@ -936,7 +955,15 @@ Bool GridTreeConstIterator::equal( GridTreeConstIterator const & theOtherIterato
             //If at one is in the end state and the other is not then the answer is FALSE
             result = false;
         } else {
-            result = theOtherIterator._pGridTreeCursor == this->_pGridTreeCursor;
+            if(_owned_snapshot && theOtherIterator._owned_snapshot) {
+                // Independently-created snapshots have unrelated node addresses.
+                result = _snapshot_source==theOtherIterator._snapshot_source
+                    && _pGridTreeCursor.cell()==theOtherIterator._pGridTreeCursor.cell();
+            } else if(_owned_snapshot || theOtherIterator._owned_snapshot) {
+                result=false;
+            } else {
+                result = theOtherIterator._pGridTreeCursor == this->_pGridTreeCursor;
+            }
         }
     }
 
@@ -1767,6 +1794,31 @@ Void GridTreePaving::mince(Nat fineness) {
 Void GridTreePaving::recombine() {
     std::lock_guard<std::mutex> lock(_adjoin_mutex);
     GridTreeSubpaving::recombine();
+}
+
+GridTreePaving::ConstIterator GridTreePaving::begin() const {
+    // Deep-copy the entire tree and root geometry atomically under owner lock.
+    auto snapshot=std::make_shared<GridTreePaving>(*this);
+    return ConstIterator(std::move(snapshot),this,true);
+}
+
+GridTreePaving::ConstIterator GridTreePaving::end() const {
+    return ConstIterator();
+}
+
+ForwardConstantIteratorInterface<GridCell>* GridTreePaving::_begin() const {
+    return new GridTreeConstIterator(this->begin());
+}
+
+ForwardConstantIteratorInterface<GridCell>* GridTreePaving::_end() const {
+    return new GridTreeConstIterator();
+}
+
+SubPavingInterface* GridTreePaving::_branch(Bool right) const {
+    // Protect creation only. The returned mutable view remains borrowed
+    // and must not outlive or race with mutations of its owning paving.
+    std::lock_guard<std::mutex> lock(_adjoin_mutex);
+    return GridTreeSubpaving::_branch(right);
 }
 
 SizeType GridTreePaving::size() const {
