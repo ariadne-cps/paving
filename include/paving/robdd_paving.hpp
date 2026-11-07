@@ -18,6 +18,7 @@
 
 #include <functional>
 #include <memory>
+#include <mutex>
 #include <utility>
 #include <vector>
 
@@ -39,6 +40,9 @@ class SubPavingInterface;
 //! are unaffected. A shared RobddManager must outlive pavings and iterators.
 class RobddPaving : public virtual PavingInterface {
   public:
+    //! Snapshot copies and assignments synchronize with concurrent adjoin.
+    RobddPaving(RobddPaving const& other);
+    RobddPaving& operator=(RobddPaving const& other);
     //! \brief Create an independent paving value for polymorphic handles.
     //! \details The copy shares only immutable manager-owned BDD nodes.
     RobddPaving* clone() const override;
@@ -187,10 +191,12 @@ class RobddPaving : public virtual PavingInterface {
     //! \brief Disable all cells without changing the geometric root.
     Void clear();
 
-    //! \brief In-place union with a paving on the same grid and manager.
+    //! \brief Thread-safe atomic union with a same-manager paving.
+    //! \details Concurrent calls to adjoin on the same destination are
+    //! serialized. Source pavings are copied as consistent snapshots.
     Void adjoin(RobddPaving const& other);
 
-    //! \brief Adjoin many cells by building one ROBDD and taking one union.
+    //! \brief Atomically adjoin many cells under one paving lock.
     //! \details Empty input is a no-op; the current paving need not be empty.
     //! The geometric root is enlarged as required by the input cells.
     //! Input validation precedes changes to this paving's root value.
@@ -292,6 +298,16 @@ class RobddPaving : public virtual PavingInterface {
     ForwardConstantIteratorInterface<GridCell>* _end() const override;
 
   private:
+    struct CopyState {
+        RobddManager* manager;
+        GridCell root_cell;
+        Robdd root;
+        SizeType depth;
+    };
+    static CopyState _snapshot_copy(RobddPaving const& source);
+    explicit RobddPaving(CopyState state);
+    Void _adjoin_unlocked(RobddPaving const& source);
+
     OutputStream& _write(OutputStream& os) const override;
     Void _check_compatible(RobddPaving const& other) const;
     GridCell _common_root(RobddPaving const& other) const;
@@ -301,6 +317,7 @@ class RobddPaving : public virtual PavingInterface {
     GridCell _root_cell;
     Robdd _root;
     SizeType _depth;
+    mutable std::mutex _adjoin_mutex;
 };
 
 } // namespace Ariadne

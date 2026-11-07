@@ -34,6 +34,7 @@
 #include <string>
 
 #include <memory>
+#include <mutex>
 
 #include "foundation/logical.hpp"
 #include "utility/array.hpp"
@@ -608,6 +609,8 @@ class GridTreePaving
 
     //! \brief Adjoin (make inplace union with) a single cell.
     Void adjoin( const GridCell& theCell ) override;
+    //! \brief Atomically adjoin a batch under one lock (not per cell).
+    Void adjoin(std::vector<GridCell> const& cells) override;
 
     //! \brief Remove a single cell.
     Void remove( const GridCell& theCell ) override;
@@ -732,6 +735,16 @@ class GridTreePaving
     friend OutputStream& operator<<(OutputStream& os, const GridTreePaving& theGridTreeSet);
     //!@}
 
+  private:
+    struct CopyState {
+        GridCell root_cell;
+        std::unique_ptr<BinaryTreeNode> root_tree;
+    };
+    static CopyState _snapshot_copy(GridTreePaving const& source);
+    explicit GridTreePaving(CopyState state);
+    Void _adjoin_unlocked(GridCell const& cell);
+    Void _adjoin_unlocked(GridTreeSubpaving const& source);
+    mutable std::mutex _adjoin_mutex;
 };
 
 GridTreePaving outer_approximation(const ExactBoxType& theBoxType, const Grid& theGrid, const Nat fineness);

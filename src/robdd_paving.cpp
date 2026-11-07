@@ -277,6 +277,31 @@ OutputStream& RobddPaving::_write(OutputStream& os) const {
     return os;
 }
 
+RobddPaving::CopyState RobddPaving::_snapshot_copy(
+        RobddPaving const& source) {
+    std::lock_guard<std::mutex> lock(source._adjoin_mutex);
+    return CopyState{source._manager,source._root_cell,source._root,source._depth};
+}
+
+RobddPaving::RobddPaving(CopyState state)
+    : _manager(state.manager),_root_cell(std::move(state.root_cell)),
+      _root(state.root),_depth(state.depth) { }
+
+RobddPaving::RobddPaving(RobddPaving const& other)
+    : RobddPaving(_snapshot_copy(other)) { }
+
+RobddPaving& RobddPaving::operator=(RobddPaving const& other) {
+    if(this!=&other) {
+        CopyState state=_snapshot_copy(other);
+        std::lock_guard<std::mutex> lock(_adjoin_mutex);
+        _manager=state.manager;
+        _root_cell=std::move(state.root_cell);
+        _root=state.root;
+        _depth=state.depth;
+    }
+    return *this;
+}
+
 RobddPaving::RobddPaving(
         RobddManager& manager, GridTreeSubpaving const& source)
     : RobddPaving(
@@ -502,8 +527,19 @@ Void RobddPaving::clear() {
     set_root_cell(false);
 }
 
+Void RobddPaving::_adjoin_unlocked(RobddPaving const& other) {
+    RobddPaving united=join(other);
+    _root_cell=std::move(united._root_cell);
+    _root=united._root;
+    _depth=united._depth;
+}
+
 Void RobddPaving::adjoin(RobddPaving const& other) {
-    *this = join(other);
+    // Snapshot the source first, then lock the destination: never hold
+    // locks for two pavings while performing a potentially expensive union.
+    RobddPaving source(other);
+    std::lock_guard<std::mutex> lock(_adjoin_mutex);
+    _adjoin_unlocked(source);
 }
 
 // Only same-backend pavings and their live child views may participate in
@@ -515,7 +551,8 @@ RobddPaving robdd_operand(SubPavingInterface const& other) {
     }
     if (auto const* view=
             dynamic_cast<PavingCellViewAdapter<RobddPaving> const*>(&other)) {
-        return view->owner().subpaving(view->root_cell());
+        RobddPaving owner_snapshot(view->owner());
+        return owner_snapshot.subpaving(view->root_cell());
     }
     ARIADNE_PRECONDITION_MSG(false,
         "ROBDD paving operations require a ROBDD-backed operand");
@@ -525,6 +562,7 @@ RobddPaving robdd_operand(SubPavingInterface const& other) {
 
 Void RobddPaving::adjoin(std::vector<GridCell> const& cells) {
     if(cells.empty()) { return; }
+    std::lock_guard<std::mutex> lock(_adjoin_mutex);
     GridCell root=_root_cell;
     for(GridCell const& cell:cells) {
         ARIADNE_PRECONDITION_MSG(grid()==cell.grid(),
@@ -535,15 +573,17 @@ Void RobddPaving::adjoin(std::vector<GridCell> const& cells) {
     if(is_empty() and _depth==0u) {
         // Only a genuinely depth-zero empty paving can discard its old
         // metadata. A minced empty paving must retain its logical depth.
-        *this=std::move(additions);
+        _root_cell=std::move(additions._root_cell);
+        _root=additions._root;
+        _depth=additions._depth;
     } else {
-        adjoin(additions);
+        _adjoin_unlocked(additions);
     }
 }
 
 Void RobddPaving::adjoin(SubPavingInterface const& other) {
-    ARIADNE_PRECONDITION_MSG(grid() == other.grid(),
-        "Cannot adjoin a subpaving on another grid");
+    // The same-backend operand is snapshotted before destination locking.
+    // Grid and manager compatibility are validated inside the locked union.
     adjoin(robdd_operand(other));
 }
 

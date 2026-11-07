@@ -382,8 +382,10 @@ class PavingInterface
     virtual Void remove(const SubPavingInterface& paving) = 0;
     virtual Void adjoin(const GridCell& cell) = 0; // Deprecated?
     //! \brief Adjoin a sequence of cells, allowing backend-specific batching.
-    //! \details The default implementation inserts each cell separately;
-    //! backends may override this to perform one bulk construction.
+    //! \details GridTreePaving and RobddPaving override this operation so
+    //! concurrent adjoin calls on one destination are serialized and a
+    //! complete batch is published under one paving lock. The default loop
+    //! is not an atomic batch for third-party backends.
     virtual Void adjoin(std::vector<GridCell> const& cells) {
         for(GridCell const& cell:cells) { this->adjoin(cell); }
     }

@@ -1629,3 +1629,11 @@ performance: ROBDD snapshots can share immutable canonical nodes;
 tree snapshots currently imply node copying. Parallel work should
 accumulate local batches when algorithmically allowed, while
 single-cell adjoin must remain independently safe.
+
+## 2026-11-07 - First implementation milestone: serialized concurrent adjoin
+
+Implementation introduced per-paving mutexes for GridTreePaving and RobddPaving, with an explicitly limited concurrency contract. Both backends serialize adjoin(single GridCell), adjoin(vector<GridCell>) and native-backend adjoin(SubPavingInterface); the vector overload holds one lock for the whole batch, rather than taking a lock for each member. Backend-internal unlocked primitives avoid repeated locking. Tree-to-tree unions of separately owned pavings lock source and destination together using std::scoped_lock (self-union is a no-op); ROBDD unions snapshot the source under its own mutex before locking the destination, and publish the newly computed root metadata coherently. Copies and assignments of both owning pavings synchronize with concurrent adjoin. The manager's mutex is unaffected.
+
+The common test_paving_concurrent_adjoin runs 8 std::thread workers on the same PavingInterface destination for each backend, mixing singleton cells, vector batches and full-paving sources; the test validates the final union and copy/assignment after the workers join.
+
+**Not a completed full-PavingInterface thread-safety guarantee:** read-only methods, iterators, borrowed views, and non-adjoin mutations such as remove/restrict/mince/recombine remain outside this milestone. In particular, do not invoke those APIs concurrently with adjoin on the same paving; borrowed source views must remain stable. Enforcing the broader public-interface contract requires an additional systematic pass. Independent subpaving computations may run in workers, whose finished results are adjoined to one destination. Parallel internal binary-tree and ROBDD operations remain deferred.

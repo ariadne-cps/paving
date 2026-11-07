@@ -1760,7 +1760,7 @@ GridCell GridTreePaving::smallest_enclosing_primary_cell( const UpperBoxType& th
     return GridCell::smallest_enclosing_primary_cell( theBoxType, this->grid() );
 }
 
-Void GridTreePaving::adjoin( const GridCell& theCell ) {
+Void GridTreePaving::_adjoin_unlocked( const GridCell& theCell ) {
     ARIADNE_PRECONDITION_MSG( this->grid() == theCell.grid(), "Cannot adjoin GridCell with grid "<<theCell.grid()<<" to GridTreeSet with grid "<<this->grid() );
     Bool has_stopped = false;
     //Align the paving and the cell
@@ -1773,7 +1773,7 @@ Void GridTreePaving::adjoin( const GridCell& theCell ) {
     }
 }
 
-Void GridTreePaving::adjoin( const GridTreeSubpaving& theOtherSubPaving ) {
+Void GridTreePaving::_adjoin_unlocked( const GridTreeSubpaving& theOtherSubPaving ) {
     ARIADNE_PRECONDITION_MSG( this->grid() == theOtherSubPaving.root_cell().grid(), "Cannot adjoin GridTreeSubset with grid "<<theOtherSubPaving.root_cell().grid()<<" to GridTreeSet with grid "<<this->grid() );
 
     Bool has_stopped = false;
@@ -1787,6 +1787,40 @@ Void GridTreePaving::adjoin( const GridTreeSubpaving& theOtherSubPaving ) {
         //node corresponding to the common primary cell.
         pBinaryTreeNode->add_enabled( theOtherSubPaving.binary_tree(), theOtherSubPaving.root_cell().word() );
     }
+}
+
+Void GridTreePaving::adjoin( const GridCell& cell ) {
+    std::lock_guard<std::mutex> lock(_adjoin_mutex);
+    _adjoin_unlocked(cell);
+}
+
+Void GridTreePaving::adjoin(std::vector<GridCell> const& cells) {
+    std::lock_guard<std::mutex> lock(_adjoin_mutex);
+    // Validate the entire batch before applying the first cell.
+    for(GridCell const& cell:cells) {
+        ARIADNE_PRECONDITION_MSG(this->grid()==cell.grid(),
+            "Cannot bulk-adjoin cells from another grid");
+    }
+    for(GridCell const& cell:cells) { _adjoin_unlocked(cell); }
+}
+
+Void GridTreePaving::adjoin( const GridTreeSubpaving& other ) {
+    if(auto const* source=dynamic_cast<GridTreePaving const*>(&other)) {
+        if(source==this) {
+            // Union with itself is an identity operation.
+            std::lock_guard<std::mutex> lock(_adjoin_mutex);
+            return;
+        }
+        // Both owning tree objects may be written concurrently. std::lock
+        // prevents deadlock on opposite-direction unions.
+        std::scoped_lock lock(_adjoin_mutex,source->_adjoin_mutex);
+        _adjoin_unlocked(other);
+        return;
+    }
+    // Borrowed GridTreeSubpaving operands must remain stable for the
+    // duration of this call; destination writes remain serialized.
+    std::lock_guard<std::mutex> lock(_adjoin_mutex);
+    _adjoin_unlocked(other);
 }
 
 Void GridTreePaving::adjoin( const SubPavingInterface& theOtherSubPaving ) {
@@ -1842,16 +1876,25 @@ GridTreePaving::GridTreePaving( const Grid& theGrid, Nat theExtent, const Boolea
     //Use the super class constructor and the binary tree constructed from the arrays: theTree and theEnabledCells
 }
 
-GridTreePaving::GridTreePaving( const GridTreePaving & theGridTreeSet ) :
-    GridTreeSubpaving( theGridTreeSet._theGridCell.grid(), theGridTreeSet._theGridCell.root_extent(),
-                    theGridTreeSet._theGridCell.word(), new BinaryTreeNode( *theGridTreeSet._pRootTreeNode )) {
-    //Call the super constructor: Create an exact copy of the tree, copy the bounding box
+GridTreePaving::CopyState GridTreePaving::_snapshot_copy(
+        GridTreePaving const& source) {
+    std::lock_guard<std::mutex> lock(source._adjoin_mutex);
+    return CopyState{source._theGridCell,
+        std::make_unique<BinaryTreeNode>(*source._pRootTreeNode)};
 }
 
-GridTreePaving& GridTreePaving::operator=( const GridTreePaving & theGridTreeSet ) {
-    if(this!=&theGridTreeSet) {
-        auto root=std::make_unique<BinaryTreeNode>(*theGridTreeSet._pRootTreeNode);
-        GridCell cell=theGridTreeSet._theGridCell;
+GridTreePaving::GridTreePaving(CopyState state)
+    : GridTreeSubpaving(state.root_cell.grid(),state.root_cell.root_extent(),
+        state.root_cell.word(),state.root_tree.release()) { }
+
+GridTreePaving::GridTreePaving( const GridTreePaving & other )
+    : GridTreePaving(_snapshot_copy(other)) { }
+
+GridTreePaving& GridTreePaving::operator=( const GridTreePaving & other ) {
+    if(this!=&other) {
+        std::scoped_lock lock(_adjoin_mutex,other._adjoin_mutex);
+        auto root=std::make_unique<BinaryTreeNode>(*other._pRootTreeNode);
+        GridCell cell=other._theGridCell;
         delete this->_pRootTreeNode;
         this->_pRootTreeNode=root.release();
         this->_theGridCell=cell;

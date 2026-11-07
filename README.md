@@ -380,3 +380,9 @@ Use --dimension (1..6), --probes-per-class (4..1024),
 control the workload. Times are medians in nanoseconds per query,
 calibrated separately by category/implementation. CTest also runs
 a small functional smoke scenario on all CI platforms.
+
+### Concurrent adjoin (initial correctness milestone)
+
+Both `GridTreePaving` and `RobddPaving` serialize concurrent `adjoin(GridCell)`, `adjoin(std::vector<GridCell>)`, and same-backend `adjoin(SubPavingInterface)` calls on one destination. A vector batch holds one paving mutex for the full operation. The tree backend additionally locks both owning tree pavings in a deadlock-safe order when merging them; the ROBDD backend snapshots the source before acquiring the destination mutex. Independently owned sources are supported; borrowed source views must remain valid and stable during the operation.
+
+**Scope limit:** This is a concurrent-*adjoin* milestone, not yet full thread safety of all `PavingInterface` methods. Other concurrent mutations, direct reads, iterators and live child views are not yet protected. Do not read or mutate the same paving through those APIs while workers are adjoining. The shared `RobddManager` retains its independent synchronization. The concurrent adjoin regression test exercises both backends via the interface, including single cells, batches and owning subpavings.
