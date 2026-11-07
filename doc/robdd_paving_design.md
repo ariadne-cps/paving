@@ -1772,3 +1772,18 @@ The `test_paving_lock_reentrancy` executable now tests owning and base
 emptiness queries on empty, populated and cleared trees, plus snapshot
 bounding boxes. Its 20-second CTest timeout provides an explicit regression
 signal if a recursive lock is reintroduced.
+
+
+## 2026-11-07 - Fix reentrant dimension access during extent restriction
+
+`GridTreePaving::restrict_to_extent()` acquired the owner's
+non-recursive mutex, then called `this->dimension()`. After the
+geometric-reader refactoring, that virtual owner method also acquired
+`_adjoin_mutex`, triggering a recursive-lock `std::system_error` on
+Windows and blocking some other platforms. The extent-restriction
+algorithm now calls qualified `GridTreeSubpaving::dimension()` under the
+existing owner lock, and the owning `dimension()` method reads its
+protected geometry directly rather than calling any virtual accessor.
+A dedicated, time-bounded sequential regression exercises both the no-op
+and mutating restriction paths in one, two, and four dimensions.
+The previous `is_empty()` correction remains unchanged.

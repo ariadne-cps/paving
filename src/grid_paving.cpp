@@ -1836,7 +1836,8 @@ FloatDPApproximation GridTreePaving::measure() const {
 
 DimensionType GridTreePaving::dimension() const {
     std::lock_guard<std::mutex> lock(_adjoin_mutex);
-    return GridTreeSubpaving::dimension();
+    // Read the protected geometry directly: no virtual calls while locked.
+    return _theGridCell.grid().dimension();
 }
 
 UpperBoxType GridTreePaving::bounding_box() const {
@@ -2773,7 +2774,7 @@ Void GridTreePaving::restrict_to_extent( const Nat theExtent ) {
     if( thisPavingPCellExtent > theExtent){
         // ARIADNE_WARN("restricting GridTreeSet of extent " << this->GridTreeSubpaving::root_cell().root_extent() << " to extent " << theExtent << ".");
 
-        BinaryWord pathToPCell = GridCell::primary_cell_path( this->dimension(), thisPavingPCellExtent, theExtent );
+        BinaryWord pathToPCell = GridCell::primary_cell_path( this->GridTreeSubpaving::dimension(), thisPavingPCellExtent, theExtent );
 
         //Go throught the tree and disable all the leaves that
         //are not rooted to the primary cell defined by this path

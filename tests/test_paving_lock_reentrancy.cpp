@@ -97,6 +97,32 @@ class TestPavingLockReentrancy : public Ariadne::Testing::ContextFixture {
         (void)paving.bounding_box();
     }
 
+
+    Void test_restrict_to_extent_does_not_reenter_dimension_lock() {
+        // The owner holds its non-recursive mutex throughout extent
+        // restriction. Calling this->dimension() there re-entered that
+        // mutex after dimension() became a synchronized owner query.
+        for(DimensionType dimensions : {1u,2u,4u}) {
+            Grid grid(dimensions);
+            GridTreePaving paving(grid,2u,new BinaryTreeNode(true));
+            GridTreePaving original(paving);
+
+            // The no-op branch preserves structure and membership.
+            paving.restrict_to_extent(3u);
+            ARIADNE_TESTING_PROVE(paving==original);
+
+            // The modification branch previously threw std::system_error
+            // on MSVC and could hang on other standard libraries.
+            paving.restrict_to_extent(1u);
+            ARIADNE_TESTING_PROVE(!paving.is_empty());
+            ARIADNE_TESTING_PROVE(paving.root_cell().root_extent()==2u);
+
+            paving.restrict_to_extent(0u);
+            ARIADNE_TESTING_PROVE(!paving.is_empty());
+            ARIADNE_TESTING_PROVE(paving.root_cell().root_extent()==2u);
+        }
+    }
+
     Void test_self_set_operations() {
         Grid grid(1u);
         GridCell cell(grid,0u,make_binary_word("0"));
@@ -115,5 +141,6 @@ int main(int argc, char** argv) {
     ARIADNE_TESTING_ADD_TEST(TestPavingLockReentrancy,test_distinct_owner_remove);
     ARIADNE_TESTING_ADD_TEST(TestPavingLockReentrancy,test_self_set_operations);
     ARIADNE_TESTING_ADD_TEST(TestPavingLockReentrancy,test_nonrecursive_is_empty_queries);
+    ARIADNE_TESTING_ADD_TEST(TestPavingLockReentrancy,test_restrict_to_extent_does_not_reenter_dimension_lock);
     return ARIADNE_TESTING_RUN_TESTS_WITH_ARGS(argc,argv);
 }
