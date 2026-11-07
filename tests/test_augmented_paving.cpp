@@ -3,6 +3,8 @@
 #include <memory>
 #include <sstream>
 #include "paving/augmented_paving.hpp"
+#include "set/function_set.hpp"
+#include "geometry/set_wrapper.hpp"
 #include "ariadne-testing.hpp"
 
 using namespace Ariadne;
@@ -36,6 +38,53 @@ class TestAugmentedPaving : public Ariadne::Testing::ContextFixture {
         copy->clear();
         ARIADNE_TESTING_PROVE(copy->is_empty());
         ARIADNE_TESTING_PROVE(!paving.is_empty());
+    }
+
+
+    // Every approximation overload must preserve the state geometry of the
+    // corresponding BinaryTreePaving operation. These are nontrivial sets,
+    // rather than calls made only to mark forwarding functions as executed.
+    Void test_approximation_forwarding() {
+        Grid grid(1u);
+        Mapping mapping=Mapping::identity(1u);
+        ExactBoxType box{{0.125_x,0.875_x}};
+        ExactBoxSetType regular(box);
+        OpenSet<EffectiveTag,RealVector> open(box);
+        OvertSet<EffectiveTag,RealVector> overt(box);
+        CompactSet<EffectiveTag,RealVector> compact(box);
+        ValidatedConstrainedImageSet validated(box);
+
+        AugmentedPaving inner(grid,mapping);
+        BinaryTreePaving expected_inner(grid);
+        inner.adjoin_inner_approximation(regular,3u);
+        expected_inner.adjoin_inner_approximation(regular,3u);
+        ARIADNE_TESTING_PROVE(!inner.is_empty());
+        ARIADNE_TESTING_PROVE(subset(inner.state_paving(),expected_inner));
+        ARIADNE_TESTING_PROVE(subset(expected_inner,inner.state_paving()));
+
+        AugmentedPaving lower(grid,mapping);
+        BinaryTreePaving expected_lower(grid);
+        lower.adjoin_lower_approximation(overt.reference(),0u,3u);
+        expected_lower.adjoin_lower_approximation(overt.reference(),0u,3u);
+        ARIADNE_TESTING_PROVE(!lower.is_empty());
+        ARIADNE_TESTING_PROVE(subset(lower.state_paving(),expected_lower));
+        ARIADNE_TESTING_PROVE(subset(expected_lower,lower.state_paving()));
+
+        AugmentedPaving effective_outer(grid,mapping);
+        BinaryTreePaving expected_effective_outer(grid);
+        effective_outer.adjoin_outer_approximation(compact.reference(),2u);
+        expected_effective_outer.adjoin_outer_approximation(compact.reference(),2u);
+        ARIADNE_TESTING_PROVE(effective_outer.state_paving().superset(box));
+        ARIADNE_TESTING_PROVE(subset(effective_outer.state_paving(),expected_effective_outer));
+        ARIADNE_TESTING_PROVE(subset(expected_effective_outer,effective_outer.state_paving()));
+
+        AugmentedPaving validated_outer(grid,mapping);
+        BinaryTreePaving expected_validated_outer(grid);
+        validated_outer.adjoin_outer_approximation(validated,2u);
+        expected_validated_outer.adjoin_outer_approximation(validated,2u);
+        ARIADNE_TESTING_PROVE(validated_outer.state_paving().superset(box));
+        ARIADNE_TESTING_PROVE(subset(validated_outer.state_paving(),expected_validated_outer));
+        ARIADNE_TESTING_PROVE(subset(expected_validated_outer,validated_outer.state_paving()));
     }
 
     // Exercise the public forwarding API with a fully enabled paving,
@@ -81,5 +130,6 @@ int main(int argc, char** argv) {
     ARIADNE_TESTING_SUITE("test_augmented_paving");
     ARIADNE_TESTING_ADD_TEST(TestAugmentedPaving,test_mapping_and_compatibility);
     ARIADNE_TESTING_ADD_TEST(TestAugmentedPaving,test_state_operations);
+    ARIADNE_TESTING_ADD_TEST(TestAugmentedPaving,test_approximation_forwarding);
     return ARIADNE_TESTING_RUN_TESTS_WITH_ARGS(argc,argv);
 }
