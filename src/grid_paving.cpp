@@ -1943,9 +1943,13 @@ Bool GridTreePaving::superset(GridCell const& cell) const {
 }
 
 GridCell GridTreePaving::smallest_enclosing_primary_cell( const UpperBoxType& theBoxType ) const {
-    ARIADNE_PRECONDITION_MSG( this->dimension() == theBoxType.dimension(), "Cannot find enclosing cell for ExactBoxType  " << theBoxType << " for GridTreeSet with grid " << this->grid() );
+    // The grid is invariant, but owner assignment can replace its containing
+    // GridCell. Capture one coherent root instead of borrowing grid() across
+    // a concurrent same-grid assignment.
+    GridCell geometry=this->root_cell();
+    ARIADNE_PRECONDITION_MSG( geometry.grid().dimension() == theBoxType.dimension(), "Cannot find enclosing cell for ExactBoxType  " << theBoxType << " for GridTreeSet with grid " << geometry.grid() );
 
-    return GridCell::smallest_enclosing_primary_cell( theBoxType, this->grid() );
+    return GridCell::smallest_enclosing_primary_cell( theBoxType, geometry.grid() );
 }
 
 Void GridTreePaving::_adjoin_unlocked( const GridCell& theCell ) {
@@ -3055,21 +3059,26 @@ Grid project(Grid const& grd, Array<SizeType> const& prj) {
 }
 
 GridTreePaving image(const GridTreePaving& theSet, const Projection& theProjection) {
-    ARIADNE_PRECONDITION(theProjection.argument_size()==theSet.dimension());
-    Grid resultGrid=project(theSet.grid(),theProjection.indices());
+    // One coherent copy for projection geometry and all enabled leaves.
+    GridTreePaving snapshot(theSet);
+    // The borrowed iterator is safe here because the snapshot is local and
+    // never modified. Avoid snapshotting the snapshot once more at begin().
+    GridTreeSubpaving const& borrowed_snapshot=snapshot;
+    ARIADNE_PRECONDITION(theProjection.argument_size()==snapshot.dimension());
+    Grid resultGrid=project(snapshot.grid(),theProjection.indices());
     GridTreePaving result(resultGrid);
     if(theProjection.result_size()==0u) {
-        if(!theSet.is_empty()) { result.adjoin(GridCell(resultGrid,0u,BinaryWord())); }
+        if(!snapshot.is_empty()) { result.adjoin(GridCell(resultGrid,0u,BinaryWord())); }
         return result;
     }
-    for(const GridCell& cell:theSet) {
+    for(const GridCell& cell:borrowed_snapshot) {
         const auto& word=cell.word();
-        const SizeType levels=word.size()/theSet.dimension();
-        const SizeType remainder=word.size()%theSet.dimension();
+        const SizeType levels=word.size()/snapshot.dimension();
+        const SizeType remainder=word.size()%snapshot.dimension();
         BinaryWord prefix;
         for(SizeType level=0;level!=levels;++level) {
             for(SizeType j=0;j!=theProjection.result_size();++j) {
-                prefix.append(word[level*theSet.dimension()+theProjection[j]]);
+                prefix.append(word[level*snapshot.dimension()+theProjection[j]]);
             }
         }
         // A final incomplete level may refine a later projected coordinate
@@ -3084,7 +3093,7 @@ GridTreePaving image(const GridTreePaving& theSet, const Projection& theProjecti
             const SizeType count=words.size();
             for(SizeType i=0;i!=count;++i) {
                 if(theProjection[j]<remainder) {
-                    words[i].append(word[levels*theSet.dimension()+theProjection[j]]);
+                    words[i].append(word[levels*snapshot.dimension()+theProjection[j]]);
                 } else {
                     auto other=words[i];
                     words[i].append(false); other.append(true); words.append(other);
@@ -3099,16 +3108,18 @@ GridTreePaving image(const GridTreePaving& theSet, const Projection& theProjecti
 
 
 GridTreePaving outer_skew_product(GridTreePaving const& gtp1, Grid const& g2, ValidatedVectorMultivariateFunction const& f) {
-    Grid g1=gtp1.grid();
-    Nat tree_depth = static_cast<Nat>(gtp1.tree_depth());
-    Nat fineness=tree_depth/static_cast<Nat>(g1.dimension())-gtp1.root_cell().root_extent();
+    // Keep root extent, depth and enumeration from the same tree version.
+    GridTreePaving source_snapshot(gtp1);
+    Grid g1=source_snapshot.grid();
+    Nat tree_depth = static_cast<Nat>(source_snapshot.tree_depth());
+    Nat fineness=tree_depth/static_cast<Nat>(g1.dimension())-source_snapshot.root_cell().root_extent();
 
     // Enumerate at the requested granularity without modifying the
     // const input paving or materializing artificial subdivisions.
     GridTreePaving gtp2(g2);
     GridTreePaving r(join(g1,g2));
     for_each_enabled_cell_at_fineness(
-            gtp1,fineness,[&](GridCell const& gc1) {
+            source_snapshot,fineness,[&](GridCell const& gc1) {
         ValidatedConstrainedImageSet s2(gc1.box(),f);
         gtp2.adjoin_outer_approximation(s2,fineness);
         for_each_enabled_cell_at_fineness(

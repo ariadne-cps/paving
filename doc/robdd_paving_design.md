@@ -1950,3 +1950,30 @@ assignment replaces the embedded `GridCell`. Value-returning
 `root_cell()` is the safe cross-call geometric snapshot. The regression
 covers rejected cross-grid assignment without changing state and accepted
 same-grid assignment across different extents and ROBDD managers.
+
+
+## 2026-11-07 - Coherent projections under immutable-grid assignment
+
+The grid remains fixed for an owning paving's lifetime; nevertheless,
+copy assignment can replace the embedded `GridCell`, so a reference
+obtained from `grid()` is not protected across concurrent calls. The
+concrete tree's `smallest_enclosing_primary_cell` now obtains one
+synchronized `root_cell()` value before checking dimensions and locating
+the primary cell. It does not allow any grid changes.
+
+`image(GridTreePaving, Projection)` now takes a single owner-locked
+snapshot at the start, and computes projected geometry and enumerates
+enabled cells from that one version. It explicitly traverses the borrowed
+base view of the local snapshot to avoid constructing a second deep copy
+inside the owning `begin()` method. Similarly,
+`outer_skew_product(GridTreePaving, ...)` captures its entire input
+source once before reading its root extent, depth, grid and enabled cells.
+Neither operation holds the original owner's lock during long geometric
+computation.
+
+A stress regression overlaps changing root shapes and same-grid copy
+assignment with `image` and enclosing-primary-cell queries, checking
+that projection is either empty or the correct single projected cell.
+This does not protect legacy free operations on directly borrowed
+`GridTreeSubpaving` views: their owner must remain stable for the entire
+operation, or the caller must use an independent owner snapshot.

@@ -17,6 +17,7 @@
 #include "paving/grid_paving.hpp"
 #include "geometry/set_wrapper.hpp"
 #include "paving/robdd_paving.hpp"
+#include "function/projection.hpp"
 #include "tree/binary_tree.hpp"
 
 using namespace Ariadne;
@@ -685,6 +686,61 @@ class TestPavingConcurrentAdjoin : public Ariadne::Testing::ContextFixture {
         ARIADNE_TESTING_PROVE(paving.superset(cell));
     }
 
+
+    Void test_tree_owner_projection_and_enclosing_query_during_writes() {
+        Grid grid(2u);
+        GridCell selected(grid,0u,make_binary_word("00"));
+        GridTreePaving owner(grid,false);
+        Projection x_only(2u,{0u});
+        GridTreePaving selected_owner(selected);
+        std::atomic<bool> started{false};
+        std::atomic<bool> finished{false};
+        std::atomic<bool> coherent{true};
+
+        std::thread reader([&] {
+            started.store(true,std::memory_order_release);
+            while(!finished.load(std::memory_order_acquire)) {
+                // Every call must use a coherent version of the owning tree.
+                GridTreePaving projected=image(owner,x_only);
+                if(projected.dimension()!=1u) {
+                    coherent.store(false,std::memory_order_relaxed);
+                } else {
+                    GridCell expected(projected.grid(),0u,make_binary_word("0"));
+                    GridCell excluded(projected.grid(),0u,make_binary_word("1"));
+                    if(projected.superset(excluded)
+                            || (!projected.is_empty()
+                                && !projected.superset(expected))) {
+                        coherent.store(false,std::memory_order_relaxed);
+                    }
+                }
+                GridCell enclosing=owner.smallest_enclosing_primary_cell(
+                    selected.box());
+                if(enclosing.grid()!=grid) {
+                    coherent.store(false,std::memory_order_relaxed);
+                }
+            }
+        });
+        std::thread writer([&] {
+            while(!started.load(std::memory_order_acquire)) {
+                std::this_thread::yield();
+            }
+            for(unsigned i=0u;i<96u;++i) {
+                owner.set_root_cell(false);
+                owner.adjoin(selected);
+                // Same-grid assignment is legal while the root changes.
+                if((i%3u)==0u) { owner=selected_owner; }
+            }
+            finished.store(true,std::memory_order_release);
+        });
+        writer.join();
+        reader.join();
+
+        ARIADNE_TESTING_PROVE(coherent.load(std::memory_order_acquire));
+        GridTreePaving projected=image(owner,x_only);
+        GridCell expected(projected.grid(),0u,make_binary_word("0"));
+        ARIADNE_TESTING_PROVE(projected.superset(expected));
+    }
+
     Void test_grid_tree_concurrent_adjoin() {
         Grid grid(1u);
         auto cells=make_cells(grid);
@@ -748,6 +804,7 @@ int main(int argc, char** argv) {
     ARIADNE_TESTING_ADD_TEST(TestPavingConcurrentAdjoin,test_robdd_native_algebra_with_concurrent_owner_updates);
     ARIADNE_TESTING_ADD_TEST(TestPavingConcurrentAdjoin,test_robdd_assignment_concurrent_single_cell_mutations);
     ARIADNE_TESTING_ADD_TEST(TestPavingConcurrentAdjoin,test_grid_is_invariant_across_owner_assignment);
+    ARIADNE_TESTING_ADD_TEST(TestPavingConcurrentAdjoin,test_tree_owner_projection_and_enclosing_query_during_writes);
     ARIADNE_TESTING_ADD_TEST(TestPavingConcurrentAdjoin,test_robdd_concurrent_root_mutations);
     ARIADNE_TESTING_ADD_TEST(TestPavingConcurrentAdjoin,test_robdd_reader_writer_adjoin);
     return ARIADNE_TESTING_RUN_TESTS_WITH_ARGS(argc,argv);
