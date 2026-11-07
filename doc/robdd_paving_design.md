@@ -2215,3 +2215,46 @@ constraint solver on the candidate boxes, without weakening certified
 set-separation semantics. Repeat the new `--outer-phases` diagnostic
 on the remaining four geometric shapes to see whether this pattern
 generalizes; no new workflow or README changes are needed.
+
+
+## 2026-11-07 - Multi-shape separation predicate profile (d4/f3)
+
+The operator repeated `benchmark_paving_backends --outer-phases`
+locally on rotated-box, aligned-ellipsoid, rotated-ellipsoid and ball
+in 4D/fineness 3. Combined below with the preceding aligned-box run.
+Each reported phase time is a calibrated seven-sample median; the
+measurements are comparative and overlapping, NOT additive CPU budgets.
+
+| Shape | Candidate cells visited | Selected candidates | Separated calls | Covers calls | Selection (ms) | Predicate replay (ms) | Geometry-only (ms) | Predicate time / separated call (us) |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| aligned-box | 2927 | 864 | 2927 | 0 | 597.602 | 592.244 | 4.128 | 202.3 |
+| rotated-box | 2591 | 720 | 2591 | 0 | 716.180 | 686.692 | 3.634 | 265.0 |
+| aligned-ellipsoid | 1127 | 192 | 1127 | 0 | 527.708 | 528.513 | 1.697 | 469.0 |
+| rotated-ellipsoid | 1055 | 232 | 1055 | 0 | 810.761 | 810.844 | 1.395 | 768.6 |
+| ball | 1467 | 320 | 1467 | 0 | 649.950 | 646.710 | 1.968 | 440.8 |
+
+The predicate replay takes 95.9-100.2% of full selection time.
+Ratios slightly above 100% are expected from independent noisy timing
+samples; they are not evidence of negative overhead. Geometry-only
+path replay costs under 1% of selection in every listed case. Per-call
+cost differs by a factor of approximately 3.8, and the rotated
+ellipsoid has the highest per-call cost despite the fewest visited
+cells. There were no `covers()` calls for any of the five shapes,
+so these runs isolate `separated()`.
+
+Code inspection in the connected `ariadne-cps/set` repository shows
+`ConstrainedImageSet::separated(const ExactBoxType&,Effort)`
+initializes an upper subdomain, joins the image/constraint
+functions, builds the codomain and instantiates `ConstraintSolver`,
+then calls `solver.reduce(subdomain,function,codomain)`.
+The non-effort overload creates a lazy lower-logical expression.
+The *relative* time spent in function assembly, solver setup and
+`ConstraintSolver::reduce` has NOT been measured; it would be
+incorrect to claim all of the 500-800 ms lies inside the solver
+algorithm. Next profiling should isolate those subphases in the
+`set` module before modifying any algorithm. Certified
+separation/conservativeness must remain unchanged.
+
+No paving production algorithm or official README change is
+warranted by this result. Performance benchmark runs remain local;
+experimental findings belong in this design journal.
