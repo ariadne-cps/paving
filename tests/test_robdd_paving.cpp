@@ -13,6 +13,8 @@
  *  (at your option) any later version.
  */
 
+#include <limits>
+#include <sstream>
 #include <type_traits>
 #include <vector>
 
@@ -20,6 +22,7 @@
 #include "paving/binary_tree_paving.hpp"
 #include "paving/robdd_paving.hpp"
 #include "paving/paving_cell_operations.hpp"
+#include "geometry/set_wrapper.hpp"
 #include "ariadne-testing.hpp"
 
 using namespace Ariadne;
@@ -30,6 +33,111 @@ static_assert(std::is_base_of_v<PavingInterface,BinaryTreePaving>);
 class TestRobddPaving : public Ariadne::Testing::ContextFixture {
   public:
     using ContextFixture::ContextFixture;
+
+    Void test_iterator_identity_end_contracts_and_display() {
+        RobddManager manager, foreign;
+        Grid grid(1u);
+        GridCell root(grid,0u,BinaryWord{});
+        RobddPaving full(manager,root,manager.constant(true),0u);
+        RobddPaving empty(manager,root,manager.constant(false),0u);
+        RobddPaving foreign_full(foreign,root,foreign.constant(true),0u);
+        RobddPaving child(manager,root.split(false),manager.constant(true),0u);
+        RobddPaving refined(manager,root,manager.constant(true),1u);
+        BinaryTreePaving tree(grid,true);
+        SubPavingInterface const& tree_interface=tree;
+        auto first=full.begin(), end=full.end();
+        ARIADNE_TESTING_PROVE(first!=tree_interface.begin());
+        ARIADNE_TESTING_PROVE(first!=foreign_full.begin());
+        ARIADNE_TESTING_PROVE(first!=empty.begin());
+        ARIADNE_TESTING_PROVE(first!=child.begin());
+        ARIADNE_TESTING_PROVE(first!=refined.begin());
+        ARIADNE_TESTING_PROVE(first!=end);
+        ARIADNE_TESTING_PROVE(end!=first);
+        ARIADNE_TESTING_PROVE(end==full.end());
+        std::ostringstream display;
+        display<<first<<' '<<end;
+        ARIADNE_TESTING_PROVE(display.str().find("RobddPavingLeafIterator(")!=std::string::npos);
+        ARIADNE_TESTING_PROVE(display.str().find("RobddPavingLeafIterator(end)")!=std::string::npos);
+        ARIADNE_TESTING_EXPECT_EXCEPTION(*end);
+        ARIADNE_TESTING_EXPECT_EXCEPTION(++end);
+        ARIADNE_TESTING_PROVE(first->box()==root.box());
+    }
+
+    Void test_public_depth_geometry_and_assignment_contracts() {
+        RobddManager manager;
+        Grid grid(1u);
+        GridCell root(grid,0u,BinaryWord{});
+        RobddPaving full(manager,root,manager.constant(true),0u);
+        constexpr SizeType limit=std::numeric_limits<SizeType>::max();
+        ARIADNE_TESTING_EXPECT_EXCEPTION(RobddPaving(manager,root,manager.constant(true),limit));
+        ARIADNE_TESTING_EXPECT_EXCEPTION(full.mince_to_depth(limit));
+        ARIADNE_TESTING_EXPECT_EQUAL(full.depth(),0u);
+        if constexpr (std::numeric_limits<SizeType>::digits>std::numeric_limits<Nat>::digits) {
+            RobddPaving too_deep(manager,root,manager.constant(true),
+                static_cast<SizeType>(std::numeric_limits<Nat>::max())+1u);
+            ARIADNE_TESTING_EXPECT_EXCEPTION(too_deep.to_binary_tree());
+        }
+        RobddPaving very_deep(manager,root.split(false),manager.constant(true),limit-1u);
+        ARIADNE_TESTING_EXPECT_EXCEPTION(full.join(very_deep));
+        RobddPaving incompatible(manager,GridCell(Grid(2u),0u,BinaryWord{}),manager.constant(true),0u);
+        ARIADNE_TESTING_EXPECT_EXCEPTION(full=incompatible);
+        ARIADNE_TESTING_PROVE(full.root_cell()==root);
+        ExactBoxType wrong_dimension{{0.0_x,1.0_x},{0.0_x,1.0_x}};
+        ARIADNE_TESTING_EXPECT_EXCEPTION(full.smallest_enclosing_primary_cell(wrong_dimension));
+        ARIADNE_TESTING_EXPECT_EXCEPTION(full.inside(wrong_dimension));
+        ARIADNE_TESTING_EXPECT_EXCEPTION(full.separated(wrong_dimension));
+        ARIADNE_TESTING_EXPECT_EXCEPTION(full.overlaps(wrong_dimension));
+        ExactBoxSetType shape=root.box();
+        EffectiveEuclideanCompactSetInterface const& compact=shape;
+        ARIADNE_TESTING_EXPECT_EXCEPTION(full.adjoin_outer_approximation(compact,std::numeric_limits<Nat>::max()));
+
+        auto* same_owner=&full;
+        full=*same_owner;
+        ARIADNE_TESTING_PROVE(full.root_cell()==root);
+        std::ostringstream display;
+        display<<full;
+        ARIADNE_TESTING_PROVE(display.str().find("RobddPaving(")!=std::string::npos);
+        SubPavingInterface const& self=full;
+        ARIADNE_TESTING_PROVE(full.equals(self));
+        ARIADNE_TESTING_PROVE(full.subset(self));
+        ARIADNE_TESTING_PROVE(full.intersects(self));
+        RobddPaving half(manager,root.split(false),manager.constant(true),0u);
+        ARIADNE_TESTING_PROVE(!half.equals(self));
+        RobddPaving empty(manager,root,manager.constant(false),0u);
+        SubPavingInterface const& empty_self=empty;
+        ARIADNE_TESTING_PROVE(!empty.intersects(empty_self));
+        RobddPaving zero(manager,GridCell(Grid(0u),0u,BinaryWord{}),manager.constant(true),0u);
+        zero.mince(3u);
+        ARIADNE_TESTING_EXPECT_EQUAL(zero.depth(),0u);
+    }
+
+    Void test_optional_set_capabilities_and_minced_empty_batch() {
+        RobddManager manager;
+        Grid grid(1u);
+        GridCell root(grid,0u,BinaryWord{});
+        CompactSetWrapper<ExactBoxType,EffectiveTag,RealVector> compact(root.box());
+        OpenSetWrapper<ExactBoxType,EffectiveTag,RealVector> open(root.box());
+        RobddPaving outer(manager,root,manager.constant(false),0u);
+        BinaryTreePaving outer_oracle(grid);
+        outer.adjoin_outer_approximation(compact,2u);
+        outer_oracle.adjoin_outer_approximation(compact,2u);
+        ARIADNE_TESTING_PROVE(outer.superset(root));
+        for (auto const& cell:outer) { ARIADNE_TESTING_PROVE(outer_oracle.superset(cell)); }
+        for (auto const& cell:outer_oracle) { ARIADNE_TESTING_PROVE(outer.superset(cell)); }
+        RobddPaving inner(manager,root,manager.constant(false),0u);
+        BinaryTreePaving inner_oracle(grid);
+        inner.adjoin_inner_approximation(open,0u,2u);
+        inner_oracle.adjoin_inner_approximation(open,0u,2u);
+        ARIADNE_TESTING_PROVE(!inner.is_empty());
+        for (auto const& cell:inner) { ARIADNE_TESTING_PROVE(inner_oracle.superset(cell)); }
+        for (auto const& cell:inner_oracle) { ARIADNE_TESTING_PROVE(inner.superset(cell)); }
+        RobddPaving minced(manager,root,manager.constant(false),0u);
+        minced.mince_to_depth(5u);
+        minced.adjoin(std::vector<GridCell>{root.split(false)});
+        ARIADNE_TESTING_EXPECT_EQUAL(minced.depth(),5u);
+        ARIADNE_TESTING_PROVE(minced.superset(root.split(false)));
+        ARIADNE_TESTING_PROVE(!minced.superset(root.split(true)));
+    }
 
     Void test_terminals_and_complemented_roots() {
         RobddManager manager;
@@ -397,6 +505,9 @@ class TestRobddPaving : public Ariadne::Testing::ContextFixture {
 int main(int argc, char** argv) {
     ARIADNE_TESTING_SUITE("test_robdd_paving");
 
+    ARIADNE_TESTING_ADD_TEST(TestRobddPaving, test_iterator_identity_end_contracts_and_display);
+    ARIADNE_TESTING_ADD_TEST(TestRobddPaving, test_public_depth_geometry_and_assignment_contracts);
+    ARIADNE_TESTING_ADD_TEST(TestRobddPaving, test_optional_set_capabilities_and_minced_empty_batch);
     ARIADNE_TESTING_ADD_TEST(TestRobddPaving, test_terminals_and_complemented_roots);
     ARIADNE_TESTING_ADD_TEST(TestRobddPaving, test_set_operations_and_preconditions);
     ARIADNE_TESTING_ADD_TEST(TestRobddPaving, test_distinct_roots_and_extents);
