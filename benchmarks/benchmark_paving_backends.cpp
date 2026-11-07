@@ -21,6 +21,7 @@
 #include <chrono>
 #include <cmath>
 #include <functional>
+#include <fstream>
 #include <iomanip>
 #include <iostream>
 #include <limits>
@@ -56,6 +57,7 @@ struct Selection {
     bool run_retention=true;
     bool tree_iterator_cost=false;
     bool outer_phases=false;
+    std::string outer_trace_prefix;
 };
 
 std::vector<std::string> parse_shapes(String const& value) {
@@ -180,6 +182,14 @@ List<ArgumentParser> parsers(Selection& selection) {
     result.append(make_unvalued_argument_parser(
         "","outer-phases","Profile geometric outer classification versus predicate calls and cell traversal",
         [&selection] { selection.outer_phases=true; }));
+    result.append(make_valued_argument_parser(
+        "","outer-trace-prefix","Export exact adaptive d4/f3 query boxes to PREFIX-SHAPE-d4-f3.trace",
+        [&selection](String const& value)->VoidFunction {
+            std::string prefix(value);
+            if(prefix.empty())
+                throw std::invalid_argument("outer-trace-prefix must not be empty");
+            return [&selection,prefix] { selection.outer_trace_prefix=prefix; };
+        }));
     return result;
 }
 
@@ -838,6 +848,48 @@ SizeType replay_outer_geometry(OuterSelection const& reference,
     return checksum;
 }
 
+
+void export_outer_solver_trace(
+        std::string const& prefix,std::string const& shape,
+        unsigned dimension,unsigned fineness,
+        EffectiveEuclideanCompactSetInterface const& set,Grid const& grid) {
+    // Export the same adaptive candidate sequence as --outer-phases.
+    // Keep the output in a primitive, versioned format: solver tools in
+    // constraint-solving must not depend on paving types.
+    OuterSelection recorded=select_outer_cells(set,grid,fineness,true);
+    if(recorded.trace.size()!=recorded.visited
+       or recorded.separated_calls!=recorded.visited
+       or recorded.covers_calls!=0u) {
+        throw std::logic_error("unsupported or inconsistent outer solver trace");
+    }
+    std::string path=prefix+"-"+shape+"-d"+std::to_string(dimension)
+        +"-f"+std::to_string(fineness)+".trace";
+    std::ofstream out(path);
+    if(not out) throw std::runtime_error("cannot open outer trace: "+path);
+    out<<"ARIADNE_PAVING_SOLVER_TRACE_V1 "
+       <<shape<<" "<<dimension<<" "<<fineness
+       <<" "<<recorded.trace.size()<<"\n";
+    // Hexadecimal floating-point preserves the exact dyadic endpoints
+    // produced by GridCell::box(), without decimal-rounding ambiguity.
+    out<<std::hexfloat;
+    SizeType separated_count=0u;
+    for(OuterTraceEntry const& entry:recorded.trace) {
+        separated_count+=static_cast<SizeType>(entry.separated);
+        out<<static_cast<int>(entry.separated);
+        for(SizeType i=0u;i<entry.box.dimension();++i) {
+            out<<" "<<entry.box[i].lower_bound().get_d()
+               <<" "<<entry.box[i].upper_bound().get_d();
+        }
+        out<<"\n";
+    }
+    out.flush();
+    if(not out) throw std::runtime_error("cannot write outer trace: "+path);
+    LOGGING_PRINTLN("OUTER_SOLVER_TRACE shape="<<shape
+        <<" d="<<dimension<<" f="<<fineness
+        <<" path="<<path<<" queries="<<recorded.visited
+        <<" separated="<<separated_count)
+}
+
 void profile_outer_phases(
         Selection const& selection,std::string const& shape,
         unsigned dimension,unsigned fineness,
@@ -1251,6 +1303,24 @@ int main(int argc,char const* argv[]) {
         for (int i=0;i<argc;++i) { args.append(String(argv[i])); }
         if(not command_line.acquire(args)) {
             return CLI::requests_help(args)?0:1;
+        }
+
+        if(not selection.outer_trace_prefix.empty()) {
+            if(selection.dimensions.size()!=1u
+               or selection.dimensions[0]!=4u
+               or selection.finenesses.size()!=1u
+               or selection.finenesses[0]!=3u) {
+                throw std::invalid_argument(
+                    "--outer-trace-prefix currently requires --dimensions 4 --finenesses 3");
+            }
+            Grid grid(4u);
+            for(std::string const& shape:selection.shapes) {
+                EffectiveConstrainedImageSet compact=make_shape(4u,shape);
+                EffectiveEuclideanCompactSetInterface const& set=compact;
+                export_outer_solver_trace(
+                    selection.outer_trace_prefix,shape,4u,3u,set,grid);
+            }
+            return 0;
         }
 
         std::vector<Datum> data;
