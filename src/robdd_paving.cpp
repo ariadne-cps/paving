@@ -258,6 +258,11 @@ GridCell RobddPaving::root_cell() const {
     return _root_cell;
 }
 
+DimensionType RobddPaving::dimension() const {
+    std::lock_guard<std::mutex> lock(_adjoin_mutex);
+    return _root_cell.grid().dimension();
+}
+
 Robdd RobddPaving::robdd() const {
     std::lock_guard<std::mutex> lock(_adjoin_mutex);
     return _root;
@@ -393,9 +398,12 @@ Bool RobddPaving::is_enabled(BinaryWord const& path) const {
 
 GridCell RobddPaving::smallest_enclosing_primary_cell(
         UpperBoxType const& box) const {
-    ARIADNE_PRECONDITION_MSG(box.dimension() == dimension(),
+    // Copy root geometry under the owner mutex; grid() returns an unsafe
+    // borrowed reference if concurrent assignment is allowed.
+    GridCell geometric_root=root_cell();
+    ARIADNE_PRECONDITION_MSG(box.dimension() == geometric_root.grid().dimension(),
         "Cannot find an enclosing primary cell for a box of another dimension");
-    return GridCell::smallest_enclosing_primary_cell(box,grid());
+    return GridCell::smallest_enclosing_primary_cell(box,geometric_root.grid());
 }
 
 UpperBoxType RobddPaving::bounding_box() const {
@@ -520,7 +528,8 @@ Void RobddPaving::mince(Nat fineness) {
     constexpr SizeType limit=std::numeric_limits<SizeType>::max();
     SizeType extent=static_cast<SizeType>(_root_cell.root_extent());
     SizeType requested=static_cast<SizeType>(fineness);
-    SizeType dimensions=static_cast<SizeType>(dimension());
+    // Already holding the owner mutex: avoid a reentrant dimension().
+    SizeType dimensions=static_cast<SizeType>(_root_cell.grid().dimension());
     ARIADNE_PRECONDITION_MSG(extent <= limit-requested,
         "Requested paving fineness overflows the primary-cell level");
     SizeType levels=extent+requested;
@@ -672,11 +681,14 @@ Void RobddPaving::remove(SubPavingInterface const& other) {
 
 Void RobddPaving::adjoin_outer_approximation(
         EffectiveEuclideanCompactSetInterface const& set, Nat fineness) {
-    ARIADNE_PRECONDITION_MSG(set.dimension() == dimension(),
+    // Geometric metadata is captured as a value, never as a borrowed grid.
+    GridCell geometric_root=root_cell();
+    Grid grid_value=geometric_root.grid();
+    ARIADNE_PRECONDITION_MSG(set.dimension() == grid_value.dimension(),
         "Cannot approximate a set of another dimension");
     Nat extent=GridCell::smallest_enclosing_primary_cell_extent(
-        set.bounding_box(),grid());
-    Nat dimensions=static_cast<Nat>(dimension());
+        set.bounding_box(),grid_value);
+    Nat dimensions=static_cast<Nat>(grid_value.dimension());
     constexpr SizeType limit=std::numeric_limits<SizeType>::max();
     constexpr Nat nat_limit=std::numeric_limits<Nat>::max();
     ARIADNE_PRECONDITION_MSG(dimensions <= nat_limit and
@@ -690,7 +702,7 @@ Void RobddPaving::adjoin_outer_approximation(
         dimensions == 0u or levels <= limit/dimensions,
         "Outer approximation subdivision depth overflows");
     SizeType target_depth=levels*dimensions;
-    GridCell enclosing_root(grid(),enclosing_extent,BinaryWord{});
+    GridCell enclosing_root(grid_value,enclosing_extent,BinaryWord{});
     auto const* open_set=dynamic_cast<
         EffectiveEuclideanOpenSetInterface const*>(
             static_cast<EuclideanSetInterfaceBase const*>(&set));
@@ -728,18 +740,20 @@ Void RobddPaving::adjoin_outer_approximation(
 Void RobddPaving::adjoin_inner_approximation(
         EffectiveEuclideanOpenSetInterface const& set,
         Nat extent, Nat fineness) {
-    ARIADNE_PRECONDITION_MSG(set.dimension() == dimension(),
+    GridCell geometric_root=root_cell();
+    Grid grid_value=geometric_root.grid();
+    ARIADNE_PRECONDITION_MSG(set.dimension() == grid_value.dimension(),
         "Cannot approximate a set of another dimension");
     constexpr SizeType limit=std::numeric_limits<SizeType>::max();
     ARIADNE_PRECONDITION_MSG(extent <= limit-fineness,
         "Inner approximation fineness overflows");
     SizeType levels=static_cast<SizeType>(extent)+fineness;
-    SizeType dimensions=static_cast<SizeType>(dimension());
+    SizeType dimensions=static_cast<SizeType>(grid_value.dimension());
     ARIADNE_PRECONDITION_MSG(
         dimensions == 0u or levels <= limit/dimensions,
         "Inner approximation subdivision depth overflows");
     SizeType target_depth=levels*dimensions;
-    GridCell enclosing_root(grid(),extent,BinaryWord{});
+    GridCell enclosing_root(grid_value,extent,BinaryWord{});
     auto const* closed_set=dynamic_cast<
         EffectiveEuclideanClosedSetInterface const*>(&set);
 
@@ -767,23 +781,31 @@ Void RobddPaving::adjoin_inner_approximation(
 
 Void RobddPaving::adjoin_inner_approximation(
         EffectiveEuclideanSetInterface const& set, Nat fineness) {
-    ARIADNE_PRECONDITION_MSG(set.dimension() == dimension(),
+    GridCell geometric_root=root_cell();
+    ARIADNE_PRECONDITION_MSG(set.dimension() == geometric_root.grid().dimension(),
         "Cannot approximate a set of another dimension");
     ExactBoxType bounding=cast_exact_box(set.bounding_box());
     Nat extent=GridCell::smallest_enclosing_primary_cell_extent(
-        bounding,grid());
+        bounding,geometric_root.grid());
     EffectiveEuclideanOpenSetInterface const& open_set=set;
     adjoin_inner_approximation(open_set,extent,fineness);
 }
 
 Void RobddPaving::adjoin(GridCell const& cell) {
+    // Assignment may replace _manager. Capture it and publish the new
+    // root in one owner critical section, without entering a public lock.
+    std::lock_guard<std::mutex> lock(_adjoin_mutex);
     RobddPaving singleton(*_manager,cell,_manager->constant(true),0u);
-    adjoin(singleton);
+    _adjoin_unlocked(singleton);
 }
 
 Void RobddPaving::remove(GridCell const& cell) {
+    std::lock_guard<std::mutex> lock(_adjoin_mutex);
     RobddPaving singleton(*_manager,cell,_manager->constant(true),0u);
-    remove(singleton);
+    RobddPaving result=_difference_unlocked(singleton);
+    _root_cell=std::move(result._root_cell);
+    _root=result._root;
+    _depth=result._depth;
 }
 
 Void RobddPaving::_check_compatible(
@@ -953,13 +975,13 @@ Bool RobddPaving::superset(GridCell const& cell) const {
         // The queried word starts with the primary-cell path that
         // descends from root_extent to query_extent.
         alignment=GridCell::primary_cell_path(
-            dimension(),root_extent,query_extent);
+            _root_cell.grid().dimension(),root_extent,query_extent);
         query_prefix=alignment.size();
     } else if(query_extent>root_extent) {
         // The root word starts with the primary-cell path that
         // descends from query_extent to root_extent.
         alignment=GridCell::primary_cell_path(
-            dimension(),query_extent,root_extent);
+            _root_cell.grid().dimension(),query_extent,root_extent);
         root_prefix=alignment.size();
     }
 

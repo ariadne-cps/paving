@@ -606,6 +606,49 @@ class TestPavingConcurrentAdjoin : public Ariadne::Testing::ContextFixture {
         ARIADNE_TESTING_PROVE(destination.equals(left_only));
     }
 
+    Void test_robdd_assignment_concurrent_single_cell_mutations() {
+        // The current manager changes under assignment, while every
+        // published source retains the same mandatory left cell.
+        RobddManager first_manager;
+        RobddManager second_manager;
+        Grid grid(1u);
+        GridCell left(grid,0u,make_binary_word("0"));
+        GridCell right(grid,0u,make_binary_word("1"));
+        RobddPaving first(first_manager,left,first_manager.constant(true),0u);
+        RobddPaving second(second_manager,left,second_manager.constant(true),0u);
+        RobddPaving destination(first);
+        std::atomic<bool> started{false};
+        std::atomic<bool> finished{false};
+        std::atomic<bool> correct{true};
+
+        std::thread reader([&] {
+            started.store(true,std::memory_order_release);
+            while(!finished.load(std::memory_order_acquire)) {
+                destination.adjoin(left);
+                destination.remove(right);
+                if(destination.dimension()!=grid.dimension()
+                        || destination.smallest_enclosing_primary_cell(
+                            left.box()).grid()!=grid
+                        || !destination.superset(left)) {
+                    correct.store(false,std::memory_order_relaxed);
+                }
+            }
+        });
+        std::thread writer([&] {
+            while(!started.load(std::memory_order_acquire)) {
+                std::this_thread::yield();
+            }
+            for(unsigned n=0u;n<96u;++n) {
+                destination=(n%2u==0u)?second:first;
+            }
+            finished.store(true,std::memory_order_release);
+        });
+        writer.join();
+        reader.join();
+        ARIADNE_TESTING_PROVE(correct.load(std::memory_order_acquire));
+        ARIADNE_TESTING_PROVE(destination.superset(left));
+    }
+
     Void test_grid_tree_concurrent_adjoin() {
         Grid grid(1u);
         auto cells=make_cells(grid);
@@ -667,6 +710,7 @@ int main(int argc, char** argv) {
     ARIADNE_TESTING_ADD_TEST(TestPavingConcurrentAdjoin,test_tree_direct_refinements_and_streaming);
     ARIADNE_TESTING_ADD_TEST(TestPavingConcurrentAdjoin,test_robdd_concurrent_set_mutations);
     ARIADNE_TESTING_ADD_TEST(TestPavingConcurrentAdjoin,test_robdd_native_algebra_with_concurrent_owner_updates);
+    ARIADNE_TESTING_ADD_TEST(TestPavingConcurrentAdjoin,test_robdd_assignment_concurrent_single_cell_mutations);
     ARIADNE_TESTING_ADD_TEST(TestPavingConcurrentAdjoin,test_robdd_concurrent_root_mutations);
     ARIADNE_TESTING_ADD_TEST(TestPavingConcurrentAdjoin,test_robdd_reader_writer_adjoin);
     return ARIADNE_TESTING_RUN_TESTS_WITH_ARGS(argc,argv);

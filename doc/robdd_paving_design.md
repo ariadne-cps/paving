@@ -1902,3 +1902,31 @@ right cell while value algebra and polymorphic/self-comparisons run,
 asserting semantic properties valid for either snapshot. Borrowed view
 lifetimes and self-mutating predicate callbacks remain outside this
 concurrency contract.
+
+
+## 2026-11-07 - Manager and geometry safety during ROBDD assignment
+
+`RobddPaving::adjoin(GridCell)` and `remove(GridCell)` previously read
+`_manager` without synchronizing with copy assignment, which can change
+that pointer alongside the root. Both methods now hold the owner mutex
+while constructing the singleton and applying the corresponding private
+unlocked union/difference. Manager selection and destination publication
+therefore happen in one critical section, without reentrant locks.
+
+The previously inline `dimension()` is now locked. The `mince` and
+`superset` paths already hold that same mutex, so their dimension queries
+are explicitly based on protected `_root_cell.grid()` rather than
+recursively acquiring the owner lock. Geometric enclosing-cell and
+approximation entry points now capture a copied root/grid geometry before
+using it. Candidate enumeration remains outside the owner lock; the
+final adjoin continues to validate grid compatibility atomically.
+
+The virtual `grid() const -> Grid const&` API still returns a borrowed
+reference and does not offer cross-assignment lifetime safety. Callers
+requiring an independent geometric value should copy `root_cell().grid()`
+from the synchronized `root_cell()` accessor instead.
+
+A new threaded regression alternates assignment from two compatible
+pavings managed by distinct live `RobddManager` instances, while another
+thread repeatedly adjoins/removes a cell and checks the synchronized
+dimension and enclosing geometry.

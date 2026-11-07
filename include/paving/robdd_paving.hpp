@@ -99,10 +99,12 @@ class RobddPaving : public virtual PavingInterface {
     ValidatedLowerKleenean overlaps(ExactBoxType const& box) const override;
 
     //! \brief Underlying grid shared by all cells in the paving.
+    //! \warning This reference does not preserve its lifetime across
+    //! concurrent assignment. Use root_cell() for a detached geometry value.
     Grid const& grid() const override { return _root_cell.grid(); }
 
-    //! \brief Dimension of the underlying grid.
-    DimensionType dimension() const override { return grid().dimension(); }
+    //! \brief Dimension of the underlying grid, synchronized with assignment.
+    DimensionType dimension() const override;
 
     //! \brief Return a canonical root handle by value, not by unsafe reference.
     //! \details This accessor is coherent with concurrent adjoin.
