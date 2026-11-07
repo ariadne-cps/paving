@@ -170,35 +170,6 @@ is required.
 These benchmarks are standalone executables, deliberately excluded from
 the `tests` target and CTest. Build and run them explicitly.
 
-## Isolated binary-tree cursor profiling
-
-The opt-in `benchmark_binary_tree_cursor` studies the traversal cost of
-deterministic full binary trees without the much larger geometric
-approximation construction cost. Tree construction and correctness checks
-are outside timed loops. Default depths 8, 12 and 16 yield 511, 8191 and
-131071 physical nodes, while enabled-leaf strides 2 and 16 change density.
-
-```bash
-cmake --build build-release --target benchmark_binary_tree_cursor
-./build-release/benchmarks/benchmark_binary_tree_cursor \
-  --dimensions 2,4 --depths 8,12,16 --strides 2,16 \
-  --verify-only --concurrency 0
-./build-release/benchmarks/benchmark_binary_tree_cursor \
-  --dimensions 2,4 --depths 8,12,16 --strides 2,16 \
-  --samples 7 --min-sample-ms 12 --concurrency 0
-```
-
-The program compares raw topology DFS, a diagnostic reproduction of
-recursive enabled-leaf search without geometry, the same reproduction
-with full `GridCell` reconstruction on every movement, and the real
-borrowed iterator. It verifies identical ordered cell paths for all
-variants before measuring calibrated median times. The diagnostic paths
-are comparative measurements, not a cycle-level decomposition of
-production code; raw DFS has a different control flow. Borrowed views
-are used only while the tree remains immutable. No public production
-API or owning snapshot semantics are changed. This benchmark is not
-registered with CTest; Ubuntu Release CI builds and runs its small
-`--verify-only` matrix but does not enforce performance thresholds.
 ## Build
 
 ```bash

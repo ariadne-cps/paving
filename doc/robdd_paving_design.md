@@ -2089,3 +2089,49 @@ borrowed-lifetime and iterator equality contracts remain unchanged.
 
 The lazy-cursor commit `bcadd1345ce5eb5991f4da29ddfd66ab34235437`
 passed Ubuntu, macOS, Windows, Sanitizers and Coverage workflows.
+
+
+## 2026-11-07 - Five-shape local 4D/f3 benchmark after lazy cursor
+
+The operator ran the Release `benchmark_paving_backends` matrix locally
+with dimensions=4, fineness=3, max-depth-bits=28, seven timing samples,
+`--tree-iterator-cost`, no retention and concurrency=0. All five
+geometries completed without a budget skip. These measurements are
+single-run per-operation medians on the user's machine (hardware details
+not recorded); do not infer significance from differences of a few percent.
+
+| Shape | Leaves | Tree physical N | ROBDD reachable N | Tree iterate leaves (ms) | ROBDD iterate leaves (ms) | Tree iterate min (ms) | ROBDD iterate min (ms) |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| aligned-box | 416 | 2031 | 108 | 0.6604 | 0.6528 | 2.0077 | 1.9883 |
+| rotated-box | 360 | 1871 | 201 | 0.5785 | 0.5738 | 1.7529 | 1.7192 |
+| aligned-ellipsoid | 96 | 879 | 181 | 0.1659 | 0.1635 | 0.4541 | 0.4565 |
+| rotated-ellipsoid | 104 | 671 | 136 | 0.1769 | 0.1792 | 0.5730 | 0.5749 |
+| ball | 80 | 911 | 156 | 0.1443 | 0.1402 | 0.8493 | 0.8449 |
+
+Geometric means of paired ROBDD/tree operation ratios across the five
+cases (ratio >1 means the binary tree is faster): `iterate_leaves`
+0.990x; `iterate_min` 0.995x; `outer_warm` 1.004x;
+`outer_cold` 0.997x; `replay_bulk` 8.288x;
+`superset_16` 0.486x; `adjoin_recombine` 1.014x;
+`copy` 0.004x (ROBDD's near-0.0001 ms copies have
+limited timer precision). `adjoin_recombine` reverses relative
+advantage across shapes: ROBDD wins on the two boxes, whereas
+the tree wins on the three non-box sets. The outer construction
+time still ranges from roughly 500 to 800 ms and dominates the
+full pipeline.
+
+Conclusion for these five cases: the severe eager-geometric cursor
+iteration penalty was addressed, and the remaining tree/ROBDD
+iteration difference is within about 3%; no backend superiority
+can be asserted from a single run at this margin. ROBDD reachable
+node counts are 4.9x..18.8x smaller than physical tree counts,
+but this is *not* a whole-memory footprint comparison. Retain
+the borrowed-vs-owning lifetime and snapshot distinctions.
+
+Future development should be driven by application profiles
+and operation-specific bottlenecks (particularly bulk insertion,
+queries, copying and memory), not more cursor micro-optimizations
+without new evidence. Benchmark experiments belong on the local
+machine and results in this design journal. Do not use the official
+README as a running experimental notebook or add GitHub Actions
+performance workflows for this interactive investigation.
