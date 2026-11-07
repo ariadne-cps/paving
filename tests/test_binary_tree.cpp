@@ -342,10 +342,40 @@ Void test_copy_and_reset() {
     ARIADNE_TESTING_PROVE(copied.has_enabled());
 }
 
+    Void test_independent_binary_prefix_semantics() {
+        // No Grid or paving object is involved: only abstract binary paths.
+        BinaryTreeNode full(true);
+        BinaryTreeNode split_full(true);
+        split_full.split();
+        ARIADNE_TESTING_PROVE(!(full==split_full)); // Different structure.
+        ARIADNE_TESTING_PROVE(BinaryTreeNode::subset(&full,&split_full));
+        ARIADNE_TESTING_PROVE(BinaryTreeNode::subset(&split_full,&full));
+        split_full.recombine();
+        ARIADNE_TESTING_PROVE(full==split_full);
+
+        BinaryTreeNode prefixes(false);
+        prefixes.add_enabled(BinaryWord("01"));
+        ARIADNE_TESTING_PROVE(prefixes.is_enabled(BinaryWord("01")));
+        ARIADNE_TESTING_PROVE(prefixes.is_enabled(BinaryWord("0101")));
+        ARIADNE_TESTING_PROVE(!prefixes.is_enabled(BinaryWord("00")));
+        ARIADNE_TESTING_PROVE(!prefixes.is_enabled(BinaryWord("1")));
+        prefixes.add_enabled(BinaryWord("0100")); // Already covered by "01".
+        ARIADNE_TESTING_PROVE(prefixes.is_enabled(BinaryWord("0100")));
+        ARIADNE_TESTING_PROVE(BinaryTreeNode::subset(&prefixes,&full));
+        ARIADNE_TESTING_PROVE(!BinaryTreeNode::subset(&full,&prefixes));
+
+        BinaryTreeNode disjoint(false);
+        disjoint.add_enabled(BinaryWord("1"));
+        ARIADNE_TESTING_PROVE(!BinaryTreeNode::intersect(&prefixes,&disjoint));
+        disjoint.add_enabled(BinaryWord("011"));
+        ARIADNE_TESTING_PROVE(BinaryTreeNode::intersect(&prefixes,&disjoint));
+    }
+
 };
 
 int main(int argc, char** argv) {
     ARIADNE_TESTING_SUITE("test_binary_tree");
+    ARIADNE_TESTING_ADD_TEST(TestBinaryTree, test_independent_binary_prefix_semantics);
     ARIADNE_TESTING_ADD_TEST(TestBinaryTree, test_copy_and_reset);
     ARIADNE_TESTING_ADD_TEST(TestBinaryTree, test_binary_tree);
     return ARIADNE_TESTING_RUN_TESTS_WITH_ARGS(argc, argv);

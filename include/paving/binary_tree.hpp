@@ -27,15 +27,13 @@
 #define ARIADNE_BINARY_TREE_HPP
 
 
-#include <iostream>
-#include <iomanip>
+#include <sstream>
+#include <stdexcept>
+#include <vector>
 
-#include "function/functional.hpp"
-#include "utility/macros.hpp"
-#include "utility/exceptions.hpp"
-#include "utility/stlio.hpp"
+#include "foundation/logical.hpp"
 #include "utility/binary_word.hpp"
-#include "set/list_set.hpp"
+#include "utility/macros.hpp"
 
 
 namespace Ariadne {
@@ -56,14 +54,21 @@ typedef std::vector<Bool> BooleanArray;
 
 //***************************************BinaryTreeNode************************************/
 
-//! \brief The binary tree node.
+//! \brief An owning binary-tree node, including the subtree rooted here.
 //!
-//! This node is to be used in a binary tree designed for subdividing the state
-//! space into enabled and disabled cells. This is required for representing
-//! subsets of the state space.
+//! Internal nodes have exactly two ordered children (binary path bits 0 and 1).
+//! Enabled leaves represent all extensions of their binary prefix; disabled
+//! leaves represent none. Internal nodes carry an indeterminate logical state.
+//! These semantics are independent of any grid, geometry or paving interface.
 //!
-//! \b Storage: We only store pointers to the left and right subtrees and the ValidatedKleenean
-//! value indicating whether this cell is enabled/disabled or we do not know.
+//! Operators on path sets include add_enabled, restrict, remove, subset and
+//! intersect. split() and recombine() may alter representation without altering
+//! the represented set. operator== compares structure, not abstract set equality.
+//!
+//! Children are owned exclusively. Accessors return borrowed pointers that
+//! mutations may invalidate. The node is not internally synchronized: an owning
+//! container must coordinate concurrent access and parallel traversal.
+//! See doc/binary_tree_design.md for the full representation contract.
 class BinaryTreeNode {
   protected:
     //! \brief Defines whether the given node of the tree is on/off or we do not know*/
@@ -150,19 +155,19 @@ class BinaryTreeNode {
     //! \brief Returns true if the node is a leaf (pLeftNode == nullptr && pRightNode == nullptr) otherwise false
     Bool is_leaf() const;
 
-    //! \brief Return the left or right sub-node
+    //! \brief Return a borrowed child pointer (nullptr for a leaf).
     BinaryTreeNode * child_node(Bool left_or_right) const;
 
-    //! \brief Return the left sub-node
+    //! \brief Return a borrowed left child pointer (nullptr for a leaf).
     BinaryTreeNode * left_node() const;
 
-    //! \brief Return the right sub-node
+    //! \brief Return a borrowed right child pointer (nullptr for a leaf).
     BinaryTreeNode * right_node() const;
 
     //! \brief Returns the depth of the sub-tree rooted to the given node, i.e. the depth of it's deepest node
     Nat depth() const;
 
-    //! \brief Allows to compare to binaty tree nodes
+    //! \brief Compare node state and subtree structure, not semantic membership.
     Bool operator==(const BinaryTreeNode & otherNode ) const;
 
     //! \brief Marks the node as enabled or disabled.

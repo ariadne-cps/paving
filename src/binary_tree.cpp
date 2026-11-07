@@ -23,13 +23,8 @@
  *  along with Ariadne.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-#include <iostream>
-#include <iomanip>
-#include "function/functional.hpp"
-#include "utility/macros.hpp"
-#include "utility/exceptions.hpp"
-#include "utility/stlio.hpp"
-#include "set/list_set.hpp"
+#include <algorithm>
+
 #include "paving/binary_tree.hpp"
 
 

@@ -30,6 +30,23 @@ Paving depends directly on:
 
 Set provides Linear Programming, Constraint Solving, Function, Geometry and the lower layers transitively. BDD provides its Threading and other lower dependencies transitively. The CMake build includes and links both Set and BDD; existing paving binary-tree algorithms are not replaced by the BDD implementation.
 
+## Binary tree node as an independent data structure
+
+`BinaryTreeNode` (currently `paving/binary_tree.hpp`) is an owning node
+and its rooted subtree, not a geometric paving type. It describes Boolean
+membership of abstract binary prefixes: an enabled leaf covers all
+continuations of its path. Set operations do not require a `Grid`,
+`GridCell`, or `PavingInterface`. The node depends on Foundation logical
+values and Utility paths and types, not directly on Function or Set.
+
+The node remains a sequential, unsynchronized primitive. Child pointers
+are borrowed; coordinating concurrent access and parallel subtree work
+is the responsibility of a higher-level owner. The intended future move
+to `ariadne-cps/tree` will preserve the `BinaryTreeNode` name and behavior.
+
+See [Binary tree design](doc/binary_tree_design.md) for invariants,
+ownership, semantics, limitations and the planned extraction.
+
 ## Paving representations
 
 The two representation-specific C++ names are:
