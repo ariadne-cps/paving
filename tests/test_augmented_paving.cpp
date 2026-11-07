@@ -37,10 +37,49 @@ class TestAugmentedPaving : public Ariadne::Testing::ContextFixture {
         ARIADNE_TESTING_PROVE(copy->is_empty());
         ARIADNE_TESTING_PROVE(!paving.is_empty());
     }
+
+    // Exercise the public forwarding API with a fully enabled paving,
+    // and check the resulting state rather than just the forwarding calls.
+    Void test_state_operations() {
+        Grid grid(1u);
+        Mapping mapping=Mapping::identity(1u);
+        BinaryTreePaving full_state(grid,true);
+        AugmentedPaving full(full_state,mapping);
+        AugmentedPaving other(grid,mapping);
+        AugmentedPaving const& constant=full;
+
+        ARIADNE_TESTING_PROVE(&constant.state_paving()==&constant.state_set());
+        ARIADNE_TESTING_PROVE(&constant.auxiliary_mapping()==&constant.auxiliary_function());
+        ARIADNE_TESTING_PROVE(&constant.auxiliary_mapping()==&constant.auxiliary_data());
+        ARIADNE_TESTING_EXPECT_EQUAL(constant.grid(),grid);
+        ARIADNE_TESTING_PROVE(constant.begin()!=constant.end());
+        ARIADNE_TESTING_PROVE(other.begin()==other.end());
+
+        std::ostringstream repr;
+        repr << constant;
+        ARIADNE_TESTING_PROVE(repr.str().find("AugmentedPaving(")==0u);
+
+        ARIADNE_TESTING_PROVE(!subset(full,other));
+        ARIADNE_TESTING_PROVE(!intersect(full,other));
+        other.adjoin(full);
+        ARIADNE_TESTING_PROVE(subset(full,other));
+        ARIADNE_TESTING_PROVE(intersect(full,other));
+        other.restrict(full);
+        ARIADNE_TESTING_PROVE(subset(other,full));
+        other.remove(full);
+        ARIADNE_TESTING_PROVE(other.is_empty());
+
+        full.mince(1u);
+        ARIADNE_TESTING_PROVE(!full.is_empty());
+        full.recombine();
+        full.restrict_to_extent(0u);
+        ARIADNE_TESTING_PROVE(!full.is_empty());
+    }
 };
 
 int main(int argc, char** argv) {
     ARIADNE_TESTING_SUITE("test_augmented_paving");
     ARIADNE_TESTING_ADD_TEST(TestAugmentedPaving,test_mapping_and_compatibility);
+    ARIADNE_TESTING_ADD_TEST(TestAugmentedPaving,test_state_operations);
     return ARIADNE_TESTING_RUN_TESTS_WITH_ARGS(argc,argv);
 }

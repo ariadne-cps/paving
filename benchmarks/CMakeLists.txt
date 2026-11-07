@@ -13,8 +13,3 @@ add_dependencies(benchmarks benchmark_paving_backends)
 add_executable(benchmark_paving_superset benchmark_paving_superset.cpp)
 target_link_libraries(benchmark_paving_superset PRIVATE ariadne-paving paving)
 add_dependencies(benchmarks benchmark_paving_superset)
-
-# Opt-in traversal diagnosis on prebuilt trees; intentionally outside CTest.
-add_executable(benchmark_binary_tree_cursor benchmark_binary_tree_cursor.cpp)
-target_link_libraries(benchmark_binary_tree_cursor PRIVATE ariadne-paving paving)
-add_dependencies(benchmarks benchmark_binary_tree_cursor)
