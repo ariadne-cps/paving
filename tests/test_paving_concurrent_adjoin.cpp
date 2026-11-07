@@ -83,6 +83,59 @@ class TestPavingConcurrentAdjoin : public Ariadne::Testing::ContextFixture {
   public:
     using ContextFixture::ContextFixture;
 
+    template<class Paving,class MakeSource>
+    Void test_reader_writer(Paving& destination,GridCell const& sentinel,
+            std::vector<GridCell> const& cells,MakeSource make_source) {
+        PavingInterface& api=destination;
+        api.adjoin(sentinel);
+        std::atomic<bool> finished{false};
+        std::atomic<bool> correct{true};
+        std::thread reader([&] {
+            while(not finished.load(std::memory_order_acquire)) {
+                if(not api.superset(sentinel)) {
+                    correct.store(false,std::memory_order_relaxed);
+                }
+                (void)api.size();
+                if(api.root_cell().grid()!=sentinel.grid()) {
+                    correct.store(false,std::memory_order_relaxed);
+                }
+                Paving snapshot(destination);
+                if(not snapshot.superset(sentinel)) {
+                    correct.store(false,std::memory_order_relaxed);
+                }
+            }
+        });
+        concurrent_adjoins(api,cells,make_source);
+        finished.store(true,std::memory_order_release);
+        reader.join();
+        ARIADNE_TESTING_PROVE(correct.load(std::memory_order_acquire));
+        for(GridCell const& cell:cells) {
+            ARIADNE_TESTING_PROVE(api.superset(cell));
+        }
+    }
+
+    Void test_tree_reader_writer_adjoin() {
+        Grid grid(1u);
+        auto cells=make_cells(grid);
+        GridCell sentinel(grid,1u,make_binary_word("0000000"));
+        GridTreePaving destination(grid,false);
+        test_reader_writer(destination,sentinel,cells,
+            [&](GridCell const& cell) { return GridTreePaving(cell); });
+    }
+
+    Void test_robdd_reader_writer_adjoin() {
+        RobddManager manager;
+        Grid grid(1u);
+        auto cells=make_cells(grid);
+        GridCell root(grid,1u,BinaryWord{});
+        GridCell sentinel(grid,1u,make_binary_word("0000000"));
+        RobddPaving destination(manager,root,manager.constant(false),0u);
+        test_reader_writer(destination,sentinel,cells,
+            [&](GridCell const& cell) {
+                return RobddPaving(manager,cell,manager.constant(true),0u);
+            });
+    }
+
     Void test_grid_tree_concurrent_adjoin() {
         Grid grid(1u);
         auto cells=make_cells(grid);
@@ -133,5 +186,7 @@ int main(int argc, char** argv) {
     ARIADNE_TESTING_SUITE("test_paving_concurrent_adjoin");
     ARIADNE_TESTING_ADD_TEST(TestPavingConcurrentAdjoin,test_grid_tree_concurrent_adjoin);
     ARIADNE_TESTING_ADD_TEST(TestPavingConcurrentAdjoin,test_robdd_concurrent_adjoin);
+    ARIADNE_TESTING_ADD_TEST(TestPavingConcurrentAdjoin,test_tree_reader_writer_adjoin);
+    ARIADNE_TESTING_ADD_TEST(TestPavingConcurrentAdjoin,test_robdd_reader_writer_adjoin);
     return ARIADNE_TESTING_RUN_TESTS_WITH_ARGS(argc,argv);
 }

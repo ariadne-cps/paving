@@ -572,15 +572,15 @@ class GridTreePaving
     using GridTreeSubpaving::intersects;
 
     //! Explicit overrides resolve the shared SubPavingInterface virtual base.
-    SizeType size() const override { return GridTreeSubpaving::size(); }
+    SizeType size() const override;
     DimensionType dimension() const override { return GridTreeSubpaving::dimension(); }
     const Grid& grid() const override { return GridTreeSubpaving::grid(); }
-    GridCell root_cell() const override { return GridTreeSubpaving::root_cell(); }
+    GridCell root_cell() const override;
     UpperBoxType bounding_box() const override { return GridTreeSubpaving::bounding_box(); }
     Bool equals(const SubPavingInterface& paving) const override { return GridTreeSubpaving::equals(paving); }
     Bool subset(const SubPavingInterface& paving) const override { return GridTreeSubpaving::subset(paving); }
     Bool intersects(const SubPavingInterface& paving) const override { return GridTreeSubpaving::intersects(paving); }
-    Bool superset(const GridCell& cell) const override { return GridTreeSubpaving::superset(cell); }
+    Bool superset(const GridCell& cell) const override;
     Void set_root_cell(Bool enabled) override { GridTreeSubpaving::set_root_cell(enabled); }
     Void mince(Nat fineness) override { GridTreeSubpaving::mince(fineness); }
     Void recombine() override { GridTreeSubpaving::recombine(); }

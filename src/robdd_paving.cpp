@@ -253,27 +253,50 @@ class RobddPavingLeafIterator final
 
 } // anonymous namespace
 
+GridCell RobddPaving::root_cell() const {
+    std::lock_guard<std::mutex> lock(_adjoin_mutex);
+    return _root_cell;
+}
+
+Robdd RobddPaving::robdd() const {
+    std::lock_guard<std::mutex> lock(_adjoin_mutex);
+    return _root;
+}
+
+SizeType RobddPaving::depth() const {
+    std::lock_guard<std::mutex> lock(_adjoin_mutex);
+    return _depth;
+}
+
+Bool RobddPaving::is_empty() const {
+    std::lock_guard<std::mutex> lock(_adjoin_mutex);
+    return _root.is_false();
+}
+
 RobddPaving* RobddPaving::clone() const {
     return new RobddPaving(*this);
 }
 
 SubPavingInterface* RobddPaving::_branch(Bool right) const {
     return new PavingCellViewAdapter<RobddPaving>(
-        const_cast<RobddPaving&>(*this),_root_cell.split(right));
+        const_cast<RobddPaving&>(*this),root_cell().split(right));
 }
 
 ForwardConstantIteratorInterface<GridCell>* RobddPaving::_begin() const {
+    CopyState state=_snapshot_copy(*this);
     return new RobddPavingLeafIterator(
-        *_manager,_root_cell,_root,_depth,false);
+        *state.manager,state.root_cell,state.root,state.depth,false);
 }
 
 ForwardConstantIteratorInterface<GridCell>* RobddPaving::_end() const {
+    CopyState state=_snapshot_copy(*this);
     return new RobddPavingLeafIterator(
-        *_manager,_root_cell,_root,_depth,true);
+        *state.manager,state.root_cell,state.root,state.depth,true);
 }
 
 OutputStream& RobddPaving::_write(OutputStream& os) const {
-    os << "RobddPaving(" << _root_cell << ",depth=" << _depth << ")";
+    CopyState state=_snapshot_copy(*this);
+    os << "RobddPaving(" << state.root_cell << ",depth=" << state.depth << ")";
     return os;
 }
 
@@ -362,9 +385,10 @@ RobddPaving RobddPaving::from_cells(
 }
 
 Bool RobddPaving::is_enabled(BinaryWord const& path) const {
-    ARIADNE_PRECONDITION_MSG(path.size() == _depth,
+    CopyState state=_snapshot_copy(*this);
+    ARIADNE_PRECONDITION_MSG(path.size() == state.depth,
         "Paving membership requires a path of the snapshot's logical depth");
-    return _manager->evaluate(_root,path);
+    return state.manager->evaluate(state.root,path);
 }
 
 GridCell RobddPaving::smallest_enclosing_primary_cell(
@@ -375,15 +399,16 @@ GridCell RobddPaving::smallest_enclosing_primary_cell(
 }
 
 UpperBoxType RobddPaving::bounding_box() const {
-    auto current=begin(), finish=end();
+    RobddPaving snapshot(*this);
+    auto current=snapshot.begin(), finish=snapshot.end();
     if (current == finish) {
-        return ExactBoxType(dimension());
+        return ExactBoxType(snapshot.dimension());
     }
 
     UpperBoxType bounds=current->box();
     for (++current; current!=finish; ++current) {
         UpperBoxType cell_box=current->box();
-        for (DimensionType i=0u; i<dimension(); ++i) {
+        for (DimensionType i=0u; i<snapshot.dimension(); ++i) {
             if (cell_box[i].lower_bound().raw() < bounds[i].lower_bound().raw()) {
                 bounds[i].set_lower_bound(cell_box[i].lower_bound());
             }
@@ -397,10 +422,11 @@ UpperBoxType RobddPaving::bounding_box() const {
 
 ValidatedLowerKleenean RobddPaving::inside(
         ExactBoxType const& box) const {
-    ARIADNE_PRECONDITION_MSG(box.dimension() == dimension(),
+    RobddPaving snapshot(*this);
+    ARIADNE_PRECONDITION_MSG(box.snapshot.dimension() == snapshot.dimension(),
         "Paving and query-box dimensions must agree");
     ExactBoxType narrowed=cast_exact_box(narrow(box));
-    for (auto cell=begin(), last=end(); cell!=last; ++cell) {
+    for (auto cell=snapshot.begin(), last=snapshot.end(); cell!=last; ++cell) {
         if (not cell->box().subset(narrowed)) { return false; }
     }
     return true;
@@ -408,10 +434,11 @@ ValidatedLowerKleenean RobddPaving::inside(
 
 ValidatedLowerKleenean RobddPaving::separated(
         ExactBoxType const& box) const {
-    ARIADNE_PRECONDITION_MSG(box.dimension() == dimension(),
+    RobddPaving snapshot(*this);
+    ARIADNE_PRECONDITION_MSG(box.snapshot.dimension() == snapshot.dimension(),
         "Paving and query-box dimensions must agree");
     ExactBoxType widened=cast_exact_box(widen(box));
-    for (auto cell=begin(), last=end(); cell!=last; ++cell) {
+    for (auto cell=snapshot.begin(), last=snapshot.end(); cell!=last; ++cell) {
         if (cell->box().overlaps(widened)) { return false; }
     }
     return true;
@@ -419,36 +446,40 @@ ValidatedLowerKleenean RobddPaving::separated(
 
 ValidatedLowerKleenean RobddPaving::overlaps(
         ExactBoxType const& box) const {
-    ARIADNE_PRECONDITION_MSG(box.dimension() == dimension(),
+    RobddPaving snapshot(*this);
+    ARIADNE_PRECONDITION_MSG(box.snapshot.dimension() == snapshot.dimension(),
         "Paving and query-box dimensions must agree");
     ExactBoxType narrowed=cast_exact_box(narrow(box));
-    for (auto cell=begin(), last=end(); cell!=last; ++cell) {
+    for (auto cell=snapshot.begin(), last=snapshot.end(); cell!=last; ++cell) {
         if (cell->box().overlaps(narrowed)) { return true; }
     }
     return false;
 }
 
 SizeType RobddPaving::enabled_cell_count() const {
-    return _manager->model_count(_root,_depth);
+    CopyState state=_snapshot_copy(*this);
+    return state.manager->model_count(state.root,state.depth);
 }
 
 Void RobddPaving::for_each_enabled_cell(
         std::function<void(GridCell const&)> const& visitor) const {
     ARIADNE_PRECONDITION_MSG(static_cast<Bool>(visitor),
         "Enabled-cell visitor must be nonempty");
-    _manager->for_each_satisfying_assignment(
-        _root,_depth,[&](BinaryWord const& assignment) {
-            BinaryWord path = _root_cell.word();
+    CopyState state=_snapshot_copy(*this);
+    state.manager->for_each_satisfying_assignment(
+        state.root,state.depth,[&](BinaryWord const& assignment) {
+            BinaryWord path = state.root_cell.word();
             path.append(assignment);
-            GridCell cell(_root_cell.grid(),_root_cell.root_extent(),path);
+            GridCell cell(state.root_cell.grid(),state.root_cell.root_extent(),path);
             visitor(cell);
         });
 }
 
 SizeType RobddPaving::enabled_leaf_count() const {
+    CopyState state=_snapshot_copy(*this);
     SizeType count=0u;
     BinaryWord path;
-    visit_enabled_leaf_paths(*_manager,_root,0u,_depth,path,
+    visit_enabled_leaf_paths(*state.manager,state.root,0u,state.depth,path,
         [&](BinaryWord const&) {
             ARIADNE_PRECONDITION_MSG(
                 count < std::numeric_limits<SizeType>::max(),
@@ -459,25 +490,24 @@ SizeType RobddPaving::enabled_leaf_count() const {
 }
 
 RobddPaving::ConstIterator RobddPaving::begin() const {
-    return ConstIterator(new RobddPavingLeafIterator(
-        *_manager,_root_cell,_root,_depth,false));
+    return ConstIterator(_begin());
 }
 
 RobddPaving::ConstIterator RobddPaving::end() const {
-    return ConstIterator(new RobddPavingLeafIterator(
-        *_manager,_root_cell,_root,_depth,true));
+    return ConstIterator(_end());
 }
 
 Void RobddPaving::for_each_enabled_leaf(
         std::function<void(GridCell const&)> const& visitor) const {
     ARIADNE_PRECONDITION_MSG(static_cast<Bool>(visitor),
         "Enabled-leaf visitor must be nonempty");
+    CopyState state=_snapshot_copy(*this);
     BinaryWord path;
-    visit_enabled_leaf_paths(*_manager,_root,0u,_depth,path,
+    visit_enabled_leaf_paths(*state.manager,state.root,0u,state.depth,path,
         [&](BinaryWord const& relative_path) {
-            BinaryWord complete_path = _root_cell.word();
+            BinaryWord complete_path = state.root_cell.word();
             complete_path.append(relative_path);
-            GridCell cell(_root_cell.grid(),_root_cell.root_extent(),complete_path);
+            GridCell cell(state.root_cell.grid(),state.root_cell.root_extent(),complete_path);
             visitor(cell);
         });
 }
@@ -515,7 +545,8 @@ Void RobddPaving::recombine() {
 }
 
 std::unique_ptr<BinaryTreeNode> RobddPaving::to_binary_tree() const {
-    return expand_tree(*_manager,_root,0u,_depth);
+    CopyState state=_snapshot_copy(*this);
+    return expand_tree(*state.manager,state.root,0u,state.depth);
 }
 
 Void RobddPaving::set_root_cell(Bool enabled) {
@@ -570,7 +601,7 @@ Void RobddPaving::adjoin(std::vector<GridCell> const& cells) {
         root=common_root_cell(root,cell);
     }
     RobddPaving additions=from_cells(*_manager,root,cells);
-    if(is_empty() and _depth==0u) {
+    if(_root.is_false() and _depth==0u) {
         // Only a genuinely depth-zero empty paving can discard its old
         // metadata. A minced empty paving must retain its logical depth.
         _root_cell=std::move(additions._root_cell);
@@ -830,6 +861,7 @@ Bool RobddPaving::equals(SubPavingInterface const& other) const {
 }
 
 Bool RobddPaving::superset(GridCell const& cell) const {
+    std::lock_guard<std::mutex> lock(_adjoin_mutex);
     ARIADNE_PRECONDITION_MSG(grid() == cell.grid(),
         "Cannot test cell containment across different grids");
     if(_root.is_false()) { return false; }
@@ -892,8 +924,8 @@ Bool RobddPaving::superset(GridCell const& cell) const {
 }
 
 RobddPaving RobddPaving::subpaving(GridCell const& cell) const {
-    BinaryWord path=relative_cell_path(_root_cell,cell);
     RobddPaving restricted(*this);
+    BinaryWord path=relative_cell_path(restricted._root_cell,cell);
     for (SizeType i=0u; i<path.size(); ++i) {
         restricted=restricted.branch(path[i]);
     }
@@ -901,14 +933,16 @@ RobddPaving RobddPaving::subpaving(GridCell const& cell) const {
 }
 
 RobddPaving RobddPaving::branch(Bool right) const {
-    Robdd restricted = _root;
-    SizeType child_depth = 0u;
-    if (_depth != 0u) {
-        restricted = _manager->restrict(_root,BddVariable(0u),right);
-        restricted = _manager->shift(restricted,-1);
-        child_depth = _depth-1u;
+    RobddPaving source(*this);
+    Robdd restricted=source._root;
+    SizeType child_depth=0u;
+    if(source._depth!=0u) {
+        restricted=source._manager->restrict(source._root,BddVariable(0u),right);
+        restricted=source._manager->shift(restricted,-1);
+        child_depth=source._depth-1u;
     }
-    return RobddPaving(*_manager,_root_cell.split(right),restricted,child_depth);
+    return RobddPaving(*source._manager,source._root_cell.split(right),
+        restricted,child_depth);
 }
 
 } // namespace Ariadne

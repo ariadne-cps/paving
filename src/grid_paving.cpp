@@ -1754,6 +1754,26 @@ OutputStream& operator<<(OutputStream& os, const GridTreeSubpaving& theGridTreeS
 
 //********************************************GridTreeSet*********************************************/
 
+SizeType GridTreePaving::size() const {
+    std::lock_guard<std::mutex> lock(_adjoin_mutex);
+    return GridTreeSubpaving::size();
+}
+
+GridCell GridTreePaving::root_cell() const {
+    std::lock_guard<std::mutex> lock(_adjoin_mutex);
+    return GridTreeSubpaving::root_cell();
+}
+
+Bool GridTreePaving::superset(GridCell const& cell) const {
+    std::lock_guard<std::mutex> lock(_adjoin_mutex);
+    // A borrowed base view has no synchronized virtual root_cell()
+    // override; reading through it avoids recursive acquisition of our
+    // mutex while the underlying nodes are protected.
+    GridTreeSubpaving view(_theGridCell.grid(),_theGridCell.root_extent(),
+        _theGridCell.word(),_pRootTreeNode);
+    return view.superset(cell);
+}
+
 GridCell GridTreePaving::smallest_enclosing_primary_cell( const UpperBoxType& theBoxType ) const {
     ARIADNE_PRECONDITION_MSG( this->dimension() == theBoxType.dimension(), "Cannot find enclosing cell for ExactBoxType  " << theBoxType << " for GridTreeSet with grid " << this->grid() );
 
@@ -1774,18 +1794,18 @@ Void GridTreePaving::_adjoin_unlocked( const GridCell& theCell ) {
 }
 
 Void GridTreePaving::_adjoin_unlocked( const GridTreeSubpaving& theOtherSubPaving ) {
-    ARIADNE_PRECONDITION_MSG( this->grid() == theOtherSubPaving.root_cell().grid(), "Cannot adjoin GridTreeSubset with grid "<<theOtherSubPaving.root_cell().grid()<<" to GridTreeSet with grid "<<this->grid() );
+    ARIADNE_PRECONDITION_MSG( this->grid() == theOtherSubPaving.GridTreeSubpaving::root_cell().grid(), "Cannot adjoin GridTreeSubset with grid "<<theOtherSubPaving.GridTreeSubpaving::root_cell().grid()<<" to GridTreeSet with grid "<<this->grid() );
 
     Bool has_stopped = false;
     //Align the paving and the cell
-    BinaryTreeNode* pBinaryTreeNode = align_with_cell( theOtherSubPaving.root_cell().root_extent(), true, false, has_stopped );
+    BinaryTreeNode* pBinaryTreeNode = align_with_cell( theOtherSubPaving.GridTreeSubpaving::root_cell().root_extent(), true, false, has_stopped );
 
     //If we are not trying to adjoin something into an enabled sub cell of the paving
     if( ! has_stopped ){
         //Now, the pBinaryTreeNode of this paving corresponds to the primary cell common with theOtherSubPaving.
         //The theOtherSubPaving's root node is defined the path theOtherSubPaving.word() which starts in the
         //node corresponding to the common primary cell.
-        pBinaryTreeNode->add_enabled( theOtherSubPaving.binary_tree(), theOtherSubPaving.root_cell().word() );
+        pBinaryTreeNode->add_enabled( theOtherSubPaving.binary_tree(), theOtherSubPaving.GridTreeSubpaving::root_cell().word() );
     }
 }
 
@@ -1912,12 +1932,12 @@ GridTreePaving::~GridTreePaving() {
 }
 
 Void GridTreePaving::up_to_primary_cell( const Nat toPCellExtent ){
-    const Nat fromPCellExtent = this->root_cell().root_extent();
+    const Nat fromPCellExtent = GridTreeSubpaving::root_cell().root_extent();
 
     //The primary cell of this paving is lower then the one in the other paving so this
     //paving's has to be rerooted to another primary cell and then we merge the pavings.
     //1. Compute the path
-    BinaryWord primaryCellPath = GridCell::primary_cell_path( this->root_cell().grid().dimension(), toPCellExtent, fromPCellExtent );
+    BinaryWord primaryCellPath = GridCell::primary_cell_path( GridTreeSubpaving::root_cell().grid().dimension(), toPCellExtent, fromPCellExtent );
     //2. Substitute the root node of the paiving with the extended tree
     this->_pRootTreeNode = BinaryTreeNode::prepend_tree( primaryCellPath, this->_pRootTreeNode );
     //3. Update the GridCell that corresponds to the root of this GridTreeSubset
@@ -1926,7 +1946,7 @@ Void GridTreePaving::up_to_primary_cell( const Nat toPCellExtent ){
 
 BinaryTreeNode* GridTreePaving::align_with_cell( const Nat otherPavingPCellExtent, const Bool stop_on_enabled,
                                                  const Bool stop_on_disabled, Bool & has_stopped ) {
-    const Nat thisPavingPCellExtent = this->root_cell().root_extent();
+    const Nat thisPavingPCellExtent = GridTreeSubpaving::root_cell().root_extent();
 
     //The current root node of the GridTreeSet
     BinaryTreeNode * pBinaryTreeNode = this->_pRootTreeNode;
@@ -1935,7 +1955,7 @@ BinaryTreeNode* GridTreePaving::align_with_cell( const Nat otherPavingPCellExten
 
         //The primary cell of this paving is higher then the one of the other paving.
         //1. We locate the path to the primary cell node common with the other paving
-        BinaryWord primaryCellPath = GridCell::primary_cell_path( this->root_cell().grid().dimension(), thisPavingPCellExtent, otherPavingPCellExtent );
+        BinaryWord primaryCellPath = GridCell::primary_cell_path( GridTreeSubpaving::root_cell().grid().dimension(), thisPavingPCellExtent, otherPavingPCellExtent );
 
         //2. Locate the binary tree node corresponding to this primnary cell
         Nat position = 0;

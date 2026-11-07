@@ -74,7 +74,7 @@ class RobddPaving : public virtual PavingInterface {
         std::vector<GridCell> const& cells);
 
     //! \brief Geometric root of the represented subpaving.
-    GridCell root_cell() const override { return _root_cell; }
+    GridCell root_cell() const override;
 
     //! \brief Find the smallest primary grid cell enclosing a given box.
     //! \details Uses the same grid geometry and dimension check as the
@@ -104,14 +104,16 @@ class RobddPaving : public virtual PavingInterface {
     //! \brief Dimension of the underlying grid.
     DimensionType dimension() const override { return grid().dimension(); }
 
+    //! \brief Return a canonical root handle by value, not by unsafe reference.
+    //! \details This accessor is coherent with concurrent adjoin.
     //! \brief Immutable Boolean root shared through the manager.
-    Robdd const& robdd() const { return _root; }
+    Robdd robdd() const;
 
     //! \brief Logical number of subdivision decisions below root_cell().
-    SizeType depth() const { return _depth; }
+    SizeType depth() const;
 
     //! \brief True when no subdivision path is enabled.
-    Bool is_empty() const { return _root.is_false(); }
+    Bool is_empty() const;
 
     //! \brief Test an exact-depth path relative to the root cell.
     //! \pre path.size() equals depth().
