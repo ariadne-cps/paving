@@ -33,11 +33,20 @@ inline SizeType checked_product(SizeType left, SizeType right,
     return left*right;
 }
 
-template<class Index>
+// Express narrowing as a type-level contract. Same-width unsigned
+// conversions cannot fail, including when Nat == SizeType.
+template<class Index> requires (std::numeric_limits<Index>::digits <
+                               std::numeric_limits<SizeType>::digits)
 Index checked_index(SizeType value) {
     ARIADNE_PRECONDITION_MSG(
         value<=static_cast<SizeType>(std::numeric_limits<Index>::max()),
         "Paving index exceeds the destination integer range");
+    return static_cast<Index>(value);
+}
+
+template<class Index> requires (std::numeric_limits<Index>::digits >=
+                               std::numeric_limits<SizeType>::digits)
+Index checked_index(SizeType value) {
     return static_cast<Index>(value);
 }
 

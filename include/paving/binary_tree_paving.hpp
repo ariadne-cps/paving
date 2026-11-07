@@ -192,6 +192,7 @@ class BinaryTreeSubpaving
     //! (Remember that every BinaryTreeSubpaving is just a reference to a subtree of a BinaryTreePaving).
     //! \a theWord defines the path to the \a pRootTreeNode node from the primary root cell
     //! of the corresponding BinaryTreePaving.
+    //! \pre pRootTreeNode is non-null and remains alive for this view.
     BinaryTreeSubpaving( const Grid& theGrid, const Nat theExtent, const BinaryWord& theWord, BinaryTreeNode * pRootTreeNode );
 
     //! \brief A copy constructor that only copies the pointer to the root of the binary tree and the cell

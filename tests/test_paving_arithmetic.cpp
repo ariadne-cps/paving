@@ -25,6 +25,8 @@ class TestPavingArithmetic : public Testing::ContextFixture {
         ARIADNE_TESTING_EXPECT_EQUAL(PavingDetail::checked_product(3u,2u,7u),6u);
         ARIADNE_TESTING_EXPECT_EXCEPTION(PavingDetail::checked_product(4u,2u,7u));
 
+        ARIADNE_TESTING_EXPECT_EQUAL(PavingDetail::checked_index<SizeType>(limit),limit);
+
         constexpr SizeType nat_limit=std::numeric_limits<Nat>::max();
         constexpr SizeType offset_limit=std::numeric_limits<std::ptrdiff_t>::max();
         ARIADNE_TESTING_EXPECT_EQUAL(PavingDetail::checked_index<Nat>(nat_limit),nat_limit);

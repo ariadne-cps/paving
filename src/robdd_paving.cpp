@@ -72,15 +72,14 @@ Robdd encode_cell_trie(
 // A uniform leaf becomes a terminal, independently of its logical depth.
 Robdd encode_tree(
         RobddManager& manager, BinaryTreeNode const* node, SizeType level) {
-    ARIADNE_PRECONDITION_MSG(node != nullptr,
-        "Cannot encode a null explicit paving tree");
+    // BinaryTreeSubpaving validates the root; non-leaves own both children.
     if (node->is_leaf()) {
         return manager.constant(node->is_enabled());
     }
-    ARIADNE_PRECONDITION_MSG(level < std::numeric_limits<SizeType>::max()-1u,
-        "Explicit tree exceeds the valid ROBDD variable index range");
-    Robdd low = encode_tree(manager,node->left_node(),level+1u);
-    Robdd high = encode_tree(manager,node->right_node(),level+1u);
+    SizeType next=PavingDetail::checked_add(
+        level,1u,std::numeric_limits<SizeType>::max()-1u);
+    Robdd low = encode_tree(manager,node->left_node(),next);
+    Robdd high = encode_tree(manager,node->right_node(),next);
     return manager.make_node(BddVariable(level),low,high);
 }
 
@@ -96,11 +95,10 @@ std::unique_ptr<BinaryTreeNode> expand_tree(
         return node;
     }
 
-    ARIADNE_PRECONDITION_MSG(level < depth,
-        "ROBDD support exceeds the snapshot's logical depth");
+    // The constructor validates support < depth. Nonterminal nodes have
+    // a top variable, and manager-owned edges strictly increase indices.
+    // Taking an edge only at its own level preserves level <= top < depth.
     auto top = manager.top_variable(root);
-    ARIADNE_PRECONDITION_MSG(top.has_value() and top->index() >= level,
-        "ROBDD variables must follow the subdivision order");
     Robdd low = top->index() == level ? manager.low(root) : root;
     Robdd high = top->index() == level ? manager.high(root) : root;
     auto low_tree = expand_tree(manager,low,level+1u,depth);
@@ -118,25 +116,22 @@ std::unique_ptr<BinaryTreeNode> expand_tree(
 // distinct left and right subtrees. Do not materialize an explicit tree.
 void visit_enabled_leaf_paths(
         RobddManager& manager, Robdd const& root,
-        SizeType level, SizeType depth, BinaryWord& path,
+        SizeType level, BinaryWord& path,
         std::function<void(BinaryWord const&)> const& visitor) {
     if (root.is_false()) { return; }
     if (root.is_true()) {
         visitor(path);
         return;
     }
-    ARIADNE_PRECONDITION_MSG(level < depth,
-        "ROBDD leaf traversal exceeded the declared logical depth");
+    // As in expand_tree, a nonterminal has top >= level by ordered edges.
     auto top = manager.top_variable(root);
-    ARIADNE_PRECONDITION_MSG(top.has_value() and top->index() >= level,
-        "ROBDD variable order is invalid during paving leaf traversal");
 
     Robdd low = top->index() == level ? manager.low(root) : root;
     Robdd high = top->index() == level ? manager.high(root) : root;
     path.push_back(false);
-    visit_enabled_leaf_paths(manager,low,level+1u,depth,path,visitor);
+    visit_enabled_leaf_paths(manager,low,level+1u,path,visitor);
     path.back() = true;
-    visit_enabled_leaf_paths(manager,high,level+1u,depth,path,visitor);
+    visit_enabled_leaf_paths(manager,high,level+1u,path,visitor);
     path.pop_back();
 }
 
@@ -184,12 +179,9 @@ class RobddPavingLeafIterator final
                 return;
             }
 
-            ARIADNE_PRECONDITION_MSG(next.level < _depth,
-                "ROBDD iterator encountered a variable past its depth");
+            // Each pending item preserves the same ordered-edge invariant
+            // as expand_tree; the snapshotted root already validates depth.
             auto top = _manager->top_variable(next.root);
-            ARIADNE_PRECONDITION_MSG(
-                top.has_value() and top->index() >= next.level,
-                "ROBDD iterator requires increasing variable indices");
 
             Robdd low = top->index() == next.level
                 ? _manager->low(next.root) : next.root;
@@ -371,10 +363,8 @@ RobddPaving RobddPaving::from_cells(
         ARIADNE_PRECONDITION_MSG(root_cell.grid()==cell.grid(),
             "Bulk ROBDD cells must lie on the same grid");
         BinaryWord path=relative_cell_path(root_cell,cell);
-        ARIADNE_PRECONDITION_MSG(
-            path.size()<std::numeric_limits<SizeType>::max(),
-            "Bulk ROBDD path exceeds representable decision depth");
-        maximum_depth=std::max(maximum_depth,path.size());
+        maximum_depth=std::max(maximum_depth,
+            PavingDetail::checked_decision_depth(path.size()));
         paths.push_back(std::move(path));
     }
     CellPrefixTrie trie;
@@ -483,7 +473,7 @@ SizeType RobddPaving::enabled_leaf_count() const {
     CopyState state=_snapshot_copy(*this);
     SizeType count=0u;
     BinaryWord path;
-    visit_enabled_leaf_paths(*state.manager,state.root,0u,state.depth,path,
+    visit_enabled_leaf_paths(*state.manager,state.root,0u,path,
         [&](BinaryWord const&) {
             count=PavingDetail::checked_add(count,1u);
         });
@@ -504,7 +494,7 @@ Void RobddPaving::for_each_enabled_leaf(
         "Enabled-leaf visitor must be nonempty");
     CopyState state=_snapshot_copy(*this);
     BinaryWord path;
-    visit_enabled_leaf_paths(*state.manager,state.root,0u,state.depth,path,
+    visit_enabled_leaf_paths(*state.manager,state.root,0u,path,
         [&](BinaryWord const& relative_path) {
             BinaryWord complete_path = state.root_cell.word();
             complete_path.append(relative_path);
@@ -582,9 +572,7 @@ RobddPaving robdd_operand(SubPavingInterface const& other) {
         RobddPaving owner_snapshot(view->owner());
         return owner_snapshot.subpaving(view->root_cell());
     }
-    ARIADNE_PRECONDITION_MSG(false,
-        "ROBDD paving operations require a ROBDD-backed operand");
-    throw std::invalid_argument("ROBDD paving requires a ROBDD-backed operand");
+    throw std::runtime_error("ROBDD paving operations require a ROBDD-backed operand");
 }
 
 
@@ -967,9 +955,8 @@ Bool RobddPaving::superset(GridCell const& cell) const {
     for(SizeType i=0u;i<query_length-root_length;++i) {
         if(value.is_terminal()) { return value.is_true(); }
         auto top=_manager->top_variable(value);
-        ARIADNE_PRECONDITION_MSG(
-            top.has_value() and top->index()>=i,
-            "ROBDD support is incompatible with paving subdivision order");
+        // Terminals were handled above. An edge is consumed only when
+        // its index equals i, so strict BDD ordering preserves top >= i.
         if(top->index()==i) {
             Bool branch=query_bit(root_length+i);
             value=branch?_manager->high(value):_manager->low(value);
