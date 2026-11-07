@@ -35,6 +35,7 @@
 #include <vector>
 #include "geometry/declarations.hpp"
 #include "paving/grid_cell.hpp"
+#include "paving/paving_arithmetic.hpp"
 #include "geometry/set_interface.hpp"
 
 namespace Ariadne {
@@ -231,19 +232,7 @@ Void SubPavingInterface::for_each_enabled_cell_at_exact_fineness(
     const SizeType extent=static_cast<SizeType>(root.root_extent());
     const SizeType requested=static_cast<SizeType>(fineness);
     const SizeType dimensions=static_cast<SizeType>(this->dimension());
-    constexpr SizeType limit=std::numeric_limits<SizeType>::max();
-    ARIADNE_PRECONDITION_MSG(extent<=limit-requested,
-        "Exact cell enumeration exceeds the supported grid level");
-    const SizeType levels=extent+requested;
-    ARIADNE_PRECONDITION_MSG(
-        dimensions==0u or levels<=limit/dimensions,
-        "Exact cell enumeration exceeds the supported subdivision depth");
-    const SizeType target=levels*dimensions;
-    const SizeType max_word=
-        static_cast<SizeType>(std::numeric_limits<Int>::max());
-    ARIADNE_PRECONDITION_MSG(
-        dimensions<=max_word and target<=max_word-dimensions,
-        "Exact cell enumeration exceeds the valid cell word depth");
+    const SizeType target=PavingDetail::checked_cell_depth(extent,requested,dimensions);
 
     // A non-primary subview may begin below the requested cell size.
     // A nonempty clipped region cannot be represented by a larger
