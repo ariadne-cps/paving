@@ -2004,3 +2004,23 @@ performance pass/fail thresholds, and no claim that a borrowed iterator
 is safe during owner mutation. Actual timing results must be obtained
 from a built benchmark on the target platform before choosing a
 performance optimization.
+
+## 2026-11-07 - Prebuilt binary-tree cursor profiling (diagnostic only)
+
+Added an opt-in `benchmark_binary_tree_cursor` executable and a small
+Ubuntu Release compile/sequence-verification check. Existing production
+`BinaryTreePavingCursor` and `BinaryTreePavingConstIterator` remain
+unchanged. The benchmark constructs full unrecombined binary trees
+outside timing, with selectable depth, dimension and enabled-leaf
+density. For every case it checks exact ordered-path equality between
+the production borrowed iterator, raw DFS, a diagnostic copy of the
+recursive enabled-leaf search without geometry, and the same diagnostic
+search with eager `GridCell` reconstruction on each movement.
+
+Reported medians are comparative rather than additive CPU attribution:
+the raw DFS has a different control flow, and the diagnostic cursor is
+not the production machine code. In particular, compare the two
+diagnostic search variants to estimate the overhead of eager geometry.
+Before optimizing the cursor, obtain measurements from compiled Release
+executables and preserve the owning snapshot semantics and borrowed
+view lifetime limitations. There are no performance pass/fail thresholds.
