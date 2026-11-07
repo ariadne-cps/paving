@@ -29,6 +29,11 @@ if(EXISTS "${PROJECT_SOURCE_DIR}/.git")
             "set|testing|build"
             "bdd|testing|build"
     )
+    require_same_dependency_commit(Foundation
+        CHAINS
+            "tree|foundation"
+            "set|linear-programming|algebra|interval|numeric|foundation"
+    )
     require_same_dependency_commit(Logging
         CHAINS
             "set|linear-programming|algebra|interval|numeric|logging"
@@ -60,7 +65,7 @@ target_include_directories(paving INTERFACE
     $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/include>
     $<INSTALL_INTERFACE:include/ariadne-paving>
 )
-target_link_libraries(paving INTERFACE set bdd)
+target_link_libraries(paving INTERFACE set bdd tree)
 
 add_subdirectory(src)
 target_link_libraries(PAVING_SRC PRIVATE paving)

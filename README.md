@@ -7,7 +7,7 @@
 [![Coverage Status](https://github.com/ariadne-cps/paving/actions/workflows/coverage.yml/badge.svg)](https://github.com/ariadne-cps/paving/actions/workflows/coverage.yml)
 [![codecov](https://codecov.io/gh/ariadne-cps/paving/branch/main/graph/badge.svg)](https://codecov.io/gh/ariadne-cps/paving)
 
-Ariadne Paving is the standalone C++20 discrete paving layer of Ariadne. It provides binary trees, grids, cells, grid-tree pavings, set approximation and subdivision algorithms.
+Ariadne Paving is the standalone C++20 discrete paving layer of Ariadne. It provides grids, cells, grid-tree pavings, set approximation and subdivision algorithms, and consumes the standalone Tree module for the binary-tree node representation.
 Although independently maintained and usable, this repository is also part of the [Ariadne repository structure](https://github.com/ariadne-cps/ariadne/blob/main/doc/structure.md).
 
 ## Layout
@@ -25,6 +25,7 @@ Paving depends directly on:
 
 - [ariadne-cps/set](https://github.com/ariadne-cps/set) (Git submodule `ss/set`), providing set representations and numerical solving dependencies.
 - [ariadne-cps/bdd](https://github.com/ariadne-cps/bdd) (Git submodule `ss/bdd`), providing binary decision diagrams.
+- [ariadne-cps/tree](https://github.com/ariadne-cps/tree) (Git submodule `ss/tre`), owning `BinaryTreeNode` and its independent regression tests.
 - [ariadne-cps/build](https://github.com/ariadne-cps/build) (Git submodule `ss/cfg`), providing shared CMake infrastructure.
 - [ariadne-cps/testing](https://github.com/ariadne-cps/testing) (Git submodule `ss/tst`), providing independent `ContextFixture` regression cases and diagnostics.
 
@@ -32,7 +33,7 @@ Set provides Linear Programming, Constraint Solving, Function, Geometry and the 
 
 ## Binary tree node as an independent data structure
 
-`BinaryTreeNode` (currently `paving/binary_tree.hpp`) is an owning node
+`BinaryTreeNode` (now defined by `tree/binary_tree.hpp`, with a forwarding compatibility header at `paving/binary_tree.hpp`) is an owning node
 and its rooted subtree, not a geometric paving type. It describes Boolean
 membership of abstract binary prefixes: an enabled leaf covers all
 continuations of its path. Set operations do not require a `Grid`,
@@ -41,8 +42,7 @@ values and Utility paths and types, not directly on Function or Set.
 
 The node remains a sequential, unsynchronized primitive. Child pointers
 are borrowed; coordinating concurrent access and parallel subtree work
-is the responsibility of a higher-level owner. The intended future move
-to `ariadne-cps/tree` will preserve the `BinaryTreeNode` name and behavior.
+is the responsibility of a higher-level owner. The extraction into `ariadne-cps/tree` preserves the `BinaryTreeNode` name and behavior.
 
 See [Binary tree design](doc/binary_tree_design.md) for invariants,
 ownership, semantics, limitations and the planned extraction.

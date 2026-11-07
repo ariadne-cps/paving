@@ -1,7 +1,6 @@
 include(CTest)
 set(UNIT_TESTS
     test_affine_set_approximation
-    test_binary_tree
     test_grid
     test_grid_cell_alignment
     test_binary_tree_paving
