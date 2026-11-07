@@ -1018,6 +1018,8 @@ Bool BinaryTreeSubpaving::operator==(const BinaryTreeSubpaving& anotherBinaryTre
 BinaryTreeSubpaving::BinaryTreeSubpaving( const Grid& theGrid, const Nat theExtent,
                                        const BinaryWord& theWord, BinaryTreeNode * pRootTreeNode )
     : _pRootTreeNode(pRootTreeNode), _theGridCell(theGrid, theExtent, theWord) {
+    ARIADNE_PRECONDITION_MSG(pRootTreeNode!=nullptr,
+        "A binary-tree subpaving requires a non-null root node");
 }
 
 BinaryTreeSubpaving::BinaryTreeSubpaving( const BinaryTreeSubpaving &otherSubset )

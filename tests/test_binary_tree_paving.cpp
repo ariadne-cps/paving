@@ -3223,6 +3223,9 @@ Void test_snapshot_iterator_identity_and_borrowed_union() {
     ARIADNE_TESTING_EXPECT_EXCEPTION(owner.adjoin(foreign));
     ARIADNE_TESTING_PROVE(owner.superset(owner.root_cell()));
 
+    ARIADNE_TESTING_EXPECT_EXCEPTION(
+        BinaryTreeSubpaving(grid,0u,BinaryWord{},nullptr));
+    ARIADNE_TESTING_EXPECT_EXCEPTION(BinaryTreePaving(grid,0u,nullptr));
     BinaryTreePaving batch_target(grid);
     ARIADNE_TESTING_EXPECT_EXCEPTION(batch_target.adjoin(
         std::vector<GridCell>{owner.root_cell(),foreign.root_cell()}));
