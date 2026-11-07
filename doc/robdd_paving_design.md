@@ -2049,3 +2049,43 @@ up/down moves, materialized boxes, and matching full cells between borrowed
 and owning iterators. Run `benchmark_binary_tree_cursor` again to measure
 the actual improvement against the supplied eager-production baseline;
 diagnostic Geometry remains deliberately eager as a stable reference.
+
+
+## 2026-11-07 - Measured lazy-cursor results (d4/f3 aligned-box)
+
+The 2026-11-07 Release benchmark reported by the operator, on the same
+aligned-box case (`dimension=4`, `fineness=3`, 416 enabled leaves, 2031
+physical tree nodes), compared the eager and lazy production cursor.
+These are measured times from two separate executions, not a controlled
+multi-run cross-version distribution. Per-run medians used seven samples.
+
+| Workload | Before (ms) | After (ms) | Improvement |
+| --- | ---: | ---: | ---: |
+| tree `iterate_leaves` | 5.4924 | 0.6592 | 8.33x |
+| tree `iterate_min` | 6.8310 | 2.0259 | 3.37x |
+| tree borrowed full visit | 5.44010425 | 0.605229156 | 8.99x |
+| tree borrowed begin | 0.0549741211 | 0.000416769684 | 131.9x |
+| tree owner begin | 0.0991162109 | 0.0439348965 | 2.26x |
+
+The *after* paired backend measurements were `iterate_leaves`:
+tree 0.6592 ms vs ROBDD 0.6561 ms, and `iterate_min`:
+tree 2.0259 ms vs ROBDD 2.0212 ms. Differences are under 0.5%
+in this case and should not be interpreted as a significant advantage
+for either backend without repeated cross-run measurements. The tree
+still has 2031 physical nodes versus 108 root-reachable nonterminal
+ROBDD nodes (estimated node payload 48744 versus 2592 bytes, not
+whole-object heap usage). ROBDD copying remains significantly cheaper;
+tree `replay_bulk` remains significantly faster (0.0724 versus
+0.6974 ms). The outer-approximation pipeline takes about 570 ms
+and is not materially improved by the cursor change.
+
+The measured case supports closing the original eager-geometric-cursor
+bottleneck as addressed, **not** general performance equivalence of
+both backends. Before further cursor changes, repeat the broader
+geometric workload matrix and check workload-specific scaling. The
+remaining per-emitted-cell geometry cost is a separate prospective
+optimization, not an established regression. Owning snapshot,
+borrowed-lifetime and iterator equality contracts remain unchanged.
+
+The lazy-cursor commit `bcadd1345ce5eb5991f4da29ddfd66ab34235437`
+passed Ubuntu, macOS, Windows, Sanitizers and Coverage workflows.
