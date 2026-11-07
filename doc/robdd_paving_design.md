@@ -1844,3 +1844,32 @@ predicate callback re-enter a locking method of the same owner while the
 mutex is held. Approximation operations remain potentially expensive and
 hold the owner lock for their entire calculation. The existing borrowed
 view lifetime restrictions remain unchanged.
+
+
+## 2026-11-07 - Guard remaining concrete tree refinements and output
+
+The public owning `GridTreePaving` now hides and synchronizes the
+borrowed-base methods `mince_to_depth`, `mince_to_tree_depth`,
+`subdivide` and `tree_depth`. The original owning `mince` remains
+synchronized; its qualified base implementation calls a nonvirtual base
+helper, so no recursive lock is introduced. The three new mutators hold
+the same mutex as `adjoin`, `recombine`, `clear` and snapshot copying,
+preventing concurrent changes from invalidating an active tree traversal.
+
+A concrete `GridTreePaving::branch` now serializes the split required to
+construct a borrowed child view; it does NOT extend the lock to the use
+of that view after return. Use `with_locked_branch` for this. The owning
+stream insertion operator and the virtual `_write` now print from a
+deep snapshot instead of traversing mutable owner nodes without a lock.
+
+A concurrency regression overlaps the direct refinements with the owning
+`mince/recombine` operations and with snapshot/stream/depth readers,
+then verifies the sequential borrowed-branch mutability behavior.
+
+The `GridTreeSubpaving` base class still exposes unsynchronized methods
+and raw borrowed node pointers. Explicitly invoking them on an owning
+object through a base reference bypasses the above concrete wrappers.
+Concurrent callers must not do this, retain mutable views beyond their
+protected scope, or dereference binary-tree pointers during a mutation.
+The `grid()` reference accessor likewise has no cross-assignment
+lifetime guarantee.

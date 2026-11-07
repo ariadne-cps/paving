@@ -9,6 +9,7 @@
  *  it under the terms of the GNU General Public License, version 3 or later.
  */
 #include <atomic>
+#include <sstream>
 #include <thread>
 #include <vector>
 
@@ -484,6 +485,66 @@ class TestPavingConcurrentAdjoin : public Ariadne::Testing::ContextFixture {
         ARIADNE_TESTING_PROVE(destination.root_cell().grid()==grid);
     }
 
+    Void test_tree_direct_refinements_and_streaming() {
+        Grid grid(1u);
+        GridCell root(grid,0u,BinaryWord{});
+        GridCell left(grid,0u,make_binary_word("0"));
+        GridTreePaving paving(grid,true);
+        std::atomic<bool> started{false};
+        std::atomic<unsigned> completed{0u};
+        std::atomic<bool> correct{true};
+
+        std::thread reader([&] {
+            started.store(true,std::memory_order_release);
+            while(completed.load(std::memory_order_acquire)<2u) {
+                GridTreePaving snapshot(paving);
+                if(!snapshot.superset(root) || snapshot.root_cell().grid()!=grid) {
+                    correct.store(false,std::memory_order_relaxed);
+                }
+                (void)paving.tree_depth();
+                std::ostringstream output;
+                output << paving;
+                if(output.str().empty()) {
+                    correct.store(false,std::memory_order_relaxed);
+                }
+            }
+        });
+        std::thread first([&] {
+            while(!started.load(std::memory_order_acquire)) {
+                std::this_thread::yield();
+            }
+            for(unsigned i=0u;i<32u;++i) {
+                paving.mince_to_depth(2u);
+                paving.mince_to_tree_depth(3u);
+                paving.subdivide(ApproximateDouble(0.125));
+                paving.recombine();
+            }
+            completed.fetch_add(1u,std::memory_order_release);
+        });
+        std::thread second([&] {
+            while(!started.load(std::memory_order_acquire)) {
+                std::this_thread::yield();
+            }
+            for(unsigned i=0u;i<32u;++i) {
+                paving.mince(2u);
+                paving.recombine();
+            }
+            completed.fetch_add(1u,std::memory_order_release);
+        });
+        first.join();
+        second.join();
+        reader.join();
+        ARIADNE_TESTING_PROVE(correct.load(std::memory_order_acquire));
+        ARIADNE_TESTING_PROVE(paving.superset(root));
+
+        // The direct owner branch call must split safely and preserve the
+        // existing borrowed mutability contract. Mutate only sequentially.
+        GridTreeSubpaving branch=paving.branch(false);
+        ARIADNE_TESTING_PROVE(branch.root_cell()==left);
+        branch.set_root_cell(false);
+        ARIADNE_TESTING_PROVE(!paving.superset(left));
+    }
+
     Void test_grid_tree_concurrent_adjoin() {
         Grid grid(1u);
         auto cells=make_cells(grid);
@@ -542,6 +603,7 @@ int main(int argc, char** argv) {
     ARIADNE_TESTING_ADD_TEST(TestPavingConcurrentAdjoin,test_tree_scoped_borrowed_mutations);
     ARIADNE_TESTING_ADD_TEST(TestPavingConcurrentAdjoin,test_tree_scoped_branch_with_concurrent_adjoin);
     ARIADNE_TESTING_ADD_TEST(TestPavingConcurrentAdjoin,test_tree_atomic_clear_and_geometric_approximations);
+    ARIADNE_TESTING_ADD_TEST(TestPavingConcurrentAdjoin,test_tree_direct_refinements_and_streaming);
     ARIADNE_TESTING_ADD_TEST(TestPavingConcurrentAdjoin,test_robdd_concurrent_set_mutations);
     ARIADNE_TESTING_ADD_TEST(TestPavingConcurrentAdjoin,test_robdd_concurrent_root_mutations);
     ARIADNE_TESTING_ADD_TEST(TestPavingConcurrentAdjoin,test_robdd_reader_writer_adjoin);

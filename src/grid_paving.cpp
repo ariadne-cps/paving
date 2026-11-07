@@ -1781,6 +1781,38 @@ OutputStream& operator<<(OutputStream& os, const GridTreeSubpaving& theGridTreeS
 
 //********************************************GridTreeSet*********************************************/
 
+Void GridTreePaving::mince_to_depth(Nat depth) {
+    std::lock_guard<std::mutex> lock(_adjoin_mutex);
+    // Qualified base calls do not dispatch to an owner-locking method.
+    GridTreeSubpaving::mince_to_depth(depth);
+}
+
+Void GridTreePaving::mince_to_tree_depth(Nat tree_depth) {
+    std::lock_guard<std::mutex> lock(_adjoin_mutex);
+    GridTreeSubpaving::mince_to_tree_depth(tree_depth);
+}
+
+Void GridTreePaving::subdivide(ApproximateDouble max_cell_width) {
+    std::lock_guard<std::mutex> lock(_adjoin_mutex);
+    GridTreeSubpaving::subdivide(max_cell_width);
+}
+
+Nat GridTreePaving::tree_depth() const {
+    std::lock_guard<std::mutex> lock(_adjoin_mutex);
+    return GridTreeSubpaving::tree_depth();
+}
+
+GridTreeSubpaving GridTreePaving::branch(Bool right) const {
+    // Protect the splitting step only: returned live views remain borrowed.
+    std::lock_guard<std::mutex> lock(_adjoin_mutex);
+    return GridTreeSubpaving::branch(right);
+}
+
+OutputStream& GridTreePaving::_write(OutputStream& os) const {
+    GridTreePaving snapshot(*this);
+    return snapshot.GridTreeSubpaving::_write(os);
+}
+
 Void GridTreePaving::set_root_cell(Bool enabled) {
     std::lock_guard<std::mutex> lock(_adjoin_mutex);
     GridTreeSubpaving::set_root_cell(enabled);
@@ -3006,8 +3038,10 @@ GridTreePaving product(GridCell const& theCell1, GridTreeSubpaving const& theSet
 }
 
 OutputStream& operator<<(OutputStream& os, const GridTreePaving& theGridTreeSet) {
-    const GridTreeSubpaving& theGridTreeSubset = theGridTreeSet;
-    return os << "GridTreeSet( " << theGridTreeSubset << " )";
+    // Do not stream the mutable owner's nodes after releasing its mutex.
+    GridTreePaving snapshot(theGridTreeSet);
+    const GridTreeSubpaving& view=snapshot;
+    return os << "GridTreeSet( " << view << " )";
 }
 
 template<class X> Vector<X> project(Vector<X> const& v, const Array<SizeType>& prj) {

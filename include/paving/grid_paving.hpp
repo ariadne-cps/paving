@@ -574,6 +574,21 @@ class GridTreePaving
     using GridTreeSubpaving::superset;
     using GridTreeSubpaving::intersects;
 
+    //! \brief Refine the owning tree under its mutex.
+    //! \details These methods hide the borrowed GridTreeSubpaving variants.
+    //! Calls made through an explicit GridTreeSubpaving reference still
+    //! require external synchronization.
+    Void mince_to_depth(Nat depth);
+    Void mince_to_tree_depth(Nat tree_depth);
+    Void subdivide(ApproximateDouble max_cell_width);
+    //! \brief Return the current tree depth under the owner mutex.
+    Nat tree_depth() const;
+
+    //! \brief Split and construct a borrowed child view under the owner lock.
+    //! \warning The returned view is not protected after this call.
+    //! Use with_locked_branch() when the view must survive concurrent updates.
+    GridTreeSubpaving branch(Bool right) const;
+
     //! \brief Execute a mutation of a borrowed root view while locking its owner.
     //! \details The callback receives a non-owning GridTreeSubpaving& and must
     //! return void. The lock covers the entire callback, not just view creation.
@@ -634,7 +649,7 @@ class GridTreePaving
     ValidatedLowerKleenean overlaps(const ExactBoxType& box) const override;
 
   protected:
-    OutputStream& _write(OutputStream& os) const override { return GridTreeSubpaving::_write(os); }
+    OutputStream& _write(OutputStream& os) const override;
     SubPavingInterface* _branch(Bool left_or_right) const override;
     ForwardConstantIteratorInterface<GridCell>* _begin() const override;
     ForwardConstantIteratorInterface<GridCell>* _end() const override;
