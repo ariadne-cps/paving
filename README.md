@@ -33,7 +33,7 @@ Set provides Linear Programming, Constraint Solving, Function, Geometry and the 
 
 ## Binary tree node as an independent data structure
 
-`BinaryTreeNode` (now defined by `tree/binary_tree.hpp`, included directly through `tree/binary_tree.hpp`) is an owning node
+`BinaryTreeNode` (defined in `tree/binary_tree.hpp`) is an owning node
 and its rooted subtree, not a geometric paving type. It describes Boolean
 membership of abstract binary prefixes: an enabled leaf covers all
 continuations of its path. Set operations do not require a `Grid`,
@@ -45,7 +45,7 @@ are borrowed; coordinating concurrent access and parallel subtree work
 is the responsibility of a higher-level owner. The extraction into `ariadne-cps/tree` preserves the `BinaryTreeNode` name and behavior.
 
 See [the Tree design](https://github.com/ariadne-cps/tree/blob/main/doc/binary_tree_design.md) for invariants,
-ownership, semantics, limitations and the planned extraction.
+ownership, semantics, limitations and the completed extraction.
 
 ## Paving representations
 
