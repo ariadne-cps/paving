@@ -10,6 +10,7 @@ set(UNIT_TESTS
     test_robdd_paving
     test_paver
     test_paving
+    test_augmented_paving
     test_set_approximation
 )
 foreach(TEST IN LISTS UNIT_TESTS)
