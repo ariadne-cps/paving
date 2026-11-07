@@ -11,6 +11,7 @@
 
 #include "ariadne-testing.hpp"
 #include "paving/grid_paving.hpp"
+#include "tree/binary_tree.hpp"
 
 using namespace Ariadne;
 
