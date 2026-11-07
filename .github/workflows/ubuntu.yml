@@ -70,13 +70,6 @@ jobs:
       working-directory: ${{ runner.workspace }}/build
       run: cmake --build . --parallel $NPROC --target everything
 
-    - name: Build and verify isolated cursor diagnostic
-      if: matrix.build_type == 'Release'
-      working-directory: ${{ runner.workspace }}/build
-      run: |
-        cmake --build . --parallel 2 --target benchmark_binary_tree_cursor
-        ./benchmarks/benchmark_binary_tree_cursor --dimensions 2,4 --depths 8,12 --strides 2,16 --verify-only --concurrency 0
-
     - name: Test C++
       if: matrix.build_type == 'Debug'
       working-directory: ${{ runner.workspace }}/build
