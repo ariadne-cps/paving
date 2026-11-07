@@ -1873,3 +1873,32 @@ Concurrent callers must not do this, retain mutable views beyond their
 protected scope, or dereference binary-tree pointers during a mutation.
 The `grid()` reference accessor likewise has no cross-assignment
 lifetime guarantee.
+
+
+## 2026-11-07 - Stable ROBDD value algebra under concurrent owner writes
+
+The public native `RobddPaving::join`, `intersection`, `difference`,
+`subset`, and `intersects` methods previously accessed the current
+root, manager and depth without synchronizing with owner updates.
+These value operations now capture an independent snapshot of each
+owning operand before performing Boolean algebra. Self-union and
+self-intersection capture one version, while self-difference returns an
+empty Boolean root retaining the source snapshot's geometric metadata.
+The polymorphic comparisons use compatible backend snapshots, avoiding
+unsynchronized `grid()` reference reads before validation; self-equality
+and self-subset are identities. Cross-owner snapshots are individually
+coherent but are not captured as a single global transaction.
+
+The existing mutation paths already hold the destination's
+non-recursive owner mutex; they now invoke explicitly named private
+`_join_unlocked`, `_intersection_unlocked`, and `_difference_unlocked`
+implementations rather than entering the public snapshotting wrappers.
+This is required to avoid deadlocks and preserves the existing atomic
+publication of root, depth and geometry. The manager continues to
+synchronize the canonical node operations independently.
+
+A threaded regression alternates a persistent left cell with an optional
+right cell while value algebra and polymorphic/self-comparisons run,
+asserting semantic properties valid for either snapshot. Borrowed view
+lifetimes and self-mutating predicate callbacks remain outside this
+concurrency contract.

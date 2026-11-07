@@ -545,6 +545,67 @@ class TestPavingConcurrentAdjoin : public Ariadne::Testing::ContextFixture {
         ARIADNE_TESTING_PROVE(!paving.superset(left));
     }
 
+    Void test_robdd_native_algebra_with_concurrent_owner_updates() {
+        RobddManager manager;
+        Grid grid(1u);
+        GridCell root(grid,0u,BinaryWord{});
+        GridCell left(grid,0u,make_binary_word("0"));
+        GridCell right(grid,0u,make_binary_word("1"));
+        RobddPaving destination(manager,root,manager.constant(false),0u);
+        destination.adjoin(left);
+        RobddPaving left_only(manager,left,manager.constant(true),0u);
+        RobddPaving right_only(manager,right,manager.constant(true),0u);
+        RobddPaving full(manager,root,manager.constant(true),0u);
+
+        std::atomic<bool> reading{false};
+        std::atomic<bool> completed{false};
+        std::atomic<bool> correct{true};
+        std::thread reader([&] {
+            reading.store(true,std::memory_order_release);
+            while(!completed.load(std::memory_order_acquire)) {
+                // The mutable owner always contains left; right alternates.
+                // These are properties of every possible coherent snapshot.
+                RobddPaving united=destination.join(right_only);
+                RobddPaving common=destination.intersection(left_only);
+                RobddPaving removed=destination.difference(right_only);
+                if(!united.superset(left) || !united.superset(right)
+                        || !common.superset(left) || common.superset(right)
+                        || !removed.superset(left) || removed.superset(right)
+                        || !destination.subset(full)
+                        || !destination.intersects(left_only)) {
+                    correct.store(false,std::memory_order_relaxed);
+                }
+                if(!destination.equals(
+                        static_cast<SubPavingInterface const&>(destination))
+                        || !destination.subset(destination)
+                        || !destination.intersects(destination)
+                        || !destination.difference(destination).is_empty()) {
+                    correct.store(false,std::memory_order_relaxed);
+                }
+                RobddPaving self_union=destination.join(destination);
+                RobddPaving self_intersection=destination.intersection(destination);
+                if(!self_union.superset(left)
+                        || !self_intersection.superset(left)) {
+                    correct.store(false,std::memory_order_relaxed);
+                }
+            }
+        });
+        std::thread writer([&] {
+            while(!reading.load(std::memory_order_acquire)) {
+                std::this_thread::yield();
+            }
+            for(unsigned i=0u;i<80u;++i) {
+                destination.adjoin(right);
+                destination.restrict(left_only);
+            }
+            completed.store(true,std::memory_order_release);
+        });
+        writer.join();
+        reader.join();
+        ARIADNE_TESTING_PROVE(correct.load(std::memory_order_acquire));
+        ARIADNE_TESTING_PROVE(destination.equals(left_only));
+    }
+
     Void test_grid_tree_concurrent_adjoin() {
         Grid grid(1u);
         auto cells=make_cells(grid);
@@ -605,6 +666,7 @@ int main(int argc, char** argv) {
     ARIADNE_TESTING_ADD_TEST(TestPavingConcurrentAdjoin,test_tree_atomic_clear_and_geometric_approximations);
     ARIADNE_TESTING_ADD_TEST(TestPavingConcurrentAdjoin,test_tree_direct_refinements_and_streaming);
     ARIADNE_TESTING_ADD_TEST(TestPavingConcurrentAdjoin,test_robdd_concurrent_set_mutations);
+    ARIADNE_TESTING_ADD_TEST(TestPavingConcurrentAdjoin,test_robdd_native_algebra_with_concurrent_owner_updates);
     ARIADNE_TESTING_ADD_TEST(TestPavingConcurrentAdjoin,test_robdd_concurrent_root_mutations);
     ARIADNE_TESTING_ADD_TEST(TestPavingConcurrentAdjoin,test_robdd_reader_writer_adjoin);
     return ARIADNE_TESTING_RUN_TESTS_WITH_ARGS(argc,argv);

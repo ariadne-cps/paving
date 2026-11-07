@@ -309,6 +309,12 @@ class RobddPaving : public virtual PavingInterface {
     static CopyState _snapshot_copy(RobddPaving const& source);
     explicit RobddPaving(CopyState state);
     Void _adjoin_unlocked(RobddPaving const& source);
+    // The caller must stabilize *this* and the source. No owner-lock
+    // acquisition is allowed in these helpers: internal mutations already
+    // hold the destination mutex; public value operations use snapshots.
+    RobddPaving _join_unlocked(RobddPaving const& other) const;
+    RobddPaving _intersection_unlocked(RobddPaving const& other) const;
+    RobddPaving _difference_unlocked(RobddPaving const& other) const;
 
     OutputStream& _write(OutputStream& os) const override;
     Void _check_compatible(RobddPaving const& other) const;

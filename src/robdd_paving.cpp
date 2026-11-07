@@ -565,7 +565,7 @@ Void RobddPaving::clear() {
 }
 
 Void RobddPaving::_adjoin_unlocked(RobddPaving const& other) {
-    RobddPaving united=join(other);
+    RobddPaving united=_join_unlocked(other);
     _root_cell=std::move(united._root_cell);
     _root=united._root;
     _depth=united._depth;
@@ -633,7 +633,7 @@ Void RobddPaving::restrict(RobddPaving const& other) {
     // canonical nodes, while this lock protects the whole paving state.
     RobddPaving source(other);
     std::lock_guard<std::mutex> lock(_adjoin_mutex);
-    RobddPaving result=intersection(source);
+    RobddPaving result=_intersection_unlocked(source);
     _root_cell=std::move(result._root_cell);
     _root=result._root;
     _depth=result._depth;
@@ -656,7 +656,7 @@ Void RobddPaving::remove(RobddPaving const& other) {
     }
     RobddPaving source(other);
     std::lock_guard<std::mutex> lock(_adjoin_mutex);
-    RobddPaving result=difference(source);
+    RobddPaving result=_difference_unlocked(source);
     _root_cell=std::move(result._root_cell);
     _root=result._root;
     _depth=result._depth;
@@ -826,6 +826,15 @@ std::pair<Robdd,SizeType> RobddPaving::_lift_to(
 
 RobddPaving RobddPaving::join(
         RobddPaving const& other) const {
+    if(this==&other) { return RobddPaving(*this); }
+    // Capture each mutable owner before calling the lock-free algebra core.
+    RobddPaving lhs(*this);
+    RobddPaving rhs(other);
+    return lhs._join_unlocked(rhs);
+}
+
+RobddPaving RobddPaving::_join_unlocked(
+        RobddPaving const& other) const {
     GridCell common = _common_root(other);
     auto first = _lift_to(common);
     auto second = other._lift_to(common);
@@ -836,6 +845,15 @@ RobddPaving RobddPaving::join(
 
 RobddPaving RobddPaving::intersection(
         RobddPaving const& other) const {
+    if(this==&other) { return RobddPaving(*this); }
+    // Capture each mutable owner before calling the lock-free algebra core.
+    RobddPaving lhs(*this);
+    RobddPaving rhs(other);
+    return lhs._intersection_unlocked(rhs);
+}
+
+RobddPaving RobddPaving::_intersection_unlocked(
+        RobddPaving const& other) const {
     GridCell common = _common_root(other);
     auto first = _lift_to(common);
     auto second = other._lift_to(common);
@@ -845,6 +863,19 @@ RobddPaving RobddPaving::intersection(
 }
 
 RobddPaving RobddPaving::difference(
+        RobddPaving const& other) const {
+    if(this==&other) {
+        RobddPaving result(*this);
+        result._root=result._manager->constant(false);
+        return result;
+    }
+    // Capture each mutable owner before calling the lock-free algebra core.
+    RobddPaving lhs(*this);
+    RobddPaving rhs(other);
+    return lhs._difference_unlocked(rhs);
+}
+
+RobddPaving RobddPaving::_difference_unlocked(
         RobddPaving const& other) const {
     GridCell common = _common_root(other);
     auto first = _lift_to(common);
@@ -857,39 +888,46 @@ RobddPaving RobddPaving::difference(
 
 Bool RobddPaving::subset(
         RobddPaving const& other) const {
-    GridCell common = _common_root(other);
-    auto first = _lift_to(common);
-    auto second = other._lift_to(common);
-    return _manager->conjunction(
-        first.first,_manager->negation(second.first)).is_false();
+    if(this==&other) { return true; }
+    RobddPaving lhs(*this);
+    RobddPaving rhs(other);
+    GridCell common=lhs._common_root(rhs);
+    auto first=lhs._lift_to(common);
+    auto second=rhs._lift_to(common);
+    return lhs._manager->conjunction(
+        first.first,lhs._manager->negation(second.first)).is_false();
 }
 
 Bool RobddPaving::intersects(
         RobddPaving const& other) const {
-    GridCell common = _common_root(other);
-    auto first = _lift_to(common);
-    auto second = other._lift_to(common);
-    return not _manager->conjunction(
+    if(this==&other) { return !is_empty(); }
+    RobddPaving lhs(*this);
+    RobddPaving rhs(other);
+    GridCell common=lhs._common_root(rhs);
+    auto first=lhs._lift_to(common);
+    auto second=rhs._lift_to(common);
+    return not lhs._manager->conjunction(
         first.first,second.first).is_false();
 }
 
 Bool RobddPaving::subset(SubPavingInterface const& other) const {
-    ARIADNE_PRECONDITION_MSG(grid() == other.grid(),
-        "Cannot compare pavings from different grids");
+    if(this==&other) { return true; }
+    // The backend compatibility check uses two detached owner snapshots.
     return subset(robdd_operand(other));
 }
 
 Bool RobddPaving::intersects(SubPavingInterface const& other) const {
-    ARIADNE_PRECONDITION_MSG(grid() == other.grid(),
-        "Cannot compare pavings from different grids");
+    if(this==&other) { return !is_empty(); }
     return intersects(robdd_operand(other));
 }
 
 Bool RobddPaving::equals(SubPavingInterface const& other) const {
-    ARIADNE_PRECONDITION_MSG(grid() == other.grid(),
-        "Cannot compare pavings from different grids");
-    RobddPaving imported=robdd_operand(other);
-    return subset(imported) and imported.subset(*this);
+    if(this==&other) { return true; }
+    // Snapshot this owner only once: equality must not compare two
+    // versions of a concurrently changing paving.
+    RobddPaving lhs(*this);
+    RobddPaving rhs=robdd_operand(other);
+    return lhs.subset(rhs) and rhs.subset(lhs);
 }
 
 Bool RobddPaving::superset(GridCell const& cell) const {
