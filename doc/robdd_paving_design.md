@@ -2178,3 +2178,40 @@ cmake --build build-release --target benchmark_paving_backends
 
 Once this runs correctly, pass the five comma-separated shape names
 to obtain the full comparison on the user's machine.
+
+
+## 2026-11-07 - Measured outer-classification phase cost (4D/f3 aligned-box)
+
+The operator compiled the new opt-in `--outer-phases` diagnostic locally
+with Clang and observed `-Wmissing-field-initializers` at the
+`OuterSelection result{root}` aggregate. All fields are now explicitly
+initialized in this diagnostic (`root, {}, {}, 0u, 0u, 0u, 0u`), with
+no production changes.
+
+Local Release measurement, aligned-box/d4/f3, seven median samples:
+- Candidate selection: 597.601666 ms.
+- Replaying recorded geometric predicates over precomputed boxes:
+  592.243875 ms, 99.1% of the candidate-selection elapsed time.
+- Replaying the recorded tree of GridCell subdivisions without predicates:
+  4.128146 ms (the output rounded between line wraps).
+- 2927 visited candidate cells, 2927 calls to `separated`,
+  **zero calls to `covers`**, 1463 subdivisions, 864 candidate cells
+  selected before simplification.
+- The actual recombined geometric paving contains 416 enabled leaves,
+  2031 physical binary-tree nodes, or 108 ROBDD decision nodes.
+
+The 864 selected candidates and 416 final leaves are different
+representation stages: the benchmark validated semantic equivalence,
+not equal leaf counts before and after recombination. The predicate
+replay covers the same recorded inputs, but its timing overlaps the
+complete selection workload; the ratio is not an exact additive
+CPU attribution. A direct consequence is that changes limited to
+paving tree traversal/ROBDD reduction cannot greatly accelerate
+this workload while the set's `separated()` dominates.
+
+The next optimization investigation should profile the
+`EffectiveConstrainedImageSet` separation predicate itself and its
+constraint solver on the candidate boxes, without weakening certified
+set-separation semantics. Repeat the new `--outer-phases` diagnostic
+on the remaining four geometric shapes to see whether this pattern
+generalizes; no new workflow or README changes are needed.

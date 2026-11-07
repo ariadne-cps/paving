@@ -757,7 +757,7 @@ OuterSelection select_outer_cells(
     }
     SizeType target_depth=levels*dimensions;
     GridCell root(grid,root_extent,BinaryWord{});
-    OuterSelection result{root};
+    OuterSelection result{root, {}, {}, 0u, 0u, 0u, 0u};
     auto const* open_set=dynamic_cast<
         EffectiveEuclideanOpenSetInterface const*>(
             static_cast<EuclideanSetInterfaceBase const*>(&set));
