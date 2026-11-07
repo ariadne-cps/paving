@@ -3199,6 +3199,46 @@ class VectorCellIterator : public ForwardConstantIteratorInterface<GridCell> {
     OutputStream& _write(OutputStream& os) const override { return os<<"VectorCellIterator("<<_position<<")"; }
 };
 
+Void test_snapshot_iterator_identity_and_borrowed_union() {
+    Grid grid(1u);
+    BinaryTreePaving owner(grid,true);
+    owner.mince(1u);
+    BinaryTreePaving other(owner);
+    auto first=owner.begin(), same=owner.begin(), next=owner.begin();
+    ++next;
+    ARIADNE_TESTING_PROVE(first==same);
+    ARIADNE_TESTING_PROVE(first!=next);
+    ARIADNE_TESTING_PROVE(first!=other.begin());
+    BinaryTreeSubpaving borrowed(owner);
+    auto live=borrowed.begin();
+    ARIADNE_TESTING_PROVE(live==borrowed.begin());
+    ARIADNE_TESTING_PROVE(first!=live);
+    ARIADNE_TESTING_PROVE(live!=first);
+    auto snapshot=std::make_shared<BinaryTreePaving>(owner);
+    BinaryTreePavingConstIterator end(snapshot,&owner,indeterminate);
+    ARIADNE_TESTING_PROVE(end==owner.end());
+
+    BinaryTreeNode foreign_node(true);
+    BinaryTreeSubpaving foreign(Grid(2u),0u,BinaryWord{},&foreign_node);
+    ARIADNE_TESTING_EXPECT_EXCEPTION(owner.adjoin(foreign));
+    ARIADNE_TESTING_PROVE(owner.superset(owner.root_cell()));
+
+    // Union accepts a stable, borrowed subtree as well as an owning tree.
+    auto left=owner.branch(false);
+    BinaryTreePaving destination(grid);
+    destination.adjoin(left);
+    ARIADNE_TESTING_PROVE(destination.superset(left.root_cell()));
+    ARIADNE_TESTING_PROVE(!destination.superset(owner.branch(true).root_cell()));
+    destination.adjoin(destination);
+    destination.set_root_cell(true);
+    destination.adjoin(left);
+    ARIADNE_TESTING_PROVE(destination.superset(owner.root_cell()));
+    ARIADNE_TESTING_PROVE(destination.superset(left.root_cell()));
+    // The first inclusion is true and the reverse inclusion is false.
+    SubPavingInterface const& left_interface=left;
+    ARIADNE_TESTING_PROVE(!left_interface.equals(borrowed));
+}
+
 Void test_partial_tree_operations() {
     Grid grid(1u);
     BinaryTreePaving owner(grid,true);
@@ -3407,6 +3447,7 @@ int main(int argc, char** argv) {
     ARIADNE_TESTING_ADD_TEST(TestBinaryTreePaving, test_products);
     ARIADNE_TESTING_ADD_TEST(TestBinaryTreePaving, test_branch_from_uniform_leaf);
     ARIADNE_TESTING_ADD_TEST(TestBinaryTreePaving, test_cell_range_contracts);
+    ARIADNE_TESTING_ADD_TEST(TestBinaryTreePaving, test_snapshot_iterator_identity_and_borrowed_union);
     ARIADNE_TESTING_ADD_TEST(TestBinaryTreePaving, test_partial_tree_operations);
     ARIADNE_TESTING_ADD_TEST(TestBinaryTreePaving, test_ancestor_early_stops);
     ARIADNE_TESTING_ADD_TEST(TestBinaryTreePaving, test_projection_levels);
