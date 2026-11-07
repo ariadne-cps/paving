@@ -1,5 +1,5 @@
 /***************************************************************************
- *            paving/grid_paving.cpp
+ *            paving/binary_tree_paving.cpp
  *
  *  Copyright  2008-20  Ivan S. Zapreev, Pieter Collins
  *
@@ -32,7 +32,7 @@
 #include "function/projection.hpp"
 #include "set/function_set.hpp"
 #include "set/list_set.hpp"
-#include "paving/grid_paving.hpp"
+#include "paving/binary_tree_paving.hpp"
 #include "paving/grid_cell_alignment.hpp"
 #include "paving/paving_cell_operations.hpp"
 #include <limits>
@@ -46,7 +46,7 @@ namespace Ariadne {
 PavingHandle SubPavingInterface::uniform_cell_paving(Nat fineness) const {
     // Materialize the common exact-depth cell stream in an owned, explicit
     // tree. The source and its backend-specific representation are untouched.
-    auto result=std::make_unique<GridTreePaving>(
+    auto result=std::make_unique<BinaryTreePaving>(
         this->grid(),this->root_cell().root_extent(),
         new BinaryTreeNode(false));
     this->for_each_enabled_cell_at_exact_fineness(
@@ -454,7 +454,7 @@ GridOpenCell GridOpenCell::outer_approximation( const ExactBoxType & theBoxType,
     return theOpenCell;
 }
 
-GridTreePaving GridOpenCell::closure() const {
+BinaryTreePaving GridOpenCell::closure() const {
     //01. First we compute the extent of the primary cell that encloses the given open cell
     const Nat newExtent = smallest_enclosing_primary_cell_extent( _theBoxType, _theGrid );
 
@@ -468,11 +468,11 @@ GridTreePaving GridOpenCell::closure() const {
         theBaseCellExtent = newExtent;
     }
 
-    //03. Allocate the resulting GridTreeSet with the root at the needed extent
-    GridTreePaving theResultSet( _theGrid, theBaseCellExtent, new BinaryTreeNode( false ) );
+    //03. Allocate the resulting BinaryTreePaving with the root at the needed extent
+    BinaryTreePaving theResultSet( _theGrid, theBaseCellExtent, new BinaryTreeNode( false ) );
 
     //04. The preparations are done, now we need to add the base cell to the
-    //    resulting GridTreeSet and to compute and add the other neighboring cells.
+    //    resulting BinaryTreePaving and to compute and add the other neighboring cells.
     BinaryWord tmpWord;
     neighboring_cells( theResultSet.root_cell().root_extent(), theBaseCellWord, tmpWord, theResultSet );
 
@@ -480,7 +480,7 @@ GridTreePaving GridOpenCell::closure() const {
 }
 
 Void GridOpenCell::neighboring_cells( const Nat theExtent, const BinaryWord& theBaseCellWord,
-                                      BinaryWord& cellPosition, GridTreePaving& theResultSet ) const {
+                                      BinaryWord& cellPosition, BinaryTreePaving& theResultSet ) const {
     if( cellPosition.size() < _theGrid.dimension() ) {
         //Choose the left direction in the current dimension
         cellPosition.push_back( false );
@@ -564,7 +564,7 @@ GridCell GridOpenCell::neighboring_cell( const Grid& theGrid, const Nat theExten
     return GridCell( theGrid, theExtent, theNeighborCellWord );
 }
 
-Void GridOpenCell::cover_cell_and_borders( const GridCell& theCell, const GridTreePaving& theSet,
+Void GridOpenCell::cover_cell_and_borders( const GridCell& theCell, const BinaryTreePaving& theSet,
                                   BinaryWord& cellPosition, std::vector<GridOpenCell>& result ) {
     const SizeType num_dimensions = theCell.grid().dimension();
     if( cellPosition.size() < num_dimensions ) {
@@ -611,17 +611,17 @@ List<GridOpenCell> GridOpenCell::intersection( const GridOpenCell & theLeftOpenC
         } else {
             if( definitely( theRightOpenCell.box().overlaps( theLeftOpenCell.box() ) ) ) {
                 //02 If the open cells overlap then let us get the cells contained by the two open cells
-                GridTreePaving theLeftCellSet = theLeftOpenCell.closure();
-                GridTreePaving theRightCellSet = theRightOpenCell.closure();
+                BinaryTreePaving theLeftCellSet = theLeftOpenCell.closure();
+                BinaryTreePaving theRightCellSet = theRightOpenCell.closure();
 
                 //03 Then we compute their intersection
-                GridTreePaving intersectionSet = Ariadne::intersection( theLeftCellSet, theRightCellSet );
+                BinaryTreePaving intersectionSet = Ariadne::intersection( theLeftCellSet, theRightCellSet );
                 //NOTE: It seems to me there is no need to recombine the resulting set, it will not reduce anything
 
                 //04 Iterate through all the cells in the intersection and first add their interiors to the resulting set, second
                 //check if the two cells have common border and/or vertex and if they do then add extra open cells, lying withing
                 //the intersection and covering the common border and/or vertex.
-                for ( GridTreeSubpaving::ConstIterator it = intersectionSet.begin(), end = intersectionSet.end(); it != end; it++) {
+                for ( BinaryTreeSubpaving::ConstIterator it = intersectionSet.begin(), end = intersectionSet.end(); it != end; it++) {
                     //Cover the interior of the cell and the borders with the cells bordered with
                     //the given one in each  positive direction in each dimension. The borders
                     //are covered only if the neighboring cell is also in the intersection set.
@@ -647,18 +647,18 @@ OutputStream& operator<<(OutputStream& os, const GridOpenCell& theGridOpenCell )
 
 
 
-//*******************************************GridTreeCursor***************************************/
+//*******************************************BinaryTreePavingCursor***************************************/
 
-GridTreeCursor::GridTreeCursor( ) :
+BinaryTreePavingCursor::BinaryTreePavingCursor( ) :
     _currentStackIndex(-1), _pSubPaving(0), _theCurrentGridCell( Grid(), 0, BinaryWord() ) {
 }
 
-GridTreeCursor::GridTreeCursor(const GridTreeCursor & otherCursor) :
+BinaryTreePavingCursor::BinaryTreePavingCursor(const BinaryTreePavingCursor & otherCursor) :
     _currentStackIndex(otherCursor._currentStackIndex), _theStack(otherCursor._theStack),
     _pSubPaving(otherCursor._pSubPaving), _theCurrentGridCell(otherCursor._theCurrentGridCell){
 }
 
-GridTreeCursor& GridTreeCursor::operator=(const GridTreeCursor & otherCursor) {
+BinaryTreePavingCursor& BinaryTreePavingCursor::operator=(const BinaryTreePavingCursor & otherCursor) {
     _currentStackIndex = otherCursor._currentStackIndex;
     _theStack = otherCursor._theStack;
     _pSubPaving = otherCursor._pSubPaving;
@@ -667,9 +667,9 @@ GridTreeCursor& GridTreeCursor::operator=(const GridTreeCursor & otherCursor) {
     return *this;
 }
 
-GridTreeCursor::GridTreeCursor(const GridTreeSubpaving * pSubPaving) :
+BinaryTreePavingCursor::BinaryTreePavingCursor(const BinaryTreeSubpaving * pSubPaving) :
     _currentStackIndex(-1), _pSubPaving(pSubPaving), _theCurrentGridCell( pSubPaving->root_cell() ) {
-    //Remember that GridTreeSubset contains GridCell
+    //Remember that BinaryTreeSubpaving contains GridCell
 
     //Add the current node to the stack, since we are in it
 
@@ -679,14 +679,14 @@ GridTreeCursor::GridTreeCursor(const GridTreeSubpaving * pSubPaving) :
     push(pSubPaving->_pRootTreeNode);
 }
 
-GridTreeCursor::~GridTreeCursor() {
+BinaryTreePavingCursor::~BinaryTreePavingCursor() {
     //IVAN S ZAPREEV:
     //WARNING: The subpaving should not be deallocated here!
     //There are no other data feels that we need to deallocate
     _pSubPaving = nullptr;
 }
 
-inline Void GridTreeCursor::push( BinaryTreeNode* pLatestNode ){
+inline Void BinaryTreePavingCursor::push( BinaryTreeNode* pLatestNode ){
     //If we are out of free space, increase the Array's capacity
     if( static_cast<SizeType>(_currentStackIndex +1) == ( _theStack.size()  ) ){
         _theStack.resize( _theStack.size() + STACK_SIZE_INCREMENT );
@@ -700,65 +700,65 @@ inline Void GridTreeCursor::push( BinaryTreeNode* pLatestNode ){
 
 }
 
-inline BinaryTreeNode* GridTreeCursor::pop( ){
+inline BinaryTreeNode* BinaryTreePavingCursor::pop( ){
     // Only move(UP) calls pop(), after rejecting a move above the root.
     --_currentStackIndex;
     return _theStack[static_cast<SizeType>(_currentStackIndex+1)];
 }
 
-Bool GridTreeCursor::is_at_the_root() const {
+Bool BinaryTreePavingCursor::is_at_the_root() const {
     //If we are pointing at the zero cell of the Array then it
     //means that we are in the root of the tree
     return (_currentStackIndex == 0);
 }
 
-Bool GridTreeCursor::is_enabled() const {
+Bool BinaryTreePavingCursor::is_enabled() const {
     return _theStack[ static_cast<SizeType>(_currentStackIndex) ]->is_enabled();
 }
 
-Bool GridTreeCursor::is_disabled() const {
+Bool BinaryTreePavingCursor::is_disabled() const {
     return _theStack[ static_cast<SizeType>(_currentStackIndex) ]->is_disabled();
 }
 
-Bool GridTreeCursor::is_leaf() const {
+Bool BinaryTreePavingCursor::is_leaf() const {
     return _theStack[ static_cast<SizeType>(_currentStackIndex) ]->is_leaf();
 }
 
-Bool GridTreeCursor::is_root() const {
+Bool BinaryTreePavingCursor::is_root() const {
     return  is_at_the_root();
 }
 
-Void GridTreeCursor::set_enabled() const {
+Void BinaryTreePavingCursor::set_enabled() const {
     return _theStack[ static_cast<SizeType>(_currentStackIndex) ]->set_enabled();
 }
 
-Void GridTreeCursor::set_disabled() const {
+Void BinaryTreePavingCursor::set_disabled() const {
     return _theStack[ static_cast<SizeType>(_currentStackIndex) ]->set_disabled();
 }
 
-Bool GridTreeCursor::is_left_child() const{
+Bool BinaryTreePavingCursor::is_left_child() const{
     //If there is a parent node and the given node is it's left child
     return ( _currentStackIndex > 0 ) && ( _theStack[ static_cast<SizeType>(_currentStackIndex - 1) ]->left_node() == _theStack[ static_cast<SizeType>(_currentStackIndex) ] );
 }
 
-Bool GridTreeCursor::is_right_child() const{
+Bool BinaryTreePavingCursor::is_right_child() const{
     //If there is a parent node and the given node is it's right child
     return ( _currentStackIndex > 0 ) && ( _theStack[ static_cast<SizeType>(_currentStackIndex - 1) ]->right_node() == _theStack[ static_cast<SizeType>(_currentStackIndex) ] );
 }
 
-GridTreeCursor& GridTreeCursor::move_up() {
+BinaryTreePavingCursor& BinaryTreePavingCursor::move_up() {
     return move(BinaryTreeDirection::UP);
 }
 
-GridTreeCursor& GridTreeCursor::move_left() {
+BinaryTreePavingCursor& BinaryTreePavingCursor::move_left() {
     return move(BinaryTreeDirection::LEFT);
 }
 
-GridTreeCursor& GridTreeCursor::move_right() {
+BinaryTreePavingCursor& BinaryTreePavingCursor::move_right() {
     return move(BinaryTreeDirection::RIGHT);
 }
 
-inline Void GridTreeCursor::updateTheCurrentGridCell( BinaryTreeDirection up_or_left_or_right ) {
+inline Void BinaryTreePavingCursor::updateTheCurrentGridCell( BinaryTreeDirection up_or_left_or_right ) {
     if( up_or_left_or_right == BinaryTreeDirection::UP ){
         //We go "up" in the tree, so we remove the last bit of the path.
         _theCurrentGridCell._theWord.pop_back();
@@ -769,7 +769,7 @@ inline Void GridTreeCursor::updateTheCurrentGridCell( BinaryTreeDirection up_or_
     _theCurrentGridCell = GridCell( _theCurrentGridCell._theGrid, _theCurrentGridCell._theExtent, _theCurrentGridCell._theWord );
 }
 
-inline GridTreeCursor& GridTreeCursor::move(BinaryTreeDirection up_or_left_or_right) {
+inline BinaryTreePavingCursor& BinaryTreePavingCursor::move(BinaryTreeDirection up_or_left_or_right) {
     if( up_or_left_or_right == BinaryTreeDirection::UP ) {
         if( is_root() ) {
             throw NotAllowedMoveException(ARIADNE_PRETTY_FUNCTION);
@@ -798,48 +798,48 @@ inline GridTreeCursor& GridTreeCursor::move(BinaryTreeDirection up_or_left_or_ri
     return ( * this);
 }
 
-Bool GridTreeCursor::operator==(const GridTreeCursor& anotherGridTreeCursor) const {
-    Bool areEqual = this->_currentStackIndex==anotherGridTreeCursor._currentStackIndex;
-    if( (this->_currentStackIndex >=0) && (anotherGridTreeCursor._currentStackIndex >=0 ) ){
-        areEqual = (this->_theStack[static_cast<SizeType>(this->_currentStackIndex)] == anotherGridTreeCursor._theStack[static_cast<SizeType>(anotherGridTreeCursor._currentStackIndex)]);
+Bool BinaryTreePavingCursor::operator==(const BinaryTreePavingCursor& anotherBinaryTreePavingCursor) const {
+    Bool areEqual = this->_currentStackIndex==anotherBinaryTreePavingCursor._currentStackIndex;
+    if( (this->_currentStackIndex >=0) && (anotherBinaryTreePavingCursor._currentStackIndex >=0 ) ){
+        areEqual = (this->_theStack[static_cast<SizeType>(this->_currentStackIndex)] == anotherBinaryTreePavingCursor._theStack[static_cast<SizeType>(anotherBinaryTreePavingCursor._currentStackIndex)]);
     }
     return areEqual;
 }
 
-GridTreeSubpaving GridTreeCursor::operator*() {
+BinaryTreeSubpaving BinaryTreePavingCursor::operator*() {
     //IVAN S ZAPREEV:
     //NOTE: The first three parameters define the location of the _theStack[ _currentStackIndex ]
-    //node with respect to the primary cell of the GridTreeSet.
-    return GridTreeSubpaving( _theCurrentGridCell._theGrid,
+    //node with respect to the primary cell of the BinaryTreePaving.
+    return BinaryTreeSubpaving( _theCurrentGridCell._theGrid,
                            _theCurrentGridCell._theExtent,
                            _theCurrentGridCell._theWord,
                            _theStack[ static_cast<SizeType>(_currentStackIndex) ] );
 }
 
-const GridTreeSubpaving GridTreeCursor::operator*() const {
-    return const_cast<GridTreeCursor&>(*this).operator*();
+const BinaryTreeSubpaving BinaryTreePavingCursor::operator*() const {
+    return const_cast<BinaryTreePavingCursor&>(*this).operator*();
 }
 
-//************************************FRIENDS OF GridTreeCursor*****************************************/
+//************************************FRIENDS OF BinaryTreePavingCursor*****************************************/
 
-OutputStream& operator<<(OutputStream& os, const GridTreeCursor& theGridTreeCursor) {
-    const Int curr_stack_idx = theGridTreeCursor._currentStackIndex;
-    os << "GridTreeCursor( " << theGridTreeCursor._pSubPaving <<
+OutputStream& operator<<(OutputStream& os, const BinaryTreePavingCursor& theBinaryTreePavingCursor) {
+    const Int curr_stack_idx = theBinaryTreePavingCursor._currentStackIndex;
+    os << "BinaryTreePavingCursor( " << theBinaryTreePavingCursor._pSubPaving <<
         ", Curr. stack index: " << curr_stack_idx  <<
         ", Stack data: [ ";
     for(Int i = 0; i <= curr_stack_idx; i++){
-        os << theGridTreeCursor._theStack[static_cast<SizeType>(i)]->node_to_string() << ( ( i < curr_stack_idx ) ? "" : ", ");
+        os << theBinaryTreePavingCursor._theStack[static_cast<SizeType>(i)]->node_to_string() << ( ( i < curr_stack_idx ) ? "" : ", ");
     }
-    return os<<" ], " << theGridTreeCursor._theCurrentGridCell << " )";
+    return os<<" ], " << theBinaryTreePavingCursor._theCurrentGridCell << " )";
 }
 
-//***************************************GridTreeConstIterator************************************/
+//***************************************BinaryTreePavingConstIterator************************************/
 
-GridTreeConstIterator::GridTreeConstIterator(  ) : _is_in_end_state(true), _pGridTreeCursor()  {
+BinaryTreePavingConstIterator::BinaryTreePavingConstIterator(  ) : _is_in_end_state(true), _pBinaryTreePavingCursor()  {
 }
 
-GridTreeConstIterator::GridTreeConstIterator( const GridTreeSubpaving * pSubPaving, const ValidatedKleenean firstLastNone )
-    :  _pGridTreeCursor(pSubPaving)
+BinaryTreePavingConstIterator::BinaryTreePavingConstIterator( const BinaryTreeSubpaving * pSubPaving, const ValidatedKleenean firstLastNone )
+    :  _pBinaryTreePavingCursor(pSubPaving)
 {
     if( is_determinate( firstLastNone ) ) {
         //If the first/last enabled node is not found, it means that there are no elements
@@ -853,13 +853,13 @@ GridTreeConstIterator::GridTreeConstIterator( const GridTreeSubpaving * pSubPavi
     }
 }
 
-GridTreeConstIterator::GridTreeConstIterator(
-        std::shared_ptr<GridTreePaving> snapshot,
-        GridTreePaving const* source,
+BinaryTreePavingConstIterator::BinaryTreePavingConstIterator(
+        std::shared_ptr<BinaryTreePaving> snapshot,
+        BinaryTreePaving const* source,
         ValidatedKleenean firstLastNone)
     : _owned_snapshot(std::move(snapshot)),
       _snapshot_source(source),
-      _pGridTreeCursor(_owned_snapshot.get()) {
+      _pBinaryTreePavingCursor(_owned_snapshot.get()) {
     if( is_determinate( firstLastNone ) ) {
         //If the first/last enabled node is not found, it means that there are no elements
         //to iterate on, then we switch to the "end Iterator" state
@@ -872,13 +872,13 @@ GridTreeConstIterator::GridTreeConstIterator(
     }
 }
 
-Void GridTreeConstIterator::find_next_enabled_leaf() {
-    if( _pGridTreeCursor.is_left_child() ) {
+Void BinaryTreePavingConstIterator::find_next_enabled_leaf() {
+    if( _pBinaryTreePavingCursor.is_left_child() ) {
         //Move to the parent node
-        _pGridTreeCursor.move_up();
+        _pBinaryTreePavingCursor.move_up();
         //The right node must exist, due to the way we allocate the tree
         //Also, this node is the root of the branch which we did not investigate.
-        _pGridTreeCursor.move_right();
+        _pBinaryTreePavingCursor.move_right();
         //Find the first enabled leaf on this sub-tree
         if( ! navigate_to(true) ){
             //If there are no enabled leafs in the subtree, then
@@ -886,9 +886,9 @@ Void GridTreeConstIterator::find_next_enabled_leaf() {
             find_next_enabled_leaf();
         }
     } else {
-        if( _pGridTreeCursor.is_right_child() ) {
+        if( _pBinaryTreePavingCursor.is_right_child() ) {
             //Move to the parent node
-            _pGridTreeCursor.move_up();
+            _pBinaryTreePavingCursor.move_up();
             //Move up and check the remaining branches recursively.
             find_next_enabled_leaf();
         } else {
@@ -898,10 +898,10 @@ Void GridTreeConstIterator::find_next_enabled_leaf() {
     }
 }
 
-Bool GridTreeConstIterator::navigate_to(Bool firstLast){
+Bool BinaryTreePavingConstIterator::navigate_to(Bool firstLast){
     Bool isEnabledLeafFound = false;
-    if( _pGridTreeCursor.is_leaf() ){
-        if ( _pGridTreeCursor.is_enabled() ) {
+    if( _pBinaryTreePavingCursor.is_leaf() ){
+        if ( _pBinaryTreePavingCursor.is_enabled() ) {
             //If the leaf is enabled, then the search is over
             isEnabledLeafFound = true;
         }
@@ -910,33 +910,33 @@ Bool GridTreeConstIterator::navigate_to(Bool firstLast){
         if( firstLast ) {
             //If we are looking for the first enabled
             //node, then go to the left sub node
-            _pGridTreeCursor.move_left();
+            _pBinaryTreePavingCursor.move_left();
         } else {
             //Otherwise we go to the right
-            _pGridTreeCursor.move_right();
+            _pBinaryTreePavingCursor.move_right();
         }
         //Do recursive check of the newly visited node
         isEnabledLeafFound = navigate_to( firstLast );
         //If the leaf node is not found yet
         if ( ! isEnabledLeafFound ) {
             if( firstLast ) {
-                _pGridTreeCursor.move_right();
+                _pBinaryTreePavingCursor.move_right();
             } else {
-                _pGridTreeCursor.move_left();
+                _pBinaryTreePavingCursor.move_left();
             }
             isEnabledLeafFound = navigate_to( firstLast );
         }
     }
 
     //If the enabled leaf is not found and we are not in the root then we go back
-    if( ! isEnabledLeafFound && ! _pGridTreeCursor.is_root() ){
-        _pGridTreeCursor.move_up();
+    if( ! isEnabledLeafFound && ! _pBinaryTreePavingCursor.is_root() ){
+        _pBinaryTreePavingCursor.move_up();
     }
 
     return isEnabledLeafFound;
 }
 
-Void GridTreeConstIterator::increment() {
+Void BinaryTreePavingConstIterator::increment() {
     //If we are not done iterating
     if( ! _is_in_end_state){
         //We are at some enabled-leaf node and we want to find the next one.
@@ -945,7 +945,7 @@ Void GridTreeConstIterator::increment() {
     }
 }
 
-Bool GridTreeConstIterator::equal( GridTreeConstIterator const & theOtherIterator) const {
+Bool BinaryTreePavingConstIterator::equal( BinaryTreePavingConstIterator const & theOtherIterator) const {
     //Check if both iterators are in the "end Iterator" state
     Bool result = theOtherIterator._is_in_end_state && this->_is_in_end_state;
 
@@ -958,11 +958,11 @@ Bool GridTreeConstIterator::equal( GridTreeConstIterator const & theOtherIterato
             if(_owned_snapshot && theOtherIterator._owned_snapshot) {
                 // Independently-created snapshots have unrelated node addresses.
                 result = _snapshot_source==theOtherIterator._snapshot_source
-                    && _pGridTreeCursor.cell()==theOtherIterator._pGridTreeCursor.cell();
+                    && _pBinaryTreePavingCursor.cell()==theOtherIterator._pBinaryTreePavingCursor.cell();
             } else if(_owned_snapshot || theOtherIterator._owned_snapshot) {
                 result=false;
             } else {
-                result = theOtherIterator._pGridTreeCursor == this->_pGridTreeCursor;
+                result = theOtherIterator._pBinaryTreePavingCursor == this->_pBinaryTreePavingCursor;
             }
         }
     }
@@ -970,65 +970,65 @@ Bool GridTreeConstIterator::equal( GridTreeConstIterator const & theOtherIterato
     return result;
 }
 
-GridTreeConstIterator* GridTreeConstIterator::clone() const {
-    return new GridTreeConstIterator(*this);
+BinaryTreePavingConstIterator* BinaryTreePavingConstIterator::clone() const {
+    return new BinaryTreePavingConstIterator(*this);
 }
 
-Bool GridTreeConstIterator::equals( ForwardConstantIteratorInterface<GridCell> const & theOtherIterator) const {
-    GridTreeConstIterator const* theOtherIteratorPointer = dynamic_cast<GridTreeConstIterator const*>(&theOtherIterator);
+Bool BinaryTreePavingConstIterator::equals( ForwardConstantIteratorInterface<GridCell> const & theOtherIterator) const {
+    BinaryTreePavingConstIterator const* theOtherIteratorPointer = dynamic_cast<BinaryTreePavingConstIterator const*>(&theOtherIterator);
     return theOtherIteratorPointer && (this->equal(*theOtherIteratorPointer));
 }
 
-OutputStream& GridTreeConstIterator::_write(OutputStream& os) const {
-    return os << "GridTreeConstIterator(" << this->cursor() << ")";
+OutputStream& BinaryTreePavingConstIterator::_write(OutputStream& os) const {
+    return os << "BinaryTreePavingConstIterator(" << this->cursor() << ")";
 }
 
 
-//*******************************************GridTreeSubset******************************************/
+//*******************************************BinaryTreeSubpaving******************************************/
 
-SizeType GridTreeSubpaving::size() const {
+SizeType BinaryTreeSubpaving::size() const {
     return BinaryTreeNode::count_enabled_leaf_nodes( this->binary_tree() );
 }
 
-Void GridTreeSubpaving::set_root_cell(Bool enabled_or_disabled)  {
+Void BinaryTreeSubpaving::set_root_cell(Bool enabled_or_disabled)  {
     this->_pRootTreeNode->set(enabled_or_disabled);
 }
 
-Void GridTreeSubpaving::mince_to_tree_depth( const Nat theNewTreeDepth ) {
+Void BinaryTreeSubpaving::mince_to_tree_depth( const Nat theNewTreeDepth ) {
     _pRootTreeNode->mince( theNewTreeDepth );
 }
 
-Void GridTreeSubpaving::recombine() {
+Void BinaryTreeSubpaving::recombine() {
     _pRootTreeNode->recombine();
 }
 
-Nat GridTreeSubpaving::tree_depth() const {
+Nat BinaryTreeSubpaving::tree_depth() const {
     return _pRootTreeNode->depth();
 }
 
-Bool GridTreeSubpaving::operator==(const GridTreeSubpaving& anotherGridTreeSubset) const {
-    return ( this->_theGridCell == anotherGridTreeSubset._theGridCell ) &&
-        ( ( * this->_pRootTreeNode ) == ( * anotherGridTreeSubset._pRootTreeNode ) );
+Bool BinaryTreeSubpaving::operator==(const BinaryTreeSubpaving& anotherBinaryTreeSubpaving) const {
+    return ( this->_theGridCell == anotherBinaryTreeSubpaving._theGridCell ) &&
+        ( ( * this->_pRootTreeNode ) == ( * anotherBinaryTreeSubpaving._pRootTreeNode ) );
 }
 
-GridTreeSubpaving::GridTreeSubpaving( const Grid& theGrid, const Nat theExtent,
+BinaryTreeSubpaving::BinaryTreeSubpaving( const Grid& theGrid, const Nat theExtent,
                                        const BinaryWord& theWord, BinaryTreeNode * pRootTreeNode )
     : _pRootTreeNode(pRootTreeNode), _theGridCell(theGrid, theExtent, theWord) {
 }
 
-GridTreeSubpaving::GridTreeSubpaving( const GridTreeSubpaving &otherSubset )
+BinaryTreeSubpaving::BinaryTreeSubpaving( const BinaryTreeSubpaving &otherSubset )
     : _pRootTreeNode(otherSubset._pRootTreeNode),
       _theGridCell(otherSubset._theGridCell) {
 }
 
-GridTreeSubpaving::~GridTreeSubpaving() {
+BinaryTreeSubpaving::~BinaryTreeSubpaving() {
     //IVAN S ZAPREEV:
     //WARNING: This method should have no implementation what so ever
     //All the synamically allocatged data should be destroyed from the
     //corresponding Paving object
 }
 
-inline Nat GridTreeSubpaving::compute_number_subdiv( FloatDP theWidth, const FloatDP theMaxWidth) const{
+inline Nat BinaryTreeSubpaving::compute_number_subdiv( FloatDP theWidth, const FloatDP theMaxWidth) const{
     //Compute the minimum number of subdivisions N as:
     //   minimum N : ( theWidth / 2^{N} ) <= theMaxWidth
     //This is equivalent to (because all values are positive)
@@ -1053,27 +1053,27 @@ inline Nat GridTreeSubpaving::compute_number_subdiv( FloatDP theWidth, const Flo
     return result;
 }
 
-Bool GridTreeSubpaving::is_empty() const {
+Bool BinaryTreeSubpaving::is_empty() const {
     return this->size() == 0;
 }
 
-DimensionType GridTreeSubpaving::dimension( ) const {
+DimensionType BinaryTreeSubpaving::dimension( ) const {
     return grid().dimension();
 }
 
 
-const Grid& GridTreeSubpaving::grid() const {
+const Grid& BinaryTreeSubpaving::grid() const {
     return this->_theGridCell.grid();
 }
 
-GridCell GridTreeSubpaving::root_cell() const {
+GridCell BinaryTreeSubpaving::root_cell() const {
     return _theGridCell;
 }
 
-UpperBoxType GridTreeSubpaving::bounding_box() const {
+UpperBoxType BinaryTreeSubpaving::bounding_box() const {
     if(this->is_empty()) return ExactBoxType(this->dimension());
 
-    GridTreePaving::ConstIterator iter=this->begin();
+    BinaryTreePaving::ConstIterator iter=this->begin();
     UpperBoxType bbox = iter->box();
 
     for( ; iter!=this->end(); ++iter) {
@@ -1088,7 +1088,7 @@ UpperBoxType GridTreeSubpaving::bounding_box() const {
 
 }
 
-inline Nat GridTreeSubpaving::zero_cell_subdivisions_to_tree_subdivisions( const Nat numSubdivInDim, const Nat primaryCellExtent,
+inline Nat BinaryTreeSubpaving::zero_cell_subdivisions_to_tree_subdivisions( const Nat numSubdivInDim, const Nat primaryCellExtent,
                                                                            const Nat primaryToRootCellPathLength ) const {
     //Here we take the extent of the primary cell that the subpaving's root cell is rooted to
     //This extent times the number of dimensions is the number of subdivisions to make in
@@ -1103,99 +1103,99 @@ inline Nat GridTreeSubpaving::zero_cell_subdivisions_to_tree_subdivisions( const
     return (theTreeDepth > 0) ? static_cast<Nat>(theTreeDepth) : 0u;
 }
 
-Void GridTreeSubpaving::mince( Nat numSubdivInDim ) {
+Void BinaryTreeSubpaving::mince( Nat numSubdivInDim ) {
     mince_to_tree_depth( zero_cell_subdivisions_to_tree_subdivisions( numSubdivInDim, _theGridCell.root_extent(), static_cast<Nat>(_theGridCell.word().size()) ) );
 }
 
-Void GridTreeSubpaving::mince_to_depth( const Nat theNewDepth ) {
+Void BinaryTreeSubpaving::mince_to_depth( const Nat theNewDepth ) {
     Int theNewTreeDepth = static_cast<Int>(_theGridCell.root_extent() * _theGridCell.grid().dimension() + theNewDepth) - static_cast<Int>(_theGridCell.word().size());
     _pRootTreeNode->mince( (theNewTreeDepth > 0) ? static_cast<Nat>(theNewTreeDepth) : 0u );
 }
 
-GridTreeSubpaving::ConstIterator GridTreeSubpaving::begin() const {
-    return GridTreeSubpaving::ConstIterator(this, true);
+BinaryTreeSubpaving::ConstIterator BinaryTreeSubpaving::begin() const {
+    return BinaryTreeSubpaving::ConstIterator(this, true);
 }
 
-GridTreeSubpaving::ConstIterator GridTreeSubpaving::end() const {
-    return GridTreeSubpaving::ConstIterator(this, indeterminate);
+BinaryTreeSubpaving::ConstIterator BinaryTreeSubpaving::end() const {
+    return BinaryTreeSubpaving::ConstIterator(this, indeterminate);
 }
 
-const BinaryTreeNode * GridTreeSubpaving::binary_tree() const {
+const BinaryTreeNode * BinaryTreeSubpaving::binary_tree() const {
     return _pRootTreeNode;
 }
 
-GridTreeSubpaving& GridTreeSubpaving::operator=( const GridTreeSubpaving &otherSubset) {
+BinaryTreeSubpaving& BinaryTreeSubpaving::operator=( const BinaryTreeSubpaving &otherSubset) {
     _pRootTreeNode = otherSubset._pRootTreeNode;
     _theGridCell = otherSubset._theGridCell;
 
     return *this;
 }
 
-SubPavingInterface* GridTreeSubpaving::_branch(Bool left_or_right) const {
+SubPavingInterface* BinaryTreeSubpaving::_branch(Bool left_or_right) const {
     // A uniform leaf has no child pointers. Split it without changing its
     // geometric set before returning a live, mutable child view.
     this->_pRootTreeNode->split();
     BinaryWord word=this->_theGridCell.word();
     word.append(left_or_right);
     BinaryTreeNode* node=this->_pRootTreeNode->child_node(left_or_right);
-    return new GridTreeSubpaving(
+    return new BinaryTreeSubpaving(
         this->_theGridCell.grid(),
         this->_theGridCell.root_extent(),
         word,
         node);
 }
 
-ForwardConstantIteratorInterface<GridCell>* GridTreeSubpaving::_begin() const {
-    return new GridTreeConstIterator(this->begin());
+ForwardConstantIteratorInterface<GridCell>* BinaryTreeSubpaving::_begin() const {
+    return new BinaryTreePavingConstIterator(this->begin());
 }
 
-ForwardConstantIteratorInterface<GridCell>* GridTreeSubpaving::_end() const {
-    return new GridTreeConstIterator(this->end());
+ForwardConstantIteratorInterface<GridCell>* BinaryTreeSubpaving::_end() const {
+    return new BinaryTreePavingConstIterator(this->end());
 }
 
-Bool GridTreeSubpaving::equals(const SubPavingInterface& paving) const {
-    auto const& other=dynamic_cast<const GridTreeSubpaving&>(paving);
+Bool BinaryTreeSubpaving::equals(const SubPavingInterface& paving) const {
+    auto const& other=dynamic_cast<const BinaryTreeSubpaving&>(paving);
     // Geometric equality is invariant under redundant node subdivisions.
-    // The concrete GridTreeSubpaving::operator== remains structural.
+    // The concrete BinaryTreeSubpaving::operator== remains structural.
     return Ariadne::subset(*this,other) and Ariadne::subset(other,*this);
 }
 
-Bool GridTreeSubpaving::superset(const GridCell& theCell) const {
+Bool BinaryTreeSubpaving::superset(const GridCell& theCell) const {
     return Ariadne::subset(theCell,*this);
 }
 
-Bool GridTreeSubpaving::subset(const SubPavingInterface& paving) const {
-    return Ariadne::subset(*this, dynamic_cast<const GridTreeSubpaving&>(paving));
+Bool BinaryTreeSubpaving::subset(const SubPavingInterface& paving) const {
+    return Ariadne::subset(*this, dynamic_cast<const BinaryTreeSubpaving&>(paving));
 }
 
-Bool GridTreeSubpaving::intersects(const SubPavingInterface& paving) const {
-    return Ariadne::intersect(*this, dynamic_cast<const GridTreeSubpaving&>(paving));
+Bool BinaryTreeSubpaving::intersects(const SubPavingInterface& paving) const {
+    return Ariadne::intersect(*this, dynamic_cast<const BinaryTreeSubpaving&>(paving));
 }
 
-GridTreeSubpaving* GridTreeSubpaving::clone( ) const {
+BinaryTreeSubpaving* BinaryTreeSubpaving::clone( ) const {
     BinaryTreeNode* root = new BinaryTreeNode(*this->_pRootTreeNode);
     if(!this->_theGridCell.word().empty()) {
         root = BinaryTreeNode::prepend_tree(this->_theGridCell.word(),root);
     }
-    return new GridTreePaving(this->grid(),this->_theGridCell.root_extent(),root);
+    return new BinaryTreePaving(this->grid(),this->_theGridCell.root_extent(),root);
 }
 
 
-GridTreeSubpaving GridTreeSubpaving::branch(Bool left_or_right) const {
+BinaryTreeSubpaving BinaryTreeSubpaving::branch(Bool left_or_right) const {
     // Concrete branch views have the same mutable semantics as the
     // SubPavingInterface branch: children must exist even for a leaf.
     this->_pRootTreeNode->split();
     BinaryWord theWord=this->_theGridCell.word();
     theWord.append(left_or_right);
     BinaryTreeNode* pBinaryTreeNode=this->_pRootTreeNode->child_node(left_or_right);
-    return GridTreeSubpaving(this->_theGridCell.grid(),this->_theGridCell.root_extent(),theWord,pBinaryTreeNode);
+    return BinaryTreeSubpaving(this->_theGridCell.grid(),this->_theGridCell.root_extent(),theWord,pBinaryTreeNode);
 }
 
 
-Void GridTreeSubpaving::subdivide( ApproximateDouble theInputMaxCellWidth ) {
-    //1. Take the ExactBoxType of this GridTreeSubset's GridCell
+Void BinaryTreeSubpaving::subdivide( ApproximateDouble theInputMaxCellWidth ) {
+    //1. Take the ExactBoxType of this BinaryTreeSubpaving's GridCell
     //   I.e. the box that corresponds to the root cell of
-    //   the GridTreeSubset in the original space.
+    //   the BinaryTreeSubpaving in the original space.
     const ExactBoxType& theRootCellBoxType = _theGridCell.box();
 
     //2. Compute the widths of the box in each dimension and the maximum number
@@ -1233,7 +1233,7 @@ Void GridTreeSubpaving::subdivide( ApproximateDouble theInputMaxCellWidth ) {
     mince_to_tree_depth(needed_num_tree_subdiv);
 }
 
-FloatDPApproximation GridTreeSubpaving::measure() const {
+FloatDPApproximation BinaryTreeSubpaving::measure() const {
     FloatDPApproximation result={0.0, dp};
     for(ConstIterator iter=this->begin(); iter!=this->end(); ++iter) {
         result+=iter->box().measure().value();
@@ -1243,21 +1243,21 @@ FloatDPApproximation GridTreeSubpaving::measure() const {
 
 
 
-GridTreeSubpaving::operator ListSet<ExactBoxType>() const {
+BinaryTreeSubpaving::operator ListSet<ExactBoxType>() const {
     ListSet<ExactBoxType> result(this->root_cell().dimension());
 
     //IVAN S ZAPREEV:
     //NOTE: Push back the boxes, note that BoxListSet uses a vector, that
     //in its turn uses std:vector to store boxes in it (via push_back method),
     //the latter stores the copies of the boxes, not the references to them.
-    for (GridTreeSubpaving::ConstIterator it = this->begin(), end = this->end(); it != end; it++ ) {
+    for (BinaryTreeSubpaving::ConstIterator it = this->begin(), end = this->end(); it != end; it++ ) {
         result.push_back((*it).box());
     }
 
     return result;
 }
 
-Bool GridTreeSubpaving::superset( const ExactBoxType& theBoxType ) const {
+Bool BinaryTreeSubpaving::superset( const ExactBoxType& theBoxType ) const {
     //Check that the box corresponding to the root node of the set
     //is not disjoint from theBoxType. If it is then the set is not a
     //subset of theBoxType otherwise we need to traverse the tree and check
@@ -1273,11 +1273,11 @@ Bool GridTreeSubpaving::superset( const ExactBoxType& theBoxType ) const {
     } else {
         //Otherwise, is theBoxType is possibly a subset then we try to see furhter
         BinaryWord pathCopy( root_cell().word() );
-        return definitely( GridTreeSubpaving::_superset( binary_tree(), grid(), root_cell().root_extent(), pathCopy, theBoxType ) ) ;
+        return definitely( BinaryTreeSubpaving::_superset( binary_tree(), grid(), root_cell().root_extent(), pathCopy, theBoxType ) ) ;
     }
 }
 
-Bool GridTreeSubpaving::subset( const ExactBoxType& theBoxType ) const {
+Bool BinaryTreeSubpaving::subset( const ExactBoxType& theBoxType ) const {
     //Check that the box corresponding to the root node of the set
     //is not disjoint from theBoxType. If it is then the set is not a
     //subset of theBoxType otherwise we need to traverse the tree and check
@@ -1287,10 +1287,10 @@ Bool GridTreeSubpaving::subset( const ExactBoxType& theBoxType ) const {
 
     BinaryWord pathCopy( root_cell().word() );
 
-    return definitely( GridTreeSubpaving::_subset( binary_tree(), grid(), root_cell().root_extent(), pathCopy, theBoxType ) );
+    return definitely( BinaryTreeSubpaving::_subset( binary_tree(), grid(), root_cell().root_extent(), pathCopy, theBoxType ) );
 }
 
-Bool GridTreeSubpaving::disjoint( const ExactBoxType& theBoxType ) const {
+Bool BinaryTreeSubpaving::disjoint( const ExactBoxType& theBoxType ) const {
     //Check that the box corresponding to the root node of the set
     //is not disjoint from theBoxType. If it is then the set is not a
     //subset of theBoxType otherwise we need to traverse the tree and check
@@ -1300,10 +1300,10 @@ Bool GridTreeSubpaving::disjoint( const ExactBoxType& theBoxType ) const {
 
     BinaryWord pathCopy( root_cell().word() );
 
-    return definitely( GridTreeSubpaving::_disjoint( binary_tree(), grid(), root_cell().root_extent(), pathCopy, theBoxType ) );
+    return definitely( BinaryTreeSubpaving::_disjoint( binary_tree(), grid(), root_cell().root_extent(), pathCopy, theBoxType ) );
 }
 
-Bool GridTreeSubpaving::intersects( const ExactBoxType& theBoxType ) const {
+Bool BinaryTreeSubpaving::intersects( const ExactBoxType& theBoxType ) const {
     //Check that the box corresponding to the root node of the set
     //is not disjoint from theBoxType. If it is then the set is not a
     //subset of theBoxType otherwise we need to traverse the tree and check
@@ -1313,10 +1313,10 @@ Bool GridTreeSubpaving::intersects( const ExactBoxType& theBoxType ) const {
 
     BinaryWord pathCopy( root_cell().word() );
 
-    return definitely( GridTreeSubpaving::_intersects( binary_tree(), grid(), root_cell().root_extent(), pathCopy, theBoxType ) );
+    return definitely( BinaryTreeSubpaving::_intersects( binary_tree(), grid(), root_cell().root_extent(), pathCopy, theBoxType ) );
 }
 
-ValidatedLowerKleenean GridTreeSubpaving::covers( const ExactBoxType& theBoxType ) const {
+ValidatedLowerKleenean BinaryTreeSubpaving::covers( const ExactBoxType& theBoxType ) const {
     //Simply check if theBoxType is covered by the set and then make sure that
     //all tree cells that are not disjoint from theBoxType are enabled
 
@@ -1330,11 +1330,11 @@ ValidatedLowerKleenean GridTreeSubpaving::covers( const ExactBoxType& theBoxType
     } else {
         //Otherwise, is theBoxType is possibly a subset then we try to see furhter
         BinaryWord pathCopy( root_cell().word() );
-        return GridTreeSubpaving::_superset( binary_tree(), grid(), root_cell().root_extent(), pathCopy, cast_exact_box(widen(theBoxType)) );
+        return BinaryTreeSubpaving::_superset( binary_tree(), grid(), root_cell().root_extent(), pathCopy, cast_exact_box(widen(theBoxType)) );
     }
 }
 
-ValidatedLowerKleenean GridTreeSubpaving::inside( const ExactBoxType& theBoxType ) const {
+ValidatedLowerKleenean BinaryTreeSubpaving::inside( const ExactBoxType& theBoxType ) const {
     //Check that the box corresponding to the root node of the set
     //is not disjoint from theBoxType. If it is then the set is not a
     //subset of theBoxType otherwise we need to traverse the tree and check
@@ -1344,20 +1344,20 @@ ValidatedLowerKleenean GridTreeSubpaving::inside( const ExactBoxType& theBoxType
 
     BinaryWord pathCopy( root_cell().word() );
 
-    return GridTreeSubpaving::_subset( binary_tree(), grid(), root_cell().root_extent(), pathCopy, cast_exact_box(narrow(theBoxType)) );
+    return BinaryTreeSubpaving::_subset( binary_tree(), grid(), root_cell().root_extent(), pathCopy, cast_exact_box(narrow(theBoxType)) );
 }
 
-ValidatedLowerKleenean GridTreeSubpaving::separated( const ExactBoxType& theBoxType ) const {
+ValidatedLowerKleenean BinaryTreeSubpaving::separated( const ExactBoxType& theBoxType ) const {
     //Simply check if the box does not intersect with the set
 
     ARIADNE_PRECONDITION( theBoxType.dimension() == root_cell().dimension() );
 
     BinaryWord pathCopy( root_cell().word() );
 
-    return GridTreeSubpaving::_disjoint( binary_tree(), grid(), root_cell().root_extent(), pathCopy, cast_exact_box(widen(theBoxType)) );
+    return BinaryTreeSubpaving::_disjoint( binary_tree(), grid(), root_cell().root_extent(), pathCopy, cast_exact_box(widen(theBoxType)) );
 }
 
-ValidatedLowerKleenean GridTreeSubpaving::overlaps( const ExactBoxType& theBoxType ) const {
+ValidatedLowerKleenean BinaryTreeSubpaving::overlaps( const ExactBoxType& theBoxType ) const {
     //Check if the box of the root cell overlaps with theBoxType,
     //if not then theBoxType does not intersect with the cell,
     //otherwise we need to find at least one enabled node
@@ -1367,13 +1367,13 @@ ValidatedLowerKleenean GridTreeSubpaving::overlaps( const ExactBoxType& theBoxTy
 
     BinaryWord pathCopy( root_cell().word() );
 
-    return GridTreeSubpaving::_intersects( binary_tree(), grid(), root_cell().root_extent(), pathCopy, cast_exact_box(narrow(theBoxType)) );
+    return BinaryTreeSubpaving::_intersects( binary_tree(), grid(), root_cell().root_extent(), pathCopy, cast_exact_box(narrow(theBoxType)) );
 }
 
 static_assert(SameAs<decltype(declval<ExactBoxType>().overlaps(declval<ExactBoxType>())),Boolean>);
 static_assert(SameAs<decltype(declval<ExactBoxType>().subset(declval<ExactBoxType>())),Boolean>);
 
-ValidatedKleenean GridTreeSubpaving::_superset( const BinaryTreeNode* pCurrentNode, const Grid& theGrid,
+ValidatedKleenean BinaryTreeSubpaving::_superset( const BinaryTreeNode* pCurrentNode, const Grid& theGrid,
                                              const Nat theExtent, BinaryWord &theWord, const ExactBoxType& theBoxType ) {
     // Exact boxes have two-valued Boolean overlap/subset predicates. Recursive results
     // are therefore determinate; no indeterminate case can be constructed.
@@ -1390,7 +1390,7 @@ ValidatedKleenean GridTreeSubpaving::_superset( const BinaryTreeNode* pCurrentNo
     return right;
 }
 
-ValidatedKleenean GridTreeSubpaving::_subset( const BinaryTreeNode* pCurrentNode, const Grid& theGrid,
+ValidatedKleenean BinaryTreeSubpaving::_subset( const BinaryTreeNode* pCurrentNode, const Grid& theGrid,
                                            const Nat theExtent, BinaryWord &theWord, const ExactBoxType& theBoxType ) {
     const ExactBoxType cell=GridCell::compute_box(theGrid,theExtent,theWord);
     if(cell.subset(theBoxType)) { return true; }
@@ -1405,14 +1405,14 @@ ValidatedKleenean GridTreeSubpaving::_subset( const BinaryTreeNode* pCurrentNode
     return right;
 }
 
-ValidatedKleenean GridTreeSubpaving::_disjoint( const BinaryTreeNode* pCurrentNode, const Grid& theGrid,
+ValidatedKleenean BinaryTreeSubpaving::_disjoint( const BinaryTreeNode* pCurrentNode, const Grid& theGrid,
                                              const Nat theExtent, BinaryWord &theWord, const ExactBoxType& theBoxType ) {
     // Disjointness from the interior is the complement of interior overlap,
     // independently of whether the tree has already been subdivided.
     return !_intersects(pCurrentNode,theGrid,theExtent,theWord,theBoxType);
 }
 
-ValidatedKleenean GridTreeSubpaving::_intersects( const BinaryTreeNode* pCurrentNode, const Grid& theGrid,
+ValidatedKleenean BinaryTreeSubpaving::_intersects( const BinaryTreeNode* pCurrentNode, const Grid& theGrid,
                                                const Nat theExtent, BinaryWord &theWord, const ExactBoxType& theBoxType ) {
     const ExactBoxType cell=GridCell::compute_box(theGrid,theExtent,theWord);
     if(!cell.overlaps(theBoxType)) { return false; }
@@ -1428,14 +1428,14 @@ ValidatedKleenean GridTreeSubpaving::_intersects( const BinaryTreeNode* pCurrent
 }
 
 OutputStream&
-GridTreeSubpaving::_write(OutputStream& os) const
+BinaryTreeSubpaving::_write(OutputStream& os) const
 {
     return os << (*this);
 }
 
-//************************************FRIENDS OF GridTreeSubset*****************************************/
+//************************************FRIENDS OF BinaryTreeSubpaving*****************************************/
 
-Bool subset( const GridCell& theCell, const GridTreeSubpaving& theSet ) {
+Bool subset( const GridCell& theCell, const BinaryTreeSubpaving& theSet ) {
     Bool result = false;
 
     //Test that the Grids are equal
@@ -1460,7 +1460,7 @@ Bool subset( const GridCell& theCell, const GridTreeSubpaving& theSet ) {
     return result;
 }
 
-Bool intersect( const GridCell& theCell, const GridTreeSubpaving& theSet ) {
+Bool intersect( const GridCell& theCell, const BinaryTreeSubpaving& theSet ) {
     Bool result = false;
 
     //Test that the Grids are equal
@@ -1538,12 +1538,12 @@ Bool intersect( const GridCell& theCell, const GridTreeSubpaving& theSet ) {
     return result;
 }
 
-// This is a helper method, it receives two GridTreeSubset elements
+// This is a helper method, it receives two BinaryTreeSubpaving elements
 // then it computes the primary cell that is common to them in a sence that
 // these sets can be rooted to it. After that the method updates the paths
 // with the information about the paths from the found primary cell to the
 // root binary tree nodes of both sets.
-static Void common_primary_cell_path(const GridTreeSubpaving& theSet1, const GridTreeSubpaving& theSet2, BinaryWord &pathCommonPCtoRC1, BinaryWord &pathCommonPCtoRC2 ) {
+static Void common_primary_cell_path(const BinaryTreeSubpaving& theSet1, const BinaryTreeSubpaving& theSet2, BinaryWord &pathCommonPCtoRC1, BinaryWord &pathCommonPCtoRC2 ) {
     GridCell first = theSet1.root_cell();
     GridCell second = theSet2.root_cell();
     Nat extent = std::max(first.root_extent(),second.root_extent());
@@ -1568,7 +1568,7 @@ static const BinaryTreeNode * locate_node( const BinaryTreeNode * pSuperTreeRoot
     return pCurrentSuperTreeNode;
 }
 
-// \brief This is a helper functiuon for Bool subset( const GridTreeSubset& theSet1, const GridTreeSubset& theSet2 )
+// \brief This is a helper functiuon for Bool subset( const BinaryTreeSubpaving& theSet1, const BinaryTreeSubpaving& theSet2 )
 // pSuperTreeRootNode is the root tree node, pathFromSuperToSub is the path from this root node to the root node
 // pSubTreeRootNode. In general we see if the set represented by pSubTreeRootNode is a subset of pSuperTreeRootNode.
 // If pSubTreeRootNode has no enabled leaf nodes then the result is always true, else if pSuperTreeRootNode has no
@@ -1604,7 +1604,7 @@ static Bool subset(const BinaryTreeNode * pSubTreeRootNode, const BinaryTreeNode
     return result;
 }
 
-// This is a helper functiuon for Bool subset( const GridTreeSubset& theSet1, const GridTreeSubset& theSet2 )
+// This is a helper functiuon for Bool subset( const BinaryTreeSubpaving& theSet1, const BinaryTreeSubpaving& theSet2 )
 // pSuperTreeRootNode is the root tree node, pathFromSuperToSub is the path from this root node to the root node
 // pSubTreeRootNode. In general we see if the set represented by pSuperTreeRootNode is a subset of pSubTreeRootNode.
 // If pSuperTreeRootNode has no enabled leaf nodes then the result is always true, else if pSubTreeRootNode has no
@@ -1672,7 +1672,7 @@ static Bool subset( const BinaryTreeNode * pSuperTreeRootNode, const BinaryWord 
     return result;
 }
 
-Bool subset( const GridTreeSubpaving& theSet1, const GridTreeSubpaving& theSet2 ) {
+Bool subset( const BinaryTreeSubpaving& theSet1, const BinaryTreeSubpaving& theSet2 ) {
     Bool result = false;
 
     //Test that the Grids are equal
@@ -1713,7 +1713,7 @@ Bool subset( const GridTreeSubpaving& theSet1, const GridTreeSubpaving& theSet2 
     return result;
 }
 
-// This is a helper functiuon for Bool overlap( const GridTreeSubset& theSet1, const GridTreeSubset& theSet2 )
+// This is a helper functiuon for Bool overlap( const BinaryTreeSubpaving& theSet1, const BinaryTreeSubpaving& theSet2 )
 // pSuperTreeRootNode is the root tree node, pathFromSuperToSub is the path from this root node to the root node
 // pSubTreeRootNode. In general we see if the sets represented by pSuperTreeRootNode and pSubTreeRootNode overlap.
 // If at least one of pSuperTreeRootNode and pSubTreeRootNode have no enabled leaf nodes then the result is always false.
@@ -1740,7 +1740,7 @@ static Bool intersect(const BinaryTreeNode * pSuperTreeRootNode, const BinaryWor
     return result;
 }
 
-Bool intersect( const GridTreeSubpaving& theSet1, const GridTreeSubpaving& theSet2 ) {
+Bool intersect( const BinaryTreeSubpaving& theSet1, const BinaryTreeSubpaving& theSet2 ) {
     Bool result = false;
 
     //Test that the Grids are equal
@@ -1774,186 +1774,186 @@ Bool intersect( const GridTreeSubpaving& theSet1, const GridTreeSubpaving& theSe
     return result;
 }
 
-OutputStream& operator<<(OutputStream& os, const GridTreeSubpaving& theGridTreeSubset) {
-    return os << "GridTreeSubset( Primary cell: " << theGridTreeSubset.root_cell() << ", " << (*theGridTreeSubset.binary_tree()) <<" )";
+OutputStream& operator<<(OutputStream& os, const BinaryTreeSubpaving& theBinaryTreeSubpaving) {
+    return os << "BinaryTreeSubpaving( Primary cell: " << theBinaryTreeSubpaving.root_cell() << ", " << (*theBinaryTreeSubpaving.binary_tree()) <<" )";
 }
 
 
-//********************************************GridTreeSet*********************************************/
+//********************************************BinaryTreePaving*********************************************/
 
-Void GridTreePaving::mince_to_depth(Nat depth) {
+Void BinaryTreePaving::mince_to_depth(Nat depth) {
     std::lock_guard<std::mutex> lock(_adjoin_mutex);
     // Qualified base calls do not dispatch to an owner-locking method.
-    GridTreeSubpaving::mince_to_depth(depth);
+    BinaryTreeSubpaving::mince_to_depth(depth);
 }
 
-Void GridTreePaving::mince_to_tree_depth(Nat tree_depth) {
+Void BinaryTreePaving::mince_to_tree_depth(Nat tree_depth) {
     std::lock_guard<std::mutex> lock(_adjoin_mutex);
-    GridTreeSubpaving::mince_to_tree_depth(tree_depth);
+    BinaryTreeSubpaving::mince_to_tree_depth(tree_depth);
 }
 
-Void GridTreePaving::subdivide(ApproximateDouble max_cell_width) {
+Void BinaryTreePaving::subdivide(ApproximateDouble max_cell_width) {
     std::lock_guard<std::mutex> lock(_adjoin_mutex);
-    GridTreeSubpaving::subdivide(max_cell_width);
+    BinaryTreeSubpaving::subdivide(max_cell_width);
 }
 
-Nat GridTreePaving::tree_depth() const {
+Nat BinaryTreePaving::tree_depth() const {
     std::lock_guard<std::mutex> lock(_adjoin_mutex);
-    return GridTreeSubpaving::tree_depth();
+    return BinaryTreeSubpaving::tree_depth();
 }
 
-GridTreeSubpaving GridTreePaving::branch(Bool right) const {
+BinaryTreeSubpaving BinaryTreePaving::branch(Bool right) const {
     // Protect the splitting step only: returned live views remain borrowed.
     std::lock_guard<std::mutex> lock(_adjoin_mutex);
-    return GridTreeSubpaving::branch(right);
+    return BinaryTreeSubpaving::branch(right);
 }
 
-OutputStream& GridTreePaving::_write(OutputStream& os) const {
-    GridTreePaving snapshot(*this);
-    return snapshot.GridTreeSubpaving::_write(os);
+OutputStream& BinaryTreePaving::_write(OutputStream& os) const {
+    BinaryTreePaving snapshot(*this);
+    return snapshot.BinaryTreeSubpaving::_write(os);
 }
 
-Void GridTreePaving::set_root_cell(Bool enabled) {
+Void BinaryTreePaving::set_root_cell(Bool enabled) {
     std::lock_guard<std::mutex> lock(_adjoin_mutex);
-    GridTreeSubpaving::set_root_cell(enabled);
+    BinaryTreeSubpaving::set_root_cell(enabled);
 }
 
-Void GridTreePaving::mince(Nat fineness) {
+Void BinaryTreePaving::mince(Nat fineness) {
     std::lock_guard<std::mutex> lock(_adjoin_mutex);
-    GridTreeSubpaving::mince(fineness);
+    BinaryTreeSubpaving::mince(fineness);
 }
 
-Void GridTreePaving::recombine() {
+Void BinaryTreePaving::recombine() {
     std::lock_guard<std::mutex> lock(_adjoin_mutex);
-    GridTreeSubpaving::recombine();
+    BinaryTreeSubpaving::recombine();
 }
 
-GridTreePaving::ConstIterator GridTreePaving::begin() const {
+BinaryTreePaving::ConstIterator BinaryTreePaving::begin() const {
     // Deep-copy the entire tree and root geometry atomically under owner lock.
-    auto snapshot=std::make_shared<GridTreePaving>(*this);
+    auto snapshot=std::make_shared<BinaryTreePaving>(*this);
     return ConstIterator(std::move(snapshot),this,true);
 }
 
-GridTreePaving::ConstIterator GridTreePaving::end() const {
+BinaryTreePaving::ConstIterator BinaryTreePaving::end() const {
     return ConstIterator();
 }
 
-ForwardConstantIteratorInterface<GridCell>* GridTreePaving::_begin() const {
-    return new GridTreeConstIterator(this->begin());
+ForwardConstantIteratorInterface<GridCell>* BinaryTreePaving::_begin() const {
+    return new BinaryTreePavingConstIterator(this->begin());
 }
 
-ForwardConstantIteratorInterface<GridCell>* GridTreePaving::_end() const {
-    return new GridTreeConstIterator();
+ForwardConstantIteratorInterface<GridCell>* BinaryTreePaving::_end() const {
+    return new BinaryTreePavingConstIterator();
 }
 
-SubPavingInterface* GridTreePaving::_branch(Bool right) const {
+SubPavingInterface* BinaryTreePaving::_branch(Bool right) const {
     // Protect creation only. The returned mutable view remains borrowed
     // and must not outlive or race with mutations of its owning paving.
     std::lock_guard<std::mutex> lock(_adjoin_mutex);
-    return GridTreeSubpaving::_branch(right);
+    return BinaryTreeSubpaving::_branch(right);
 }
 
-Bool GridTreePaving::is_empty() const {
+Bool BinaryTreePaving::is_empty() const {
     std::lock_guard<std::mutex> lock(_adjoin_mutex);
-    // GridTreeSubpaving::is_empty() dispatches virtually to size(),
+    // BinaryTreeSubpaving::is_empty() dispatches virtually to size(),
     // re-entering this non-recursive owner mutex. Call the base count
     // directly while the owning tree is locked.
-    return GridTreeSubpaving::size() == 0u;
+    return BinaryTreeSubpaving::size() == 0u;
 }
 
-FloatDPApproximation GridTreePaving::measure() const {
-    GridTreePaving snapshot(*this);
-    return snapshot.GridTreeSubpaving::measure();
+FloatDPApproximation BinaryTreePaving::measure() const {
+    BinaryTreePaving snapshot(*this);
+    return snapshot.BinaryTreeSubpaving::measure();
 }
 
-DimensionType GridTreePaving::dimension() const {
+DimensionType BinaryTreePaving::dimension() const {
     std::lock_guard<std::mutex> lock(_adjoin_mutex);
     // Read the protected geometry directly: no virtual calls while locked.
     return _theGridCell.grid().dimension();
 }
 
-UpperBoxType GridTreePaving::bounding_box() const {
-    GridTreePaving snapshot(*this);
-    return snapshot.GridTreeSubpaving::bounding_box();
+UpperBoxType BinaryTreePaving::bounding_box() const {
+    BinaryTreePaving snapshot(*this);
+    return snapshot.BinaryTreeSubpaving::bounding_box();
 }
 
-ValidatedLowerKleenean GridTreePaving::inside(const ExactBoxType& box) const {
-    GridTreePaving snapshot(*this);
-    return snapshot.GridTreeSubpaving::inside(box);
+ValidatedLowerKleenean BinaryTreePaving::inside(const ExactBoxType& box) const {
+    BinaryTreePaving snapshot(*this);
+    return snapshot.BinaryTreeSubpaving::inside(box);
 }
 
-ValidatedLowerKleenean GridTreePaving::separated(const ExactBoxType& box) const {
-    GridTreePaving snapshot(*this);
-    return snapshot.GridTreeSubpaving::separated(box);
+ValidatedLowerKleenean BinaryTreePaving::separated(const ExactBoxType& box) const {
+    BinaryTreePaving snapshot(*this);
+    return snapshot.BinaryTreeSubpaving::separated(box);
 }
 
-ValidatedLowerKleenean GridTreePaving::overlaps(const ExactBoxType& box) const {
-    GridTreePaving snapshot(*this);
-    return snapshot.GridTreeSubpaving::overlaps(box);
+ValidatedLowerKleenean BinaryTreePaving::overlaps(const ExactBoxType& box) const {
+    BinaryTreePaving snapshot(*this);
+    return snapshot.BinaryTreeSubpaving::overlaps(box);
 }
 
-Bool GridTreePaving::equals(const SubPavingInterface& other) const {
+Bool BinaryTreePaving::equals(const SubPavingInterface& other) const {
     if(this==&other) { return true; }
-    GridTreePaving lhs(*this);
-    if(auto const* owner=dynamic_cast<GridTreePaving const*>(&other)) {
-        GridTreePaving rhs(*owner);
-        return lhs.GridTreeSubpaving::equals(rhs);
+    BinaryTreePaving lhs(*this);
+    if(auto const* owner=dynamic_cast<BinaryTreePaving const*>(&other)) {
+        BinaryTreePaving rhs(*owner);
+        return lhs.BinaryTreeSubpaving::equals(rhs);
     }
-    return lhs.GridTreeSubpaving::equals(other);
+    return lhs.BinaryTreeSubpaving::equals(other);
 }
 
-Bool GridTreePaving::subset(const SubPavingInterface& other) const {
+Bool BinaryTreePaving::subset(const SubPavingInterface& other) const {
     if(this==&other) { return true; }
-    GridTreePaving lhs(*this);
-    if(auto const* owner=dynamic_cast<GridTreePaving const*>(&other)) {
-        GridTreePaving rhs(*owner);
-        return lhs.GridTreeSubpaving::subset(rhs);
+    BinaryTreePaving lhs(*this);
+    if(auto const* owner=dynamic_cast<BinaryTreePaving const*>(&other)) {
+        BinaryTreePaving rhs(*owner);
+        return lhs.BinaryTreeSubpaving::subset(rhs);
     }
-    return lhs.GridTreeSubpaving::subset(other);
+    return lhs.BinaryTreeSubpaving::subset(other);
 }
 
-Bool GridTreePaving::intersects(const SubPavingInterface& other) const {
+Bool BinaryTreePaving::intersects(const SubPavingInterface& other) const {
     if(this==&other) { return !is_empty(); }
-    GridTreePaving lhs(*this);
-    if(auto const* owner=dynamic_cast<GridTreePaving const*>(&other)) {
-        GridTreePaving rhs(*owner);
-        return lhs.GridTreeSubpaving::intersects(rhs);
+    BinaryTreePaving lhs(*this);
+    if(auto const* owner=dynamic_cast<BinaryTreePaving const*>(&other)) {
+        BinaryTreePaving rhs(*owner);
+        return lhs.BinaryTreeSubpaving::intersects(rhs);
     }
-    return lhs.GridTreeSubpaving::intersects(other);
+    return lhs.BinaryTreeSubpaving::intersects(other);
 }
 
-SizeType GridTreePaving::size() const {
+SizeType BinaryTreePaving::size() const {
     std::lock_guard<std::mutex> lock(_adjoin_mutex);
-    return GridTreeSubpaving::size();
+    return BinaryTreeSubpaving::size();
 }
 
-GridCell GridTreePaving::root_cell() const {
+GridCell BinaryTreePaving::root_cell() const {
     std::lock_guard<std::mutex> lock(_adjoin_mutex);
-    return GridTreeSubpaving::root_cell();
+    return BinaryTreeSubpaving::root_cell();
 }
 
-Bool GridTreePaving::superset(GridCell const& cell) const {
+Bool BinaryTreePaving::superset(GridCell const& cell) const {
     std::lock_guard<std::mutex> lock(_adjoin_mutex);
     // A borrowed base view has no synchronized virtual root_cell()
     // override; reading through it avoids recursive acquisition of our
     // mutex while the underlying nodes are protected.
-    GridTreeSubpaving view(_theGridCell.grid(),_theGridCell.root_extent(),
+    BinaryTreeSubpaving view(_theGridCell.grid(),_theGridCell.root_extent(),
         _theGridCell.word(),_pRootTreeNode);
     return view.superset(cell);
 }
 
-GridCell GridTreePaving::smallest_enclosing_primary_cell( const UpperBoxType& theBoxType ) const {
+GridCell BinaryTreePaving::smallest_enclosing_primary_cell( const UpperBoxType& theBoxType ) const {
     // The grid is invariant, but owner assignment can replace its containing
     // GridCell. Capture one coherent root instead of borrowing grid() across
     // a concurrent same-grid assignment.
     GridCell geometry=this->root_cell();
-    ARIADNE_PRECONDITION_MSG( geometry.grid().dimension() == theBoxType.dimension(), "Cannot find enclosing cell for ExactBoxType  " << theBoxType << " for GridTreeSet with grid " << geometry.grid() );
+    ARIADNE_PRECONDITION_MSG( geometry.grid().dimension() == theBoxType.dimension(), "Cannot find enclosing cell for ExactBoxType  " << theBoxType << " for BinaryTreePaving with grid " << geometry.grid() );
 
     return GridCell::smallest_enclosing_primary_cell( theBoxType, geometry.grid() );
 }
 
-Void GridTreePaving::_adjoin_unlocked( const GridCell& theCell ) {
-    ARIADNE_PRECONDITION_MSG( this->grid() == theCell.grid(), "Cannot adjoin GridCell with grid "<<theCell.grid()<<" to GridTreeSet with grid "<<this->grid() );
+Void BinaryTreePaving::_adjoin_unlocked( const GridCell& theCell ) {
+    ARIADNE_PRECONDITION_MSG( this->grid() == theCell.grid(), "Cannot adjoin GridCell with grid "<<theCell.grid()<<" to BinaryTreePaving with grid "<<this->grid() );
     Bool has_stopped = false;
     //Align the paving and the cell
     BinaryTreeNode* pBinaryTreeNode = align_with_cell( theCell.root_extent(), true, false, has_stopped );
@@ -1965,28 +1965,28 @@ Void GridTreePaving::_adjoin_unlocked( const GridCell& theCell ) {
     }
 }
 
-Void GridTreePaving::_adjoin_unlocked( const GridTreeSubpaving& theOtherSubPaving ) {
-    ARIADNE_PRECONDITION_MSG( this->grid() == theOtherSubPaving.GridTreeSubpaving::root_cell().grid(), "Cannot adjoin GridTreeSubset with grid "<<theOtherSubPaving.GridTreeSubpaving::root_cell().grid()<<" to GridTreeSet with grid "<<this->grid() );
+Void BinaryTreePaving::_adjoin_unlocked( const BinaryTreeSubpaving& theOtherSubPaving ) {
+    ARIADNE_PRECONDITION_MSG( this->grid() == theOtherSubPaving.BinaryTreeSubpaving::root_cell().grid(), "Cannot adjoin BinaryTreeSubpaving with grid "<<theOtherSubPaving.BinaryTreeSubpaving::root_cell().grid()<<" to BinaryTreePaving with grid "<<this->grid() );
 
     Bool has_stopped = false;
     //Align the paving and the cell
-    BinaryTreeNode* pBinaryTreeNode = align_with_cell( theOtherSubPaving.GridTreeSubpaving::root_cell().root_extent(), true, false, has_stopped );
+    BinaryTreeNode* pBinaryTreeNode = align_with_cell( theOtherSubPaving.BinaryTreeSubpaving::root_cell().root_extent(), true, false, has_stopped );
 
     //If we are not trying to adjoin something into an enabled sub cell of the paving
     if( ! has_stopped ){
         //Now, the pBinaryTreeNode of this paving corresponds to the primary cell common with theOtherSubPaving.
         //The theOtherSubPaving's root node is defined the path theOtherSubPaving.word() which starts in the
         //node corresponding to the common primary cell.
-        pBinaryTreeNode->add_enabled( theOtherSubPaving.binary_tree(), theOtherSubPaving.GridTreeSubpaving::root_cell().word() );
+        pBinaryTreeNode->add_enabled( theOtherSubPaving.binary_tree(), theOtherSubPaving.BinaryTreeSubpaving::root_cell().word() );
     }
 }
 
-Void GridTreePaving::adjoin( const GridCell& cell ) {
+Void BinaryTreePaving::adjoin( const GridCell& cell ) {
     std::lock_guard<std::mutex> lock(_adjoin_mutex);
     _adjoin_unlocked(cell);
 }
 
-Void GridTreePaving::adjoin(std::vector<GridCell> const& cells) {
+Void BinaryTreePaving::adjoin(std::vector<GridCell> const& cells) {
     std::lock_guard<std::mutex> lock(_adjoin_mutex);
     // Validate the entire batch before applying the first cell.
     for(GridCell const& cell:cells) {
@@ -1996,8 +1996,8 @@ Void GridTreePaving::adjoin(std::vector<GridCell> const& cells) {
     for(GridCell const& cell:cells) { _adjoin_unlocked(cell); }
 }
 
-Void GridTreePaving::adjoin( const GridTreeSubpaving& other ) {
-    if(auto const* source=dynamic_cast<GridTreePaving const*>(&other)) {
+Void BinaryTreePaving::adjoin( const BinaryTreeSubpaving& other ) {
+    if(auto const* source=dynamic_cast<BinaryTreePaving const*>(&other)) {
         if(source==this) {
             // Union with itself is an identity operation.
             std::lock_guard<std::mutex> lock(_adjoin_mutex);
@@ -2009,43 +2009,43 @@ Void GridTreePaving::adjoin( const GridTreeSubpaving& other ) {
         _adjoin_unlocked(other);
         return;
     }
-    // Borrowed GridTreeSubpaving operands must remain stable for the
+    // Borrowed BinaryTreeSubpaving operands must remain stable for the
     // duration of this call; destination writes remain serialized.
     std::lock_guard<std::mutex> lock(_adjoin_mutex);
     _adjoin_unlocked(other);
 }
 
-Void GridTreePaving::adjoin( const SubPavingInterface& theOtherSubPaving ) {
-    this->adjoin(dynamic_cast<const GridTreeSubpaving&>(theOtherSubPaving));
+Void BinaryTreePaving::adjoin( const SubPavingInterface& theOtherSubPaving ) {
+    this->adjoin(dynamic_cast<const BinaryTreeSubpaving&>(theOtherSubPaving));
 }
 
-Void GridTreePaving::restrict( const SubPavingInterface& theOtherSubPaving ) {
-    this->restrict(dynamic_cast<const GridTreeSubpaving&>(theOtherSubPaving));
+Void BinaryTreePaving::restrict( const SubPavingInterface& theOtherSubPaving ) {
+    this->restrict(dynamic_cast<const BinaryTreeSubpaving&>(theOtherSubPaving));
 }
 
-Void GridTreePaving::remove( const SubPavingInterface& theOtherSubPaving ) {
-    this->remove(dynamic_cast<const GridTreeSubpaving&>(theOtherSubPaving));
+Void BinaryTreePaving::remove( const SubPavingInterface& theOtherSubPaving ) {
+    this->remove(dynamic_cast<const BinaryTreeSubpaving&>(theOtherSubPaving));
 }
 
 
-GridTreePaving::GridTreePaving( ) : GridTreeSubpaving( Grid(), 0, BinaryWord(), new BinaryTreeNode( false ) ){
+BinaryTreePaving::BinaryTreePaving( ) : BinaryTreeSubpaving( Grid(), 0, BinaryWord(), new BinaryTreeNode( false ) ){
 }
 
-GridTreePaving::GridTreePaving( const Grid& theGrid, const Bool enable  ) :
-    GridTreeSubpaving( theGrid, 0, BinaryWord(), new BinaryTreeNode( enable ) ){
+BinaryTreePaving::BinaryTreePaving( const Grid& theGrid, const Bool enable  ) :
+    BinaryTreeSubpaving( theGrid, 0, BinaryWord(), new BinaryTreeNode( enable ) ){
 }
 
-GridTreePaving::GridTreePaving( const Grid& theGrid, const Nat theExtent, BinaryTreeNode * pRootTreeNode ) :
-    GridTreeSubpaving( theGrid, theExtent, BinaryWord(), pRootTreeNode ){
+BinaryTreePaving::BinaryTreePaving( const Grid& theGrid, const Nat theExtent, BinaryTreeNode * pRootTreeNode ) :
+    BinaryTreeSubpaving( theGrid, theExtent, BinaryWord(), pRootTreeNode ){
 }
 
-GridTreePaving::GridTreePaving( const GridCell& theGridCell  ) :
-    GridTreeSubpaving( theGridCell.grid(), theGridCell.root_extent(), BinaryWord(), new BinaryTreeNode( false ) ){
+BinaryTreePaving::BinaryTreePaving( const GridCell& theGridCell  ) :
+    BinaryTreeSubpaving( theGridCell.grid(), theGridCell.root_extent(), BinaryWord(), new BinaryTreeNode( false ) ){
     this->adjoin(theGridCell);
 }
 
-GridTreePaving::GridTreePaving( const Nat theDimension, const Bool enable ) :
-    GridTreeSubpaving( Grid( theDimension, FloatDP(1.0_x,dp) ), 0, BinaryWord(), new BinaryTreeNode( enable )) {
+BinaryTreePaving::BinaryTreePaving( const Nat theDimension, const Bool enable ) :
+    BinaryTreeSubpaving( Grid( theDimension, FloatDP(1.0_x,dp) ), 0, BinaryWord(), new BinaryTreeNode( enable )) {
     //We want a [0,1]x...[0,1] cell in N dimensional space with no sxaling or shift of coordinates:
     //1. Create a new non scaling grid with no shift of the coordinates
     //2. The extent of the primary cell is zero, since is is [0,1]x...[0,1] itself
@@ -2054,35 +2054,35 @@ GridTreePaving::GridTreePaving( const Nat theDimension, const Bool enable ) :
     //4. A new disabled binary tree node, gives us the root for the paving tree
 }
 
-GridTreePaving::GridTreePaving(const Grid& theGrid, const ExactBoxType & theLatticeBoxType ) :
-    GridTreeSubpaving( theGrid, GridCell::smallest_enclosing_primary_cell_extent( theLatticeBoxType ),
+BinaryTreePaving::BinaryTreePaving(const Grid& theGrid, const ExactBoxType & theLatticeBoxType ) :
+    BinaryTreeSubpaving( theGrid, GridCell::smallest_enclosing_primary_cell_extent( theLatticeBoxType ),
                     BinaryWord(), new BinaryTreeNode( false ) ) {
     //1. The main point here is that we have to compute the smallest primary cell that contains theBoundingBoxType
-    //2. This cell is defined by it's extent and becomes the root of the GridTreeSet
-    //3. ExactPoint 2. implies that the word to the root of GridTreeSubset should be set to
+    //2. This cell is defined by it's extent and becomes the root of the BinaryTreePaving
+    //3. ExactPoint 2. implies that the word to the root of BinaryTreeSubpaving should be set to
     //   empty and we have only one disabled node in the binary tree
 }
 
-GridTreePaving::GridTreePaving( const Grid& theGrid, Nat theExtent, const BooleanArray& theTree, const BooleanArray& theEnabledCells ) :
-    GridTreeSubpaving( theGrid, theExtent, BinaryWord(), new BinaryTreeNode( theTree, theEnabledCells ) ) {
+BinaryTreePaving::BinaryTreePaving( const Grid& theGrid, Nat theExtent, const BooleanArray& theTree, const BooleanArray& theEnabledCells ) :
+    BinaryTreeSubpaving( theGrid, theExtent, BinaryWord(), new BinaryTreeNode( theTree, theEnabledCells ) ) {
     //Use the super class constructor and the binary tree constructed from the arrays: theTree and theEnabledCells
 }
 
-GridTreePaving::CopyState GridTreePaving::_snapshot_copy(
-        GridTreePaving const& source) {
+BinaryTreePaving::CopyState BinaryTreePaving::_snapshot_copy(
+        BinaryTreePaving const& source) {
     std::lock_guard<std::mutex> lock(source._adjoin_mutex);
     return CopyState{source._theGridCell,
         std::make_unique<BinaryTreeNode>(*source._pRootTreeNode)};
 }
 
-GridTreePaving::GridTreePaving(CopyState state)
-    : GridTreeSubpaving(state.root_cell.grid(),state.root_cell.root_extent(),
+BinaryTreePaving::BinaryTreePaving(CopyState state)
+    : BinaryTreeSubpaving(state.root_cell.grid(),state.root_cell.root_extent(),
         state.root_cell.word(),state.root_tree.release()) { }
 
-GridTreePaving::GridTreePaving( const GridTreePaving & other )
-    : GridTreePaving(_snapshot_copy(other)) { }
+BinaryTreePaving::BinaryTreePaving( const BinaryTreePaving & other )
+    : BinaryTreePaving(_snapshot_copy(other)) { }
 
-GridTreePaving& GridTreePaving::operator=( const GridTreePaving & other ) {
+BinaryTreePaving& BinaryTreePaving::operator=( const BinaryTreePaving & other ) {
     if(this!=&other) {
         std::scoped_lock lock(_adjoin_mutex,other._adjoin_mutex);
         ARIADNE_PRECONDITION_MSG(_theGridCell.grid()==other._theGridCell.grid(),
@@ -2096,40 +2096,40 @@ GridTreePaving& GridTreePaving::operator=( const GridTreePaving & other ) {
     return *this;
 }
 
-GridTreePaving* GridTreePaving::clone() const {
-    return new GridTreePaving( *this );
+BinaryTreePaving* BinaryTreePaving::clone() const {
+    return new BinaryTreePaving( *this );
 }
 
-GridTreePaving::~GridTreePaving() {
-    delete GridTreeSubpaving::_pRootTreeNode;
-    GridTreeSubpaving::_pRootTreeNode = nullptr;
+BinaryTreePaving::~BinaryTreePaving() {
+    delete BinaryTreeSubpaving::_pRootTreeNode;
+    BinaryTreeSubpaving::_pRootTreeNode = nullptr;
 }
 
-Void GridTreePaving::up_to_primary_cell( const Nat toPCellExtent ){
-    const Nat fromPCellExtent = GridTreeSubpaving::root_cell().root_extent();
+Void BinaryTreePaving::up_to_primary_cell( const Nat toPCellExtent ){
+    const Nat fromPCellExtent = BinaryTreeSubpaving::root_cell().root_extent();
 
     //The primary cell of this paving is lower then the one in the other paving so this
     //paving's has to be rerooted to another primary cell and then we merge the pavings.
     //1. Compute the path
-    BinaryWord primaryCellPath = GridCell::primary_cell_path( GridTreeSubpaving::root_cell().grid().dimension(), toPCellExtent, fromPCellExtent );
+    BinaryWord primaryCellPath = GridCell::primary_cell_path( BinaryTreeSubpaving::root_cell().grid().dimension(), toPCellExtent, fromPCellExtent );
     //2. Substitute the root node of the paiving with the extended tree
     this->_pRootTreeNode = BinaryTreeNode::prepend_tree( primaryCellPath, this->_pRootTreeNode );
-    //3. Update the GridCell that corresponds to the root of this GridTreeSubset
+    //3. Update the GridCell that corresponds to the root of this BinaryTreeSubpaving
     this->_theGridCell = GridCell( this->_theGridCell.grid(), toPCellExtent, BinaryWord() );
 }
 
-BinaryTreeNode* GridTreePaving::align_with_cell( const Nat otherPavingPCellExtent, const Bool stop_on_enabled,
+BinaryTreeNode* BinaryTreePaving::align_with_cell( const Nat otherPavingPCellExtent, const Bool stop_on_enabled,
                                                  const Bool stop_on_disabled, Bool & has_stopped ) {
-    const Nat thisPavingPCellExtent = GridTreeSubpaving::root_cell().root_extent();
+    const Nat thisPavingPCellExtent = BinaryTreeSubpaving::root_cell().root_extent();
 
-    //The current root node of the GridTreeSet
+    //The current root node of the BinaryTreePaving
     BinaryTreeNode * pBinaryTreeNode = this->_pRootTreeNode;
 
     if( thisPavingPCellExtent > otherPavingPCellExtent ){
 
         //The primary cell of this paving is higher then the one of the other paving.
         //1. We locate the path to the primary cell node common with the other paving
-        BinaryWord primaryCellPath = GridCell::primary_cell_path( GridTreeSubpaving::root_cell().grid().dimension(), thisPavingPCellExtent, otherPavingPCellExtent );
+        BinaryWord primaryCellPath = GridCell::primary_cell_path( BinaryTreeSubpaving::root_cell().grid().dimension(), thisPavingPCellExtent, otherPavingPCellExtent );
 
         //2. Locate the binary tree node corresponding to this primnary cell
         Nat position = 0;
@@ -2155,13 +2155,13 @@ BinaryTreeNode* GridTreePaving::align_with_cell( const Nat otherPavingPCellExten
     return pBinaryTreeNode;
 }
 
-Void GridTreePaving::_adjoin_cell( const Nat theCellRootExtent, BinaryWord const& theCellPath ) {
+Void BinaryTreePaving::_adjoin_cell( const Nat theCellRootExtent, BinaryWord const& theCellPath ) {
     // Keep grid-cell insertion and alignment in the public implementation.
     this->adjoin(GridCell(this->grid(),theCellRootExtent,theCellPath));
 }
 
 
-Void GridTreePaving::_adjoin_outer_approximation( const Grid & theGrid, BinaryTreeNode * pBinaryTreeNode, const Nat primary_cell_extent,
+Void BinaryTreePaving::_adjoin_outer_approximation( const Grid & theGrid, BinaryTreeNode * pBinaryTreeNode, const Nat primary_cell_extent,
                                                   const Nat max_mince_tree_depth,  const EffectiveEuclideanCompactSetInterface& theSet, BinaryWord * pPath ){
     //Compute the cell corresponding to the current node
     GridCell theCurrentCell( theGrid, primary_cell_extent, *pPath );
@@ -2209,7 +2209,7 @@ Void GridTreePaving::_adjoin_outer_approximation( const Grid & theGrid, BinaryTr
     }
 }
 
-Void GridTreePaving::_adjoin_outer_approximation( const Grid & theGrid, BinaryTreeNode * pBinaryTreeNode, const Nat primary_cell_extent,
+Void BinaryTreePaving::_adjoin_outer_approximation( const Grid & theGrid, BinaryTreeNode * pBinaryTreeNode, const Nat primary_cell_extent,
                                                   const Nat max_mince_tree_depth,  const ValidatedEuclideanCompactSetInterface& theSet, BinaryWord * pPath ){
     //Compute the cell correspomding to the current node
     GridCell theCurrentCell( theGrid, primary_cell_extent, *pPath );
@@ -2264,7 +2264,7 @@ Void GridTreePaving::_adjoin_outer_approximation( const Grid & theGrid, BinaryTr
 // a lower approximation, but it is simply less accurate than it could be.
 // TODO:Think of another representation in terms of covers but not pavings, then this problem
 // can be cured in a different fashion.
-Void GridTreePaving::_adjoin_lower_approximation( const Grid & theGrid, BinaryTreeNode * pBinaryTreeNode, const Nat primary_cell_extent,
+Void BinaryTreePaving::_adjoin_lower_approximation( const Grid & theGrid, BinaryTreeNode * pBinaryTreeNode, const Nat primary_cell_extent,
                                                   const Nat max_mince_tree_depth,  const EffectiveEuclideanOvertSetInterface& theSet, BinaryWord * pPath ){
     //Compute the cell correspomding to the current node
     GridCell theCurrentCell( theGrid, primary_cell_extent, *pPath );
@@ -2297,7 +2297,7 @@ Void GridTreePaving::_adjoin_lower_approximation( const Grid & theGrid, BinaryTr
     }
 }
 
-Void GridTreePaving::_adjoin_lower_approximation( const Grid & theGrid, BinaryTreeNode * pBinaryTreeNode, const Nat primary_cell_extent,
+Void BinaryTreePaving::_adjoin_lower_approximation( const Grid & theGrid, BinaryTreeNode * pBinaryTreeNode, const Nat primary_cell_extent,
                                                   const Nat max_mince_tree_depth,  const EffectiveEuclideanOpenSetInterface& theSet, BinaryWord * pPath ){
     //Compute the cell corresponding to the current node
     GridCell theCurrentCell( theGrid, primary_cell_extent, *pPath );
@@ -2333,28 +2333,28 @@ Void GridTreePaving::_adjoin_lower_approximation( const Grid & theGrid, BinaryTr
     }
 }
 
-Void GridTreePaving::adjoin_over_approximation( const ExactBoxType& theBoxType, const Nat numSubdivInDim ) {
+Void BinaryTreePaving::adjoin_over_approximation( const ExactBoxType& theBoxType, const Nat numSubdivInDim ) {
     // FIXME: This adjoins an outer approximation; change to ensure only overlapping cells are adjoined
     for(DimensionType i=0; i!=theBoxType.dimension(); ++i) {
         if(theBoxType[i].lower_bound()>=theBoxType[i].upper_bound()) {
-            ARIADNE_THROW(std::runtime_error,"GridTreeSet::adjoin_over_approximation(ExactBoxType,Nat)","ExactBoxType "<<theBoxType<<" has empty interior.")
+            ARIADNE_THROW(std::runtime_error,"BinaryTreePaving::adjoin_over_approximation(ExactBoxType,Nat)","ExactBoxType "<<theBoxType<<" has empty interior.")
         }
     }
     this->adjoin_outer_approximation(theBoxType,numSubdivInDim);
 }
 
-Void GridTreePaving::adjoin_outer_approximation( const UpperBoxType& theBoxType, const Nat numSubdivInDim ) {
+Void BinaryTreePaving::adjoin_outer_approximation( const UpperBoxType& theBoxType, const Nat numSubdivInDim ) {
     ExactBoxSetType theBoxSet=cast_exact_box(theBoxType);
     EffectiveEuclideanCompactSetInterface const& theSet=theBoxSet;
     this->adjoin_outer_approximation(theSet,numSubdivInDim);
 }
 
-Void GridTreePaving::adjoin_outer_approximation( const EffectiveEuclideanCompactSetInterface& theSet, const Nat numSubdivInDim ) {
+Void BinaryTreePaving::adjoin_outer_approximation( const EffectiveEuclideanCompactSetInterface& theSet, const Nat numSubdivInDim ) {
     // Serialize direct node mutation with the same owner lock as adjoin.
     // Do not call virtual owner accessors inside this critical section.
     std::lock_guard<std::mutex> lock(_adjoin_mutex);
-    Grid theGrid( this->GridTreeSubpaving::root_cell().grid() );
-    ARIADNE_PRECONDITION( theSet.dimension() == this->GridTreeSubpaving::root_cell().dimension() );
+    Grid theGrid( this->BinaryTreeSubpaving::root_cell().grid() );
+    ARIADNE_PRECONDITION( theSet.dimension() == this->BinaryTreeSubpaving::root_cell().dimension() );
 
     //1. Compute the smallest GridCell (corresponding to the primary cell)
     //   that encloses the theSet (after it is mapped onto theGrid).
@@ -2377,19 +2377,19 @@ Void GridTreePaving::adjoin_outer_approximation( const EffectiveEuclideanCompact
 
         //Adjoin the outer approximation, computing it on the fly.
         BinaryWord * pEmptyPath = new BinaryWord();
-        _adjoin_outer_approximation( GridTreeSubpaving::_theGridCell.grid(), pBinaryTreeNode, outer_approx_primary_cell_extent,
+        _adjoin_outer_approximation( BinaryTreeSubpaving::_theGridCell.grid(), pBinaryTreeNode, outer_approx_primary_cell_extent,
                                      max_mince_tree_depth, theSet, pEmptyPath );
 
         delete pEmptyPath;
     }
 }
 
-Void GridTreePaving::adjoin_outer_approximation( const ValidatedEuclideanCompactSetInterface& theSet, const Nat numSubdivInDim ) {
+Void BinaryTreePaving::adjoin_outer_approximation( const ValidatedEuclideanCompactSetInterface& theSet, const Nat numSubdivInDim ) {
     // Serialize direct node mutation with the same owner lock as adjoin.
     // Do not call virtual owner accessors inside this critical section.
     std::lock_guard<std::mutex> lock(_adjoin_mutex);
-    Grid theGrid( this->GridTreeSubpaving::root_cell().grid() );
-    ARIADNE_PRECONDITION( theSet.dimension() == this->GridTreeSubpaving::root_cell().dimension() );
+    Grid theGrid( this->BinaryTreeSubpaving::root_cell().grid() );
+    ARIADNE_PRECONDITION( theSet.dimension() == this->BinaryTreeSubpaving::root_cell().dimension() );
 
     //1. Compute the smallest GridCell (corresponding to the primary cell)
     //   that encloses the theSet (after it is mapped onto theGrid).
@@ -2412,7 +2412,7 @@ Void GridTreePaving::adjoin_outer_approximation( const ValidatedEuclideanCompact
 
         //Adjoin the outer approximation, computing it on the fly.
         BinaryWord * pEmptyPath = new BinaryWord();
-        _adjoin_outer_approximation( GridTreeSubpaving::_theGridCell.grid(), pBinaryTreeNode, outer_approx_primary_cell_extent,
+        _adjoin_outer_approximation( BinaryTreeSubpaving::_theGridCell.grid(), pBinaryTreeNode, outer_approx_primary_cell_extent,
                                      max_mince_tree_depth, theSet, pEmptyPath );
 
         delete pEmptyPath;
@@ -2421,16 +2421,16 @@ Void GridTreePaving::adjoin_outer_approximation( const ValidatedEuclideanCompact
 
 // TODO:Think of another representation in terms of covers but not pavings, then the implementation
 // will be different, this is why, for now we do not fix these things.
-Void GridTreePaving::adjoin_lower_approximation( const EffectiveEuclideanLocatedSetInterface& theSet, const Nat numSubdivInDim ) {
+Void BinaryTreePaving::adjoin_lower_approximation( const EffectiveEuclideanLocatedSetInterface& theSet, const Nat numSubdivInDim ) {
     this->adjoin_lower_approximation( theSet, cast_exact_box(theSet.bounding_box()), numSubdivInDim );
 }
 
-Void GridTreePaving::adjoin_lower_approximation( const EffectiveEuclideanOvertSetInterface& theSet, const Nat heightInDim, const Nat numSubdivInDim ) {
+Void BinaryTreePaving::adjoin_lower_approximation( const EffectiveEuclideanOvertSetInterface& theSet, const Nat heightInDim, const Nat numSubdivInDim ) {
     // Serialize direct node mutation with the same owner lock as adjoin.
     // Do not call virtual owner accessors inside this critical section.
     std::lock_guard<std::mutex> lock(_adjoin_mutex);
-    Grid theGrid( this->GridTreeSubpaving::root_cell().grid() );
-    ARIADNE_PRECONDITION( theSet.dimension() == this->GridTreeSubpaving::root_cell().dimension() );
+    Grid theGrid( this->BinaryTreeSubpaving::root_cell().grid() );
+    ARIADNE_PRECONDITION( theSet.dimension() == this->BinaryTreeSubpaving::root_cell().dimension() );
 
     //Align this paving and paving at the given extent
     Bool has_stopped = false;
@@ -2452,15 +2452,15 @@ Void GridTreePaving::adjoin_lower_approximation( const EffectiveEuclideanOvertSe
         //const EffectiveEuclideanLocatedSetInterface* theLocatedVersionOfSet = dynamic_cast<const EffectiveEuclideanLocatedSetInterface*>(&theSet);
         const EffectiveEuclideanOvertSetInterface* theOvertVersionOfSet = dynamic_cast<const EffectiveEuclideanOvertSetInterface*>(&theSet);
         if( theOpenVersionOfSet ) {
-            _adjoin_lower_approximation( GridTreeSubpaving::_theGridCell.grid(), pBinaryTreeNode, heightInDim, max_mince_tree_depth, *theOpenVersionOfSet, pEmptyPath );
+            _adjoin_lower_approximation( BinaryTreeSubpaving::_theGridCell.grid(), pBinaryTreeNode, heightInDim, max_mince_tree_depth, *theOpenVersionOfSet, pEmptyPath );
         } else {
-            _adjoin_lower_approximation( GridTreeSubpaving::_theGridCell.grid(), pBinaryTreeNode, heightInDim, max_mince_tree_depth, *theOvertVersionOfSet, pEmptyPath );
+            _adjoin_lower_approximation( BinaryTreeSubpaving::_theGridCell.grid(), pBinaryTreeNode, heightInDim, max_mince_tree_depth, *theOvertVersionOfSet, pEmptyPath );
         }
         delete pEmptyPath;
     }
 }
 
-Void GridTreePaving::adjoin_lower_approximation( const EffectiveEuclideanOvertSetInterface& theSet, const ExactBoxType& theBoundingBoxType, const Nat numSubdivInDim ) {
+Void BinaryTreePaving::adjoin_lower_approximation( const EffectiveEuclideanOvertSetInterface& theSet, const ExactBoxType& theBoundingBoxType, const Nat numSubdivInDim ) {
     Grid theGrid( this->root_cell().grid() );
     ARIADNE_PRECONDITION( theSet.dimension() == this->root_cell().dimension() );
     ARIADNE_PRECONDITION( theBoundingBoxType.dimension() == this->root_cell().dimension() );
@@ -2472,7 +2472,7 @@ Void GridTreePaving::adjoin_lower_approximation( const EffectiveEuclideanOvertSe
     adjoin_lower_approximation( theSet, extent, numSubdivInDim );
 }
 
-Void GridTreePaving::_adjoin_inner_approximation( const Grid & theGrid, BinaryTreeNode * pBinaryTreeNode, const Nat primary_cell_extent,
+Void BinaryTreePaving::_adjoin_inner_approximation( const Grid & theGrid, BinaryTreeNode * pBinaryTreeNode, const Nat primary_cell_extent,
                                                   const Nat max_mince_tree_depth, const EffectiveEuclideanOpenSetInterface& theSet, BinaryWord * pPath ) {
     //Compute the cell corresponding to the current node
     GridCell theCurrentCell( theGrid, primary_cell_extent, *pPath );
@@ -2521,12 +2521,12 @@ Void GridTreePaving::_adjoin_inner_approximation( const Grid & theGrid, BinaryTr
     }
 }
 
-Void GridTreePaving::adjoin_inner_approximation( const EffectiveEuclideanOpenSetInterface& theSet, const Nat extent, const Nat numSubdivInDim ) {
+Void BinaryTreePaving::adjoin_inner_approximation( const EffectiveEuclideanOpenSetInterface& theSet, const Nat extent, const Nat numSubdivInDim ) {
     // Serialize direct node mutation with the same owner lock as adjoin.
     // Do not call virtual owner accessors inside this critical section.
     std::lock_guard<std::mutex> lock(_adjoin_mutex);
-    Grid theGrid( this->GridTreeSubpaving::root_cell().grid() );
-    ARIADNE_PRECONDITION( theSet.dimension() == this->GridTreeSubpaving::root_cell().dimension() );
+    Grid theGrid( this->BinaryTreeSubpaving::root_cell().grid() );
+    ARIADNE_PRECONDITION( theSet.dimension() == this->BinaryTreeSubpaving::root_cell().dimension() );
 
     //Align this paving and paving at the given extent
     Bool has_stopped = false;
@@ -2543,12 +2543,12 @@ Void GridTreePaving::adjoin_inner_approximation( const EffectiveEuclideanOpenSet
 
         //Adjoin the inner approximation, computing it on the fly.
         BinaryWord * pEmptyPath = new BinaryWord();
-        _adjoin_inner_approximation( GridTreeSubpaving::_theGridCell.grid(), pBinaryTreeNode, extent, max_mince_tree_depth, theSet, pEmptyPath );
+        _adjoin_inner_approximation( BinaryTreeSubpaving::_theGridCell.grid(), pBinaryTreeNode, extent, max_mince_tree_depth, theSet, pEmptyPath );
         delete pEmptyPath;
     }
 }
 
-Void GridTreePaving::adjoin_inner_approximation( const EffectiveEuclideanOpenSetInterface& theSet, const ExactBoxType& theBoundingBoxType, const Nat numSubdivInDim ) {
+Void BinaryTreePaving::adjoin_inner_approximation( const EffectiveEuclideanOpenSetInterface& theSet, const ExactBoxType& theBoundingBoxType, const Nat numSubdivInDim ) {
     Grid theGrid( this->root_cell().grid() );
     ARIADNE_PRECONDITION( theSet.dimension() == this->root_cell().dimension() );
     ARIADNE_PRECONDITION( theBoundingBoxType.dimension() == this->root_cell().dimension() );
@@ -2565,28 +2565,28 @@ Void GridTreePaving::adjoin_inner_approximation( const EffectiveEuclideanOpenSet
     adjoin_inner_approximation( theSet, extent, numSubdivInDim );
 }
 
-Void GridTreePaving::adjoin_inner_approximation( const EffectiveEuclideanSetInterface& theSet, const Nat numSubdivInDim ) {
+Void BinaryTreePaving::adjoin_inner_approximation( const EffectiveEuclideanSetInterface& theSet, const Nat numSubdivInDim ) {
     EffectiveEuclideanOpenSetInterface const& theOpenSet = theSet;
     ExactBoxType theBoundingBox = cast_exact_box(theSet.bounding_box());
     this -> adjoin_inner_approximation(theOpenSet, theBoundingBox, numSubdivInDim);
 }
 
-Void GridTreePaving::adjoin_inner_approximation( const LowerBoxType& theBoxType, const Nat numSubdivInDim ) {
+Void BinaryTreePaving::adjoin_inner_approximation( const LowerBoxType& theBoxType, const Nat numSubdivInDim ) {
     ExactBoxSetType theBoxSet=cast_exact_box(theBoxType);
     this->adjoin_inner_approximation(theBoxSet,theBoxSet,numSubdivInDim);
 }
 
-Void GridTreePaving::restrict_to_lower( const GridTreeSubpaving& theOtherSubPaving ){
+Void BinaryTreePaving::restrict_to_lower( const BinaryTreeSubpaving& theOtherSubPaving ){
     //The root of the binary tree of the current Paving
     BinaryTreeNode * pBinaryTreeNode = this->_pRootTreeNode;
 
     //The primary cell of this paving is higher then the one of the other paving.
     //1. We locate the path to the primary cell node common with the other paving
-    BinaryWord rootNodePath = GridCell::primary_cell_path( this->GridTreeSubpaving::root_cell().grid().dimension(), this->GridTreeSubpaving::root_cell().root_extent(), theOtherSubPaving.GridTreeSubpaving::root_cell().root_extent() );
+    BinaryWord rootNodePath = GridCell::primary_cell_path( this->BinaryTreeSubpaving::root_cell().grid().dimension(), this->BinaryTreeSubpaving::root_cell().root_extent(), theOtherSubPaving.BinaryTreeSubpaving::root_cell().root_extent() );
 
     //2. Add the suffix path from the primary cell to the root node of
     //theOtherSubPaving. This is needed in order to be able to reach this root.
-    rootNodePath.append( theOtherSubPaving.GridTreeSubpaving::root_cell().word() );
+    rootNodePath.append( theOtherSubPaving.BinaryTreeSubpaving::root_cell().word() );
 
     //3. Restrict this binary tree to the other one assuming the path prefix rootNodePath
     Nat position = 0;
@@ -2625,7 +2625,7 @@ Void GridTreePaving::restrict_to_lower( const GridTreeSubpaving& theOtherSubPavi
     }
     if( pBinaryTreeNode->is_enabled() ){
         //If we ended up in a leaf node that is disabled, this meand that it is the only enabled node
-        //in this GridTreeSet. At this point it corresponds to the root node of the theOtherSubPaving
+        //in this BinaryTreePaving. At this point it corresponds to the root node of the theOtherSubPaving
         //and since we need to do the restriction to that set, we just need to copy it to this node.
         pBinaryTreeNode->copy_from( theOtherSubPaving.binary_tree() );
         //Return since there is nothing else we need to do
@@ -2643,17 +2643,17 @@ Void GridTreePaving::restrict_to_lower( const GridTreeSubpaving& theOtherSubPavi
     }
 }
 
-Void GridTreePaving::remove_from_lower( const GridTreeSubpaving& theOtherSubPaving ){
+Void BinaryTreePaving::remove_from_lower( const BinaryTreeSubpaving& theOtherSubPaving ){
     //The root of the binary tree of the current Paving
     BinaryTreeNode * pBinaryTreeNode = this->_pRootTreeNode;
 
     //The primary cell of this paving is higher then the one of the other paving.
     //1. We locate the path to the primary cell node common with the other paving
-    BinaryWord rootNodePath = GridCell::primary_cell_path( this->GridTreeSubpaving::root_cell().grid().dimension(), this->GridTreeSubpaving::root_cell().root_extent(), theOtherSubPaving.GridTreeSubpaving::root_cell().root_extent() );
+    BinaryWord rootNodePath = GridCell::primary_cell_path( this->BinaryTreeSubpaving::root_cell().grid().dimension(), this->BinaryTreeSubpaving::root_cell().root_extent(), theOtherSubPaving.BinaryTreeSubpaving::root_cell().root_extent() );
 
     //2. Add the suffix path from the primary cell to the root node of
     //theOtherSubPaving. This is needed in order to be able to reach this root.
-    rootNodePath.append( theOtherSubPaving.GridTreeSubpaving::root_cell().word() );
+    rootNodePath.append( theOtherSubPaving.BinaryTreeSubpaving::root_cell().word() );
 
     //3. Remove theOtherSubPaving from this binary tree assuming the path prefix rootNodePath
     Nat position = 0;
@@ -2690,7 +2690,7 @@ Void GridTreePaving::remove_from_lower( const GridTreeSubpaving& theOtherSubPavi
     }
 }
 
-Void GridTreePaving::clear(  ) {
+Void BinaryTreePaving::clear(  ) {
     std::lock_guard<std::mutex> lock(_adjoin_mutex);
     // Reset geometry and tree in one critical section. Building a temporary
     // owner and assigning it read the current grid before acquiring the lock.
@@ -2700,8 +2700,8 @@ Void GridTreePaving::clear(  ) {
 }
 
 
-Void GridTreePaving::restrict( const GridTreeSubpaving& theOtherSubPaving ) {
-    if(auto const* owner=dynamic_cast<GridTreePaving const*>(&theOtherSubPaving)) {
+Void BinaryTreePaving::restrict( const BinaryTreeSubpaving& theOtherSubPaving ) {
+    if(auto const* owner=dynamic_cast<BinaryTreePaving const*>(&theOtherSubPaving)) {
         if(owner==this) {
             // A paving intersected with itself is unchanged.
             std::lock_guard<std::mutex> lock(_adjoin_mutex);
@@ -2713,15 +2713,15 @@ Void GridTreePaving::restrict( const GridTreeSubpaving& theOtherSubPaving ) {
         _restrict_unlocked(theOtherSubPaving);
         return;
     }
-    // A borrowed GridTreeSubpaving view has no lifetime/synchronization
+    // A borrowed BinaryTreeSubpaving view has no lifetime/synchronization
     // ownership: the caller must keep it stable throughout this call.
     std::lock_guard<std::mutex> lock(_adjoin_mutex);
     _restrict_unlocked(theOtherSubPaving);
 }
 
-Void GridTreePaving::_restrict_unlocked( const GridTreeSubpaving& theOtherSubPaving ) {
-    const Nat thisPavingPCellExtent = this->GridTreeSubpaving::root_cell().root_extent();
-    const Nat otherPavingPCellExtent = theOtherSubPaving.GridTreeSubpaving::root_cell().root_extent();
+Void BinaryTreePaving::_restrict_unlocked( const BinaryTreeSubpaving& theOtherSubPaving ) {
+    const Nat thisPavingPCellExtent = this->BinaryTreeSubpaving::root_cell().root_extent();
+    const Nat otherPavingPCellExtent = theOtherSubPaving.BinaryTreeSubpaving::root_cell().root_extent();
 
     ARIADNE_PRECONDITION( this->grid() == theOtherSubPaving.grid() );
 
@@ -2736,7 +2736,7 @@ Void GridTreePaving::_restrict_unlocked( const GridTreeSubpaving& theOtherSubPav
     restrict_to_lower( theOtherSubPaving );
 }
 
-Void GridTreePaving::remove( const GridCell& theCell ) {
+Void BinaryTreePaving::remove( const GridCell& theCell ) {
     std::lock_guard<std::mutex> lock(_adjoin_mutex);
     ARIADNE_PRECONDITION( this->grid() == theCell.grid() );
 
@@ -2785,13 +2785,13 @@ Void GridTreePaving::remove( const GridCell& theCell ) {
     }
 }
 
-Void GridTreePaving::remove( const GridTreeSubpaving& theOtherSubPaving ) {
-    if(auto const* owner=dynamic_cast<GridTreePaving const*>(&theOtherSubPaving)) {
+Void BinaryTreePaving::remove( const BinaryTreeSubpaving& theOtherSubPaving ) {
+    if(auto const* owner=dynamic_cast<BinaryTreePaving const*>(&theOtherSubPaving)) {
         if(owner==this) {
             std::lock_guard<std::mutex> lock(_adjoin_mutex);
             // Removing an entire paving from itself produces the empty set,
             // retaining the existing geometric root.
-            GridTreeSubpaving::set_root_cell(false);
+            BinaryTreeSubpaving::set_root_cell(false);
             return;
         }
         std::scoped_lock lock(_adjoin_mutex,owner->_adjoin_mutex);
@@ -2803,9 +2803,9 @@ Void GridTreePaving::remove( const GridTreeSubpaving& theOtherSubPaving ) {
     _remove_unlocked(theOtherSubPaving);
 }
 
-Void GridTreePaving::_remove_unlocked( const GridTreeSubpaving& theOtherSubPaving ) {
-    const Nat thisPavingPCellExtent = this->GridTreeSubpaving::root_cell().root_extent();
-    const Nat otherPavingPCellExtent = theOtherSubPaving.GridTreeSubpaving::root_cell().root_extent();
+Void BinaryTreePaving::_remove_unlocked( const BinaryTreeSubpaving& theOtherSubPaving ) {
+    const Nat thisPavingPCellExtent = this->BinaryTreeSubpaving::root_cell().root_extent();
+    const Nat otherPavingPCellExtent = theOtherSubPaving.BinaryTreeSubpaving::root_cell().root_extent();
 
     ARIADNE_PRECONDITION( this->grid() == theOtherSubPaving.grid() );
 
@@ -2820,14 +2820,14 @@ Void GridTreePaving::_remove_unlocked( const GridTreeSubpaving& theOtherSubPavin
     remove_from_lower( theOtherSubPaving );
 }
 
-Void GridTreePaving::restrict_to_extent( const Nat theExtent ) {
+Void BinaryTreePaving::restrict_to_extent( const Nat theExtent ) {
     std::lock_guard<std::mutex> lock(_adjoin_mutex);
-    const Nat thisPavingPCellExtent = this->GridTreeSubpaving::root_cell().root_extent();
+    const Nat thisPavingPCellExtent = this->BinaryTreeSubpaving::root_cell().root_extent();
 
     if( thisPavingPCellExtent > theExtent){
-        // ARIADNE_WARN("restricting GridTreeSet of extent " << this->GridTreeSubpaving::root_cell().root_extent() << " to extent " << theExtent << ".");
+        // ARIADNE_WARN("restricting BinaryTreePaving of extent " << this->BinaryTreeSubpaving::root_cell().root_extent() << " to extent " << theExtent << ".");
 
-        BinaryWord pathToPCell = GridCell::primary_cell_path( this->GridTreeSubpaving::dimension(), thisPavingPCellExtent, theExtent );
+        BinaryWord pathToPCell = GridCell::primary_cell_path( this->BinaryTreeSubpaving::dimension(), thisPavingPCellExtent, theExtent );
 
         //Go throught the tree and disable all the leaves that
         //are not rooted to the primary cell defined by this path
@@ -2859,59 +2859,59 @@ Void GridTreePaving::restrict_to_extent( const Nat theExtent ) {
     }
 }
 
-//************************************FRIENDS OF GridTreeSet*****************************************/
+//************************************FRIENDS OF BinaryTreePaving*****************************************/
 
-GridTreePaving outer_approximation(const ExactBoxType& theBoxType, const Grid& theGrid, const Nat numSubdivInDim) {
+BinaryTreePaving outer_approximation(const ExactBoxType& theBoxType, const Grid& theGrid, const Nat numSubdivInDim) {
     ExactBoxSetType theBoxSet=theBoxType;
     EffectiveEuclideanCompactSetInterface const& theSet=theBoxSet;
     return outer_approximation(theSet,theGrid,numSubdivInDim);
 }
 
-GridTreePaving outer_approximation(const ExactBoxType& theBoxType, const Nat numSubdivInDim) {
+BinaryTreePaving outer_approximation(const ExactBoxType& theBoxType, const Nat numSubdivInDim) {
     return outer_approximation(theBoxType, Grid(theBoxType.dimension()), numSubdivInDim);
 }
 
-GridTreePaving outer_approximation( const EffectiveEuclideanCompactSetInterface& theSet, const Grid& theGrid, const Nat numSubdivInDim ) {
-    GridTreePaving result( theGrid );
+BinaryTreePaving outer_approximation( const EffectiveEuclideanCompactSetInterface& theSet, const Grid& theGrid, const Nat numSubdivInDim ) {
+    BinaryTreePaving result( theGrid );
     result.adjoin_outer_approximation( theSet, numSubdivInDim );
     return result;
 }
 
-GridTreePaving outer_approximation( const EffectiveEuclideanCompactSetInterface& theSet, const Nat numSubdivInDim ) {
+BinaryTreePaving outer_approximation( const EffectiveEuclideanCompactSetInterface& theSet, const Nat numSubdivInDim ) {
     Grid theGrid( theSet.dimension() );
     return outer_approximation( theSet, theGrid, numSubdivInDim );
 }
 
-GridTreePaving outer_approximation( const ValidatedEuclideanCompactSetInterface& theSet, const Grid& theGrid, const Nat numSubdivInDim ) {
-    GridTreePaving result( theGrid );
+BinaryTreePaving outer_approximation( const ValidatedEuclideanCompactSetInterface& theSet, const Grid& theGrid, const Nat numSubdivInDim ) {
+    BinaryTreePaving result( theGrid );
     result.adjoin_outer_approximation( theSet, numSubdivInDim );
     return result;
 }
 
-GridTreePaving outer_approximation( const ValidatedEuclideanCompactSetInterface& theSet, const Nat numSubdivInDim ) {
+BinaryTreePaving outer_approximation( const ValidatedEuclideanCompactSetInterface& theSet, const Nat numSubdivInDim ) {
     Grid theGrid( theSet.dimension() );
     return outer_approximation( theSet, theGrid, numSubdivInDim );
 }
 
-GridTreePaving inner_approximation( const EffectiveEuclideanOpenSetInterface& theSet, const Grid& theGrid, const Nat extent, const Nat numSubdivInDim ) {
-    GridTreePaving result( theGrid );
+BinaryTreePaving inner_approximation( const EffectiveEuclideanOpenSetInterface& theSet, const Grid& theGrid, const Nat extent, const Nat numSubdivInDim ) {
+    BinaryTreePaving result( theGrid );
     result.adjoin_inner_approximation( theSet, extent, numSubdivInDim );
     return result;
 }
 
-GridTreePaving inner_approximation( const EffectiveEuclideanSetInterface& theSet, const Grid& theGrid, const Nat numSubdivInDim ) {
-    GridTreePaving result( theGrid );
+BinaryTreePaving inner_approximation( const EffectiveEuclideanSetInterface& theSet, const Grid& theGrid, const Nat numSubdivInDim ) {
+    BinaryTreePaving result( theGrid );
     result.adjoin_inner_approximation( theSet, numSubdivInDim );
     return result;
 }
 
-GridTreePaving inner_approximation( const EffectiveEuclideanOpenSetInterface& theSet, const Grid& theGrid, const ExactBoxType& bounding_box, const Nat numSubdivInDim ) {
-    GridTreePaving result( theGrid );
+BinaryTreePaving inner_approximation( const EffectiveEuclideanOpenSetInterface& theSet, const Grid& theGrid, const ExactBoxType& bounding_box, const Nat numSubdivInDim ) {
+    BinaryTreePaving result( theGrid );
     result.adjoin_inner_approximation( theSet, bounding_box, numSubdivInDim );
     return result;
 }
 
-GridTreePaving join( const GridTreeSubpaving& theSet1, const GridTreeSubpaving& theSet2 ) {
+BinaryTreePaving join( const BinaryTreeSubpaving& theSet1, const BinaryTreeSubpaving& theSet2 ) {
     //Test that the Grids are equal
     ARIADNE_PRECONDITION( theSet1.grid() == theSet2.grid() );
 
@@ -2920,8 +2920,8 @@ GridTreePaving join( const GridTreeSubpaving& theSet1, const GridTreeSubpaving& 
     const Nat extentSet2 = theSet2.root_cell().root_extent();
     const Nat maxPCExtent = ( extentSet1 <  extentSet2 ) ? extentSet2 : extentSet1;
 
-    //Create the resulting GridTreeSet
-    GridTreePaving resultSet( theSet1.grid(), maxPCExtent, new BinaryTreeNode() );
+    //Create the resulting BinaryTreePaving
+    BinaryTreePaving resultSet( theSet1.grid(), maxPCExtent, new BinaryTreeNode() );
 
     //Adjoin the sets
     resultSet.adjoin( theSet1 );
@@ -2931,7 +2931,7 @@ GridTreePaving join( const GridTreeSubpaving& theSet1, const GridTreeSubpaving& 
     return resultSet;
 }
 
-GridTreePaving intersection( const GridTreeSubpaving& theSet1, const GridTreeSubpaving& theSet2 ) {
+BinaryTreePaving intersection( const BinaryTreeSubpaving& theSet1, const BinaryTreeSubpaving& theSet2 ) {
     //Test that the Grids are equal
     ARIADNE_PRECONDITION( theSet1.grid() == theSet2.grid() );
 
@@ -2940,8 +2940,8 @@ GridTreePaving intersection( const GridTreeSubpaving& theSet1, const GridTreeSub
     const Nat extentSet2 = theSet2.root_cell().root_extent();
     const Nat maxPCExtent = ( extentSet1 <  extentSet2 ) ? extentSet2 : extentSet1;
 
-    //Create the resulting GridTreeSet
-    GridTreePaving resultSet( theSet1.grid(), maxPCExtent, new BinaryTreeNode() );
+    //Create the resulting BinaryTreePaving
+    BinaryTreePaving resultSet( theSet1.grid(), maxPCExtent, new BinaryTreeNode() );
 
     //Adjoin the first set
     resultSet.adjoin( theSet1 );
@@ -2952,7 +2952,7 @@ GridTreePaving intersection( const GridTreeSubpaving& theSet1, const GridTreeSub
     return resultSet;
 }
 
-GridTreePaving difference( const GridTreeSubpaving& theSet1, const GridTreeSubpaving& theSet2 ) {
+BinaryTreePaving difference( const BinaryTreeSubpaving& theSet1, const BinaryTreeSubpaving& theSet2 ) {
     //Test that the Grids are equal
     ARIADNE_PRECONDITION( theSet1.grid() == theSet2.grid() );
 
@@ -2961,8 +2961,8 @@ GridTreePaving difference( const GridTreeSubpaving& theSet1, const GridTreeSubpa
     const Nat extentSet2 = theSet2.root_cell().root_extent();
     const Nat maxPCExtent = ( extentSet1 <  extentSet2 ) ? extentSet2 : extentSet1;
 
-    //Create the resulting GridTreeSet
-    GridTreePaving resultSet( theSet1.grid(), maxPCExtent, new BinaryTreeNode() );
+    //Create the resulting BinaryTreePaving
+    BinaryTreePaving resultSet( theSet1.grid(), maxPCExtent, new BinaryTreeNode() );
 
     //Adjoin the first set
     resultSet.adjoin( theSet1 );
@@ -3024,8 +3024,8 @@ GridCell product(GridCell const& gc1, GridCell const& gc2) {
 }
 
 // The product of two cells of the same depth
-GridTreePaving product(GridTreeSubpaving const& theSet1, GridTreeSubpaving const& theSet2) {
-    GridTreePaving result(join(theSet1.grid(),theSet2.grid()));
+BinaryTreePaving product(BinaryTreeSubpaving const& theSet1, BinaryTreeSubpaving const& theSet2) {
+    BinaryTreePaving result(join(theSet1.grid(),theSet2.grid()));
     for (GridCell const& theCell1 : theSet1) {
         for (GridCell const& theCell2 : theSet2) {
             result._adjoin_cell(std::max(theCell1.root_extent(),theCell2.root_extent()),product_word(theCell1,theCell2));
@@ -3035,19 +3035,19 @@ GridTreePaving product(GridTreeSubpaving const& theSet1, GridTreeSubpaving const
 }
 
 // The product of two cells of the same depth
-GridTreePaving product(GridCell const& theCell1, GridTreeSubpaving const& theSet2) {
-    GridTreePaving result(join(theCell1.grid(),theSet2.grid()));
+BinaryTreePaving product(GridCell const& theCell1, BinaryTreeSubpaving const& theSet2) {
+    BinaryTreePaving result(join(theCell1.grid(),theSet2.grid()));
     for (GridCell const& theCell2 : theSet2) {
         result.adjoin(product(theCell1,theCell2));
     }
     return result;
 }
 
-OutputStream& operator<<(OutputStream& os, const GridTreePaving& theGridTreeSet) {
+OutputStream& operator<<(OutputStream& os, const BinaryTreePaving& theBinaryTreePaving) {
     // Do not stream the mutable owner's nodes after releasing its mutex.
-    GridTreePaving snapshot(theGridTreeSet);
-    const GridTreeSubpaving& view=snapshot;
-    return os << "GridTreeSet( " << view << " )";
+    BinaryTreePaving snapshot(theBinaryTreePaving);
+    const BinaryTreeSubpaving& view=snapshot;
+    return os << "BinaryTreePaving( " << view << " )";
 }
 
 template<class X> Vector<X> project(Vector<X> const& v, const Array<SizeType>& prj) {
@@ -3058,15 +3058,15 @@ Grid project(Grid const& grd, Array<SizeType> const& prj) {
     return Grid(project(grd.origin(),prj),project(grd.lengths(),prj));
 }
 
-GridTreePaving image(const GridTreePaving& theSet, const Projection& theProjection) {
+BinaryTreePaving image(const BinaryTreePaving& theSet, const Projection& theProjection) {
     // One coherent copy for projection geometry and all enabled leaves.
-    GridTreePaving snapshot(theSet);
+    BinaryTreePaving snapshot(theSet);
     // The borrowed iterator is safe here because the snapshot is local and
     // never modified. Avoid snapshotting the snapshot once more at begin().
-    GridTreeSubpaving const& borrowed_snapshot=snapshot;
+    BinaryTreeSubpaving const& borrowed_snapshot=snapshot;
     ARIADNE_PRECONDITION(theProjection.argument_size()==snapshot.dimension());
     Grid resultGrid=project(snapshot.grid(),theProjection.indices());
-    GridTreePaving result(resultGrid);
+    BinaryTreePaving result(resultGrid);
     if(theProjection.result_size()==0u) {
         if(!snapshot.is_empty()) { result.adjoin(GridCell(resultGrid,0u,BinaryWord())); }
         return result;
@@ -3107,17 +3107,17 @@ GridTreePaving image(const GridTreePaving& theSet, const Projection& theProjecti
 }
 
 
-GridTreePaving outer_skew_product(GridTreePaving const& gtp1, Grid const& g2, ValidatedVectorMultivariateFunction const& f) {
+BinaryTreePaving outer_skew_product(BinaryTreePaving const& gtp1, Grid const& g2, ValidatedVectorMultivariateFunction const& f) {
     // Keep root extent, depth and enumeration from the same tree version.
-    GridTreePaving source_snapshot(gtp1);
+    BinaryTreePaving source_snapshot(gtp1);
     Grid g1=source_snapshot.grid();
     Nat tree_depth = static_cast<Nat>(source_snapshot.tree_depth());
     Nat fineness=tree_depth/static_cast<Nat>(g1.dimension())-source_snapshot.root_cell().root_extent();
 
     // Enumerate at the requested granularity without modifying the
     // const input paving or materializing artificial subdivisions.
-    GridTreePaving gtp2(g2);
-    GridTreePaving r(join(g1,g2));
+    BinaryTreePaving gtp2(g2);
+    BinaryTreePaving r(join(g1,g2));
     for_each_enabled_cell_at_fineness(
             source_snapshot,fineness,[&](GridCell const& gc1) {
         ValidatedConstrainedImageSet s2(gc1.box(),f);

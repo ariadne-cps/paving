@@ -33,7 +33,7 @@
 #include "function/function.hpp"
 #include "geometry/set_interface.hpp"
 #include "paving/paving_interface.hpp"
-#include "paving/grid_paving.hpp"
+#include "paving/binary_tree_paving.hpp"
 
 namespace Ariadne {
 
@@ -43,39 +43,39 @@ typedef EffectiveVectorMultivariateFunction Mapping;
 //! \brief A grid-tree paving of states equipped with a function defining auxiliary variables.
 class AugmentedPaving
 {
-    GridTreePaving _state_set;
+    BinaryTreePaving _state_set;
     EffectiveVectorMultivariateFunction _auxiliary_mapping;
   public:
     virtual ~AugmentedPaving() = default;
 
     typedef Grid GridType;
-    typedef GridTreePaving PavingType;
+    typedef BinaryTreePaving PavingType;
 //    AugmentedPaving(Grid const& g) : _state_set(g), _auxiliary_mapping(0,g.dimension()) { }
-//    AugmentedPaving(GridTreePaving const& gtp) : _state_set(gtp), _auxiliary_mapping(0,gtp.dimension()) { }
+//    AugmentedPaving(BinaryTreePaving const& gtp) : _state_set(gtp), _auxiliary_mapping(0,gtp.dimension()) { }
     AugmentedPaving(Grid const& g, Mapping const& aux)
         : _state_set(g), _auxiliary_mapping(aux) { }
-    AugmentedPaving(GridTreePaving const& gtp, Mapping const& aux)
+    AugmentedPaving(BinaryTreePaving const& gtp, Mapping const& aux)
         : _state_set(gtp), _auxiliary_mapping(aux) { }
 
     //! The state paving, without its auxiliary graph.
-    GridTreePaving& state_paving() { return this->_state_set; }
-    GridTreePaving const& state_paving() const { return this->_state_set; }
+    BinaryTreePaving& state_paving() { return this->_state_set; }
+    BinaryTreePaving const& state_paving() const { return this->_state_set; }
     //! Legacy reachability terminology, retained for existing callers.
-    GridTreePaving& state_set() { return this->state_paving(); }
-    GridTreePaving const& state_set() const { return this->state_paving(); }
+    BinaryTreePaving& state_set() { return this->state_paving(); }
+    BinaryTreePaving const& state_set() const { return this->state_paving(); }
     //! Outer paving of {(x,f(x)) : x is contained in the state paving}.
-    GridTreePaving state_auxiliary_paving() const {
+    BinaryTreePaving state_auxiliary_paving() const {
         Grid auxiliary_grid(this->_auxiliary_mapping.result_size());
         return outer_skew_product(this->_state_set, auxiliary_grid, this->_auxiliary_mapping); }
-    GridTreePaving state_auxiliary_set() const { return this->state_auxiliary_paving(); }
+    BinaryTreePaving state_auxiliary_set() const { return this->state_auxiliary_paving(); }
     Mapping const& auxiliary_mapping() const { return this->_auxiliary_mapping; }
     Mapping const& auxiliary_function() const { return this->_auxiliary_mapping; }
     Mapping const& auxiliary_data() const { return this->_auxiliary_mapping; }
 
     Bool is_empty() const { return this->_state_set.is_empty(); }
     SizeType size() const { return this->_state_set.size(); }
-    GridTreePaving::ConstIterator begin() const { return this->_state_set.begin(); }
-    GridTreePaving::ConstIterator end() const { return this->_state_set.end(); }
+    BinaryTreePaving::ConstIterator begin() const { return this->_state_set.begin(); }
+    BinaryTreePaving::ConstIterator end() const { return this->_state_set.end(); }
 
     Grid grid() const { return this->_state_set.grid(); }
 

@@ -64,9 +64,9 @@ typedef unsigned short dimension_type;
 
 // Some pre-declarations
 class BinaryTreeNode;
-// This header uses GridTreePaving by reference and return type.
+// This header uses BinaryTreePaving by reference and return type.
 // Keep its forward declaration in paving rather than geometry.
-class GridTreePaving;
+class BinaryTreePaving;
 class Grid;
 class GridAbstractCell;
 class GridCell;
@@ -83,8 +83,8 @@ enum class TernaryChild : ComparableEnumerationType { LEFT=-1, MIDDLE=0, RIGHT=+
 //!
 //!This class contains the geometric data of a cell, as well as the combinatoric data needed to easily adjoin it to a tree.
 //!It does not contain the tree structure, so cannot be used in cursors/iterators.
-//!NOTE: The "Primary root cell" is the cell that the \a GridTreeSet can be rooted to
-//!(the \a GridTreeSubset can be rooted to a non primary cell).
+//!NOTE: The "Primary root cell" is the cell that the \a BinaryTreePaving can be rooted to
+//!(the \a BinaryTreeSubpaving can be rooted to a non primary cell).
 class GridAbstractCell {
   protected:
     //! \brief The intrinsic grid of the cell. Note that grids are internally passed by reference.
@@ -106,7 +106,7 @@ class GridAbstractCell {
     //! \brief The copy constructor for the \a GridAbstractCell
     GridAbstractCell(const GridAbstractCell& theGridCell);
 
-    friend class GridTreeCursor;
+    friend class BinaryTreePavingCursor;
 
     //! \brief having \a theExtent the height of the primary cell, with \a leftBottomCorner and \a rightTopCorner
     //! defining the primary cell corners for \a theExtent-1, we recompute \a leftBottomCorner and \a rightTopCorner
@@ -210,11 +210,11 @@ class GridAbstractCell {
 //! its lower left sub cell wheres the complete open cell is a union of 4 cells.
 //!
 //! This class does not contain the tree structure, so cannot be used in cursors/iterators.
-//! \sa GridTreeSet
+//! \sa BinaryTreePaving
 class GridCell : public GridAbstractCell {
   protected:
 
-    friend class GridTreeCursor;
+    friend class BinaryTreePavingCursor;
 
     //! \brief Tests if theCellOne is a subset of theCellTwo, the paths to the cells,
     //! aligned to some common primary cell, which height will be referenced by
@@ -315,7 +315,7 @@ class GridOpenCell: public GridAbstractCell {
     //! to which all the neighboring cell will be added, i.e. it is a return parameter.
     //! NOTE: The cell defined by \a theExtent, \a theBaseCellWord will also be in \a theResultSet.
     Void neighboring_cells( const Nat theExtent, const BinaryWord& theBaseCellWord,
-                            BinaryWord& cellPosition, GridTreePaving& theResultSet ) const;
+                            BinaryWord& cellPosition, BinaryTreePaving& theResultSet ) const;
 
     //! \brief This method allows to compute the neighboring (to the right) cell of
     //! the base cell given by \a theExtent and \a theBaseCellWord. Here \a cellPosition
@@ -337,7 +337,7 @@ class GridOpenCell: public GridAbstractCell {
     //! it covers the borders. All such open cells are added to the vector \a result. \a cellPosition
     //! is a technical parameter that has to be set to an empty word. Also, this method add the interior
     //! of theCell to the vector \a result.
-    static Void cover_cell_and_borders( const GridCell& theCell, const GridTreePaving& theSet,
+    static Void cover_cell_and_borders( const GridCell& theCell, const BinaryTreePaving& theSet,
                                         BinaryWord& cellPosition, std::vector<GridOpenCell>& result );
 
   public:
@@ -369,8 +369,8 @@ class GridOpenCell: public GridAbstractCell {
     //! \brief A total order on cells on the same grid, by height and word prefix.
     Bool operator<(const GridOpenCell& otherCell) const;
 
-    //! \brief Computes all the cells that constitute the GridOpenCell in the form of the GridTreeSet.*/
-    GridTreePaving closure() const;
+    //! \brief Computes all the cells that constitute the GridOpenCell in the form of the BinaryTreePaving.*/
+    BinaryTreePaving closure() const;
 
     //! \brief Computes the intersection of two GridOpenCell as a list of open cells whoes union
     //! gives the intersection. This is done becase the intersection can no always be represented

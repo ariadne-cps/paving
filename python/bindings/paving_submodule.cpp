@@ -27,7 +27,7 @@
 
 #include "numeric/numeric.hpp"
 #include "set/function_set.hpp"
-#include "paving/grid_paving.hpp"
+#include "paving/binary_tree_paving.hpp"
 #include "paving/set_approximation.hpp"
 #include "set/affine_set.hpp"
 #include "set/list_set.hpp"
@@ -61,44 +61,44 @@ Void export_grid_cell(pybind11::module& module)
 }
 
 
-Void export_grid_tree_set(pybind11::module& module) {
+Void export_binary_tree_paving(pybind11::module& module) {
 
-    pybind11::class_<GridTreeSubpaving> grid_tree_subpaving_class(module,"GridTreeSubset");
+    pybind11::class_<BinaryTreeSubpaving> binary_tree_subpaving_class(module,"BinaryTreeSubpaving");
 
-    pybind11::class_<GridTreePaving, GridTreeSubpaving> grid_tree_paving_class(module,"GridTreePaving");
-    grid_tree_paving_class.def(pybind11::init<GridTreePaving>());
-    grid_tree_paving_class.def(pybind11::init<Nat>());
-    grid_tree_paving_class.def(pybind11::init<Grid>());
-    grid_tree_paving_class.def("bounding_box", &GridTreePaving::bounding_box);
-    grid_tree_paving_class.def("is_empty", &GridTreePaving::is_empty);
-    grid_tree_paving_class.def("size", &GridTreePaving::size);
-    grid_tree_paving_class.def("dimension", &GridTreePaving::dimension);
-    grid_tree_paving_class.def("clear", &GridTreePaving::clear);
-    grid_tree_paving_class.def("mince", &GridTreePaving::mince);
-    grid_tree_paving_class.def("recombine", &GridTreePaving::recombine);
-    grid_tree_paving_class.def("grid", &GridTreePaving::grid);
-    grid_tree_paving_class.def("measure", &GridTreePaving::measure);
-    grid_tree_paving_class.def("adjoin", (Void(GridTreePaving::*)(const GridCell&))(&GridTreePaving::adjoin));
-    grid_tree_paving_class.def("adjoin", (Void(GridTreePaving::*)(const GridTreeSubpaving&))(&GridTreePaving::adjoin));
-    grid_tree_paving_class.def("restrict", (Void(GridTreePaving::*)(const GridTreeSubpaving&))(&GridTreePaving::restrict));
-    grid_tree_paving_class.def("remove", (Void(GridTreePaving::*)(const GridTreeSubpaving&))(&GridTreePaving::remove));
-    grid_tree_paving_class.def("adjoin_over_approximation", (Void(GridTreePaving::*)(const ExactBoxType&,const Nat)) &GridTreePaving::adjoin_over_approximation);
-    grid_tree_paving_class.def("adjoin_outer_approximation", (Void(GridTreePaving::*)(const EffectiveEuclideanCompactSetInterface&,const Nat)) &GridTreePaving::adjoin_outer_approximation);
-    grid_tree_paving_class.def("adjoin_inner_approximation", (Void(GridTreePaving::*)(const EffectiveEuclideanOpenSetInterface&,const Nat,const Nat)) &GridTreePaving::adjoin_inner_approximation);
-    grid_tree_paving_class.def("__len__", &GridTreePaving::size);
-    grid_tree_paving_class.def("__iter__", [](GridTreePaving const& g){return pybind11::make_iterator(g.begin(), g.end());});
-    grid_tree_paving_class.def("__str__",&__cstr__<GridTreePaving>);
+    pybind11::class_<BinaryTreePaving, BinaryTreeSubpaving> binary_tree_paving_class(module,"BinaryTreePaving");
+    binary_tree_paving_class.def(pybind11::init<BinaryTreePaving>());
+    binary_tree_paving_class.def(pybind11::init<Nat>());
+    binary_tree_paving_class.def(pybind11::init<Grid>());
+    binary_tree_paving_class.def("bounding_box", &BinaryTreePaving::bounding_box);
+    binary_tree_paving_class.def("is_empty", &BinaryTreePaving::is_empty);
+    binary_tree_paving_class.def("size", &BinaryTreePaving::size);
+    binary_tree_paving_class.def("dimension", &BinaryTreePaving::dimension);
+    binary_tree_paving_class.def("clear", &BinaryTreePaving::clear);
+    binary_tree_paving_class.def("mince", &BinaryTreePaving::mince);
+    binary_tree_paving_class.def("recombine", &BinaryTreePaving::recombine);
+    binary_tree_paving_class.def("grid", &BinaryTreePaving::grid);
+    binary_tree_paving_class.def("measure", &BinaryTreePaving::measure);
+    binary_tree_paving_class.def("adjoin", (Void(BinaryTreePaving::*)(const GridCell&))(&BinaryTreePaving::adjoin));
+    binary_tree_paving_class.def("adjoin", (Void(BinaryTreePaving::*)(const BinaryTreeSubpaving&))(&BinaryTreePaving::adjoin));
+    binary_tree_paving_class.def("restrict", (Void(BinaryTreePaving::*)(const BinaryTreeSubpaving&))(&BinaryTreePaving::restrict));
+    binary_tree_paving_class.def("remove", (Void(BinaryTreePaving::*)(const BinaryTreeSubpaving&))(&BinaryTreePaving::remove));
+    binary_tree_paving_class.def("adjoin_over_approximation", (Void(BinaryTreePaving::*)(const ExactBoxType&,const Nat)) &BinaryTreePaving::adjoin_over_approximation);
+    binary_tree_paving_class.def("adjoin_outer_approximation", (Void(BinaryTreePaving::*)(const EffectiveEuclideanCompactSetInterface&,const Nat)) &BinaryTreePaving::adjoin_outer_approximation);
+    binary_tree_paving_class.def("adjoin_inner_approximation", (Void(BinaryTreePaving::*)(const EffectiveEuclideanOpenSetInterface&,const Nat,const Nat)) &BinaryTreePaving::adjoin_inner_approximation);
+    binary_tree_paving_class.def("__len__", &BinaryTreePaving::size);
+    binary_tree_paving_class.def("__iter__", [](BinaryTreePaving const& g){return pybind11::make_iterator(g.begin(), g.end());});
+    binary_tree_paving_class.def("__str__",&__cstr__<BinaryTreePaving>);
 
-    module.def("union",(GridTreePaving(*)(const GridTreeSubpaving&,const GridTreeSubpaving&))(&join));
-    module.def("difference",(GridTreePaving(*)(const GridTreeSubpaving&,const GridTreeSubpaving&))(&difference));
-    module.def("intersection",(GridTreePaving(*)(const GridTreeSubpaving&,const GridTreeSubpaving&))(&intersection));
-    module.def("intersect",(Bool(*)(const GridTreeSubpaving&,const GridTreeSubpaving&))(&intersect));
-    module.def("subpaving",(Bool(*)(const GridTreeSubpaving&,const GridTreeSubpaving&))(&subset));
-    module.def("intersect",(Bool(*)(const GridCell&,const GridTreeSubpaving&))(&intersect));
-    module.def("subpaving",(Bool(*)(const GridCell&,const GridTreeSubpaving&))(&subset));
+    module.def("union",(BinaryTreePaving(*)(const BinaryTreeSubpaving&,const BinaryTreeSubpaving&))(&join));
+    module.def("difference",(BinaryTreePaving(*)(const BinaryTreeSubpaving&,const BinaryTreeSubpaving&))(&difference));
+    module.def("intersection",(BinaryTreePaving(*)(const BinaryTreeSubpaving&,const BinaryTreeSubpaving&))(&intersection));
+    module.def("intersect",(Bool(*)(const BinaryTreeSubpaving&,const BinaryTreeSubpaving&))(&intersect));
+    module.def("subpaving",(Bool(*)(const BinaryTreeSubpaving&,const BinaryTreeSubpaving&))(&subset));
+    module.def("intersect",(Bool(*)(const GridCell&,const BinaryTreeSubpaving&))(&intersect));
+    module.def("subpaving",(Bool(*)(const GridCell&,const BinaryTreeSubpaving&))(&subset));
 
-    module.def("outer_approximation",(GridTreePaving(*)(const EffectiveEuclideanCompactSetInterface&,const Grid&,const Nat)) &outer_approximation);
-    module.def("inner_approximation",(GridTreePaving(*)(const EffectiveEuclideanOpenSetInterface&,const Grid&,const Nat,const Nat)) &inner_approximation);
+    module.def("outer_approximation",(BinaryTreePaving(*)(const EffectiveEuclideanCompactSetInterface&,const Grid&,const Nat)) &outer_approximation);
+    module.def("inner_approximation",(BinaryTreePaving(*)(const EffectiveEuclideanOpenSetInterface&,const Grid&,const Nat,const Nat)) &inner_approximation);
 
 }
 
@@ -113,7 +113,7 @@ void export_set_approximation(pybind11::module& module)
             return outer_approximation(self,grid,depth);
         }, pybind11::is_method(validated));
     validated.attr("adjoin_outer_approximation_to")=pybind11::cpp_function(
-        [](const ValidatedConstrainedImageSet& self, GridTreePaving& paving, Nat depth) {
+        [](const ValidatedConstrainedImageSet& self, BinaryTreePaving& paving, Nat depth) {
             adjoin_outer_approximation_to(paving,self,depth);
         }, pybind11::is_method(validated));
 
@@ -123,7 +123,7 @@ void export_set_approximation(pybind11::module& module)
             return outer_approximation(self,grid,depth);
         }, pybind11::is_method(affine));
     affine.attr("adjoin_outer_approximation_to")=pybind11::cpp_function(
-        [](const ValidatedAffineConstrainedImageSet& self, GridTreePaving& paving, Nat depth) {
+        [](const ValidatedAffineConstrainedImageSet& self, BinaryTreePaving& paving, Nat depth) {
             adjoin_outer_approximation_to(paving,self,depth);
         }, pybind11::is_method(affine));
 
@@ -136,11 +136,11 @@ void export_set_approximation(pybind11::module& module)
             return outer_approximation(set,grid,depth);
         });
     module.def("adjoin_outer_approximation_to",
-        [](GridTreePaving& paving, const ValidatedConstrainedImageSet& set, Nat depth) {
+        [](BinaryTreePaving& paving, const ValidatedConstrainedImageSet& set, Nat depth) {
             adjoin_outer_approximation_to(paving,set,depth);
         });
     module.def("adjoin_outer_approximation_to",
-        [](GridTreePaving& paving, const ValidatedAffineConstrainedImageSet& set, Nat depth) {
+        [](BinaryTreePaving& paving, const ValidatedAffineConstrainedImageSet& set, Nat depth) {
             adjoin_outer_approximation_to(paving,set,depth);
         });
 }
@@ -149,6 +149,6 @@ void paving_submodule(pybind11::module& module)
 {
     export_grid(module);
     export_grid_cell(module);
-    export_grid_tree_set(module);
+    export_binary_tree_paving(module);
     export_set_approximation(module);
 }

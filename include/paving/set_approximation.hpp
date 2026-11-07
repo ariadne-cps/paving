@@ -31,7 +31,7 @@ namespace Ariadne {
 
 class Grid;
 class PavingInterface;
-class GridTreePaving;
+class BinaryTreePaving;
 class ConstrainedImageSet;
 class ValidatedConstrainedImageSet;
 class ValidatedAffineConstrainedImageSet;
@@ -39,10 +39,10 @@ class ValidatedAffineConstrainedImageSet;
 // Paving operations for set-owned representations. The set module does not depend on paving.
 Void adjoin_outer_approximation_to(PavingInterface& paving, const ConstrainedImageSet& set, Nat fineness);
 Void adjoin_outer_approximation_to(PavingInterface& paving, const ValidatedConstrainedImageSet& set, Nat fineness);
-GridTreePaving outer_approximation(const ValidatedConstrainedImageSet& set, const Grid& grid, Nat fineness);
+BinaryTreePaving outer_approximation(const ValidatedConstrainedImageSet& set, const Grid& grid, Nat fineness);
 Void adjoin_outer_approximation_to(PavingInterface& paving, const ValidatedAffineConstrainedImageSet& set, Nat fineness);
 Void robust_adjoin_outer_approximation_to(PavingInterface& paving, const ValidatedAffineConstrainedImageSet& set, Nat fineness);
-GridTreePaving outer_approximation(const ValidatedAffineConstrainedImageSet& set, const Grid& grid, Nat fineness);
+BinaryTreePaving outer_approximation(const ValidatedAffineConstrainedImageSet& set, const Grid& grid, Nat fineness);
 
 } // namespace Ariadne
 

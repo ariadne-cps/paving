@@ -27,7 +27,7 @@
 #include <memory>
 #include <sstream>
 #include "paving/paving_interface.hpp"
-#include "paving/grid_paving.hpp"
+#include "paving/binary_tree_paving.hpp"
 #include "function/function.hpp"
 #include "set/function_set.hpp"
 #include "logging/logging.hpp"
@@ -55,7 +55,7 @@ class TestPaving : public Ariadne::Testing::ContextFixture
 
 Void TestPaving::test_constructors() {
     Grid grid(2);
-    GridTreePaving grid_set(grid);
+    BinaryTreePaving grid_set(grid);
     PavingInterface& paving = grid_set;
 
     ARIADNE_TESTING_NOTE("paving = " << (paving));
@@ -83,7 +83,7 @@ Void TestPaving::test_constructors() {
 
 Void TestPaving::test_iterator() {
     Grid grid(2);
-    GridTreePaving grid_set(grid);
+    BinaryTreePaving grid_set(grid);
     PavingInterface& paving = grid_set;
     Nat height = 1;
 
@@ -102,7 +102,7 @@ Void TestPaving::test_iterator() {
 
 Void TestPaving::test_branch() {
     Grid grid(2);
-    GridTreePaving grid_set(grid);
+    BinaryTreePaving grid_set(grid);
     PavingInterface& paving = grid_set;
     GridCell cell(grid,0,BinaryWord(""));
 
@@ -126,8 +126,8 @@ Void TestPaving::test_branch() {
     ARIADNE_TESTING_NOTE("paving = " << (paving));
     ARIADNE_TESTING_PROVE(paving.size()==4);
 
-    GridTreeSubpaving direct_branch0 =
-        static_cast<GridTreeSubpaving const&>(grid_set).branch(0);
+    BinaryTreeSubpaving direct_branch0 =
+        static_cast<BinaryTreeSubpaving const&>(grid_set).branch(0);
     ARIADNE_TESTING_PROVE(direct_branch0.size()==2);
     ARIADNE_TESTING_NOTE("direct_branch0.root_cell() = " << (direct_branch0.root_cell()));
 
@@ -154,14 +154,14 @@ Void TestPaving::test_clone() {
     std::unique_ptr<PavingHandle> cloned_branch;
 
     {
-        GridTreePaving grid_set(grid);
+        BinaryTreePaving grid_set(grid);
         PavingInterface& paving = grid_set;
         paving.adjoin(GridCell(grid,0,word1));
         paving.adjoin(GridCell(grid,0,word2));
         paving.adjoin(GridCell(grid,0,word3));
 
-        GridTreeSubpaving branch0 =
-            static_cast<GridTreeSubpaving const&>(grid_set).branch(0);
+        BinaryTreeSubpaving branch0 =
+            static_cast<BinaryTreeSubpaving const&>(grid_set).branch(0);
         ARIADNE_TESTING_EXPECT_EQUAL(branch0.size(),2);
 
         cloned_branch = std::make_unique<PavingHandle>(branch0);
@@ -186,7 +186,7 @@ Void TestPaving::test_clone() {
 
 Void TestPaving::test_geometry() {
     Grid grid(2);
-    GridTreePaving grid_tree_set(grid);
+    BinaryTreePaving grid_tree_set(grid);
     Nat height(0);
 
     PavingHandle paving_handle1(grid_tree_set);
@@ -251,7 +251,7 @@ Void TestPaving::test_geometry() {
 
 Void TestPaving::test_approximation() {
     Grid grid(2);
-    GridTreePaving grid_set(grid);
+    BinaryTreePaving grid_set(grid);
     PavingInterface& paving = grid_set;
 
     EffectiveVectorMultivariateFunction x=EffectiveVectorMultivariateFunction::identity(2);
@@ -277,7 +277,7 @@ Void TestPaving::test_approximation() {
                       "0010100101010001001101100101101110100101110101000010000"
                       "0001010010010101001010001010010010100100110101001101001"
                       "00101001010101101000000101001000100100000000000");
-    GridTreePaving expected_grid_set(grid,height,tree,leaves);
+    BinaryTreePaving expected_grid_set(grid,height,tree,leaves);
     PavingInterface& expected_paving = expected_grid_set;
 
     ARIADNE_TESTING_EXPECT_BINARY_PREDICATE(subset, expected_paving, paving);
@@ -294,7 +294,7 @@ class NonnegativePredicate : public PredicateInterface<ExactBoxType> {
 
 Void TestPaving::test_paving_handle_forwarding() {
     Grid grid(1u);
-    GridTreePaving native(grid);
+    BinaryTreePaving native(grid);
     GridCell root(grid,0u,BinaryWord());
     GridCell left(grid,0u,BinaryWord("0"));
     GridCell right(grid,0u,BinaryWord("1"));
@@ -303,7 +303,7 @@ Void TestPaving::test_paving_handle_forwarding() {
     const SubPavingInterface& native_interface=native;
     PavingHandle paving(native_interface);
     PavingHandle copied(paving);
-    PavingHandle owned(new GridTreePaving(grid));
+    PavingHandle owned(new BinaryTreePaving(grid));
     owned=copied;
     const PavingHandle& alias=owned;
     owned=alias;

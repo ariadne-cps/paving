@@ -7,7 +7,7 @@
  ****************************************************************************/
 
 #include "paving/binary_tree_paving.hpp"
-#include "paving/grid_paving.hpp"
+#include "paving/binary_tree_paving.hpp"
 #include "paving/robdd_paving.hpp"
 #include "paving/paving_cell_operations.hpp"
 #include "set/function_set.hpp"
@@ -359,10 +359,10 @@ SizeType visit_leaves(SubPavingInterface const& paving) {
 
 // This is a deliberately borrowed traversal, valid ONLY while the owning
 // tree is stable. It is not a substitute for concurrent-safe owner iterators.
-SizeType visit_borrowed_tree_leaves(GridTreeSubpaving const& paving) {
+SizeType visit_borrowed_tree_leaves(BinaryTreeSubpaving const& paving) {
     SizeType checksum=0u;
-    for(auto it=paving.GridTreeSubpaving::begin(),
-             end=paving.GridTreeSubpaving::end();it!=end;++it) {
+    for(auto it=paving.BinaryTreeSubpaving::begin(),
+             end=paving.BinaryTreeSubpaving::end();it!=end;++it) {
         checksum+=it->word().size()+1u;
     }
     return checksum;
@@ -866,9 +866,9 @@ void append_case(std::vector<Datum>& data,std::vector<MemoryDatum>& memory,
 
     if(selection.tree_iterator_cost) {
         // Compare only representations of the same immutable tree. Ordinary
-        // GridTreePaving iterators own a deep copy; borrowed base iterators
+        // BinaryTreePaving iterators own a deep copy; borrowed base iterators
         // are valid here because this scenario has no concurrent writers.
-        GridTreeSubpaving const& stable_tree=tree;
+        BinaryTreeSubpaving const& stable_tree=tree;
         SizeType safe_checksum=visit_leaves(tree);
         SizeType borrowed_checksum=visit_borrowed_tree_leaves(stable_tree);
         if(safe_checksum!=borrowed_checksum) {
@@ -881,7 +881,7 @@ void append_case(std::vector<Datum>& data,std::vector<MemoryDatum>& memory,
             selection.iterations,selection.samples,
             selection.min_sample_ms,selection.max_iterations);
         Timing borrowed_begin=median_ms(
-            [&](unsigned) { return stable_tree.GridTreeSubpaving::begin(); },
+            [&](unsigned) { return stable_tree.BinaryTreeSubpaving::begin(); },
             selection.iterations,selection.samples,
             selection.min_sample_ms,selection.max_iterations);
         Timing owner_visit=median_ms(

@@ -57,7 +57,7 @@ ownership are provided.
 and mutations of overlapping nodes are not guaranteed safe. Locking
 a root only during writes does not protect a borrowed child pointer
 used after unlocking. A later owning `BinaryTree` abstraction (or a
-domain-specific owner such as `GridTreePaving`) can provide locking,
+domain-specific owner such as `BinaryTreePaving`) can provide locking,
 snapshots and lifetime-safe operations. Algorithms may parallelize
 independent subtrees, but concurrency and parallelism do not require
 a mutex on every node. None of those new guarantees is implemented here.

@@ -22,7 +22,7 @@
 #include <vector>
 
 #include "utility/macros.hpp"
-#include "paving/grid_paving.hpp"
+#include "paving/binary_tree_paving.hpp"
 #include "paving/grid_cell_alignment.hpp"
 #include "paving/paving_cell_operations.hpp"
 #include "paving/robdd_paving.hpp"
@@ -333,7 +333,7 @@ RobddPaving& RobddPaving::operator=(RobddPaving const& other) {
 }
 
 RobddPaving::RobddPaving(
-        RobddManager& manager, GridTreeSubpaving const& source)
+        RobddManager& manager, BinaryTreeSubpaving const& source)
     : RobddPaving(
         manager,source.root_cell(),
         encode_tree(manager,source.binary_tree(),0u),source.tree_depth()) { }
@@ -524,7 +524,7 @@ Void RobddPaving::for_each_enabled_leaf(
 
 Void RobddPaving::mince(Nat fineness) {
     std::lock_guard<std::mutex> lock(_adjoin_mutex);
-    // GridTreeSubpaving::mince uses this same geometric target, but
+    // BinaryTreeSubpaving::mince uses this same geometric target, but
     // physically splits leaves. A ROBDD retains canonical shared nodes
     // and records the additional subdivisions only in its logical depth.
     constexpr SizeType limit=std::numeric_limits<SizeType>::max();

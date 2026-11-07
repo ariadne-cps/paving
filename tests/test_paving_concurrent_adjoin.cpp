@@ -14,7 +14,7 @@
 #include <vector>
 
 #include "ariadne-testing.hpp"
-#include "paving/grid_paving.hpp"
+#include "paving/binary_tree_paving.hpp"
 #include "geometry/set_wrapper.hpp"
 #include "paving/robdd_paving.hpp"
 #include "function/projection.hpp"
@@ -122,9 +122,9 @@ class TestPavingConcurrentAdjoin : public Ariadne::Testing::ContextFixture {
         Grid grid(1u);
         auto cells=make_cells(grid);
         GridCell sentinel(grid,1u,make_binary_word("0000000"));
-        GridTreePaving destination(grid,false);
+        BinaryTreePaving destination(grid,false);
         test_reader_writer(destination,sentinel,cells,
-            [&](GridCell const& cell) { return GridTreePaving(cell); });
+            [&](GridCell const& cell) { return BinaryTreePaving(cell); });
     }
 
     Void test_robdd_reader_writer_adjoin() {
@@ -171,7 +171,7 @@ class TestPavingConcurrentAdjoin : public Ariadne::Testing::ContextFixture {
 
     Void test_tree_concurrent_root_mutations() {
         Grid grid(1u);
-        GridTreePaving paving(grid,false);
+        BinaryTreePaving paving(grid,false);
         check_concurrent_root_mutations(paving,
             GridCell(grid,0u,make_binary_word("0")));
     }
@@ -243,9 +243,9 @@ class TestPavingConcurrentAdjoin : public Ariadne::Testing::ContextFixture {
         Grid grid(1u);
         GridCell retained(grid,0u,make_binary_word("0"));
         GridCell discarded(grid,0u,make_binary_word("1"));
-        GridTreePaving destination(grid,false);
+        BinaryTreePaving destination(grid,false);
         check_concurrent_set_mutations(destination,retained,discarded,
-            [&](GridCell const& cell) { return GridTreePaving(cell); });
+            [&](GridCell const& cell) { return BinaryTreePaving(cell); });
     }
 
     Void test_robdd_concurrent_set_mutations() {
@@ -265,7 +265,7 @@ class TestPavingConcurrentAdjoin : public Ariadne::Testing::ContextFixture {
     Void test_tree_snapshot_iterators_survive_concurrent_mutations() {
         Grid grid(1u);
         auto cells=make_cells(grid);
-        GridTreePaving destination(grid,false);
+        BinaryTreePaving destination(grid,false);
         destination.adjoin(cells);
 
         auto saved_first=destination.begin();
@@ -305,13 +305,13 @@ class TestPavingConcurrentAdjoin : public Ariadne::Testing::ContextFixture {
         ARIADNE_TESTING_EXPECT_EQUAL(interface_count,static_cast<SizeType>(cells.size()));
 
         // The snapshot also survives destruction of the original owner.
-        GridTreePaving::ConstIterator retained;
+        BinaryTreePaving::ConstIterator retained;
         {
-            GridTreePaving ephemeral(grid,false);
+            BinaryTreePaving ephemeral(grid,false);
             ephemeral.adjoin(cells.front());
             retained=ephemeral.begin();
         }
-        ARIADNE_TESTING_PROVE(retained!=GridTreePaving::ConstIterator());
+        ARIADNE_TESTING_PROVE(retained!=BinaryTreePaving::ConstIterator());
         ARIADNE_TESTING_PROVE(retained->grid()==grid);
     }
 
@@ -319,8 +319,8 @@ class TestPavingConcurrentAdjoin : public Ariadne::Testing::ContextFixture {
         Grid grid(1u);
         GridCell left(grid,0u,make_binary_word("0"));
         GridCell right(grid,0u,make_binary_word("1"));
-        GridTreePaving destination(left);
-        GridTreePaving left_only(left);
+        BinaryTreePaving destination(left);
+        BinaryTreePaving left_only(left);
         ExactBoxType query=left.box();
         std::atomic<bool> finished{false};
         std::atomic<bool> correct{true};
@@ -371,18 +371,18 @@ class TestPavingConcurrentAdjoin : public Ariadne::Testing::ContextFixture {
         Grid grid(1u);
         GridCell left(grid,0u,make_binary_word("0"));
         GridCell right(grid,0u,make_binary_word("1"));
-        GridTreePaving paving(grid,true);
+        BinaryTreePaving paving(grid,true);
 
-        paving.with_locked_branch(false,[&](GridTreeSubpaving& child) {
+        paving.with_locked_branch(false,[&](BinaryTreeSubpaving& child) {
             ARIADNE_TESTING_PROVE(child.root_cell()==left);
             child.set_root_cell(false);
         });
         ARIADNE_TESTING_PROVE(!paving.superset(left));
         ARIADNE_TESTING_PROVE(paving.superset(right));
 
-        paving.with_locked_subpaving([&](GridTreeSubpaving& root) {
+        paving.with_locked_subpaving([&](BinaryTreeSubpaving& root) {
             // All borrowed descendants remain valid while the root is locked.
-            GridTreeSubpaving right_child=root.branch(true);
+            BinaryTreeSubpaving right_child=root.branch(true);
             ARIADNE_TESTING_PROVE(right_child.root_cell()==right);
             right_child.set_root_cell(false);
         });
@@ -395,12 +395,12 @@ class TestPavingConcurrentAdjoin : public Ariadne::Testing::ContextFixture {
         Grid grid(1u);
         GridCell left(grid,0u,make_binary_word("0"));
         GridCell right(grid,0u,make_binary_word("1"));
-        GridTreePaving paving(grid,true);
+        BinaryTreePaving paving(grid,true);
         std::atomic<bool> entered{false};
         std::atomic<bool> release{false};
 
         std::thread scoped([&] {
-            paving.with_locked_branch(false,[&](GridTreeSubpaving& child) {
+            paving.with_locked_branch(false,[&](BinaryTreeSubpaving& child) {
                 entered.store(true,std::memory_order_release);
                 while(!release.load(std::memory_order_acquire)) {
                     std::this_thread::yield();
@@ -432,7 +432,7 @@ class TestPavingConcurrentAdjoin : public Ariadne::Testing::ContextFixture {
         CompactSet<EffectiveTag,RealVector> compact(box);
         OpenSet<EffectiveTag,RealVector> open(box);
         OvertSet<EffectiveTag,RealVector> overt(box);
-        GridTreePaving destination(grid,false);
+        BinaryTreePaving destination(grid,false);
 
         std::atomic<bool> started{false};
         std::atomic<bool> finished{false};
@@ -440,7 +440,7 @@ class TestPavingConcurrentAdjoin : public Ariadne::Testing::ContextFixture {
         std::thread reader([&] {
             started.store(true,std::memory_order_release);
             while(!finished.load(std::memory_order_acquire)) {
-                GridTreePaving snapshot(destination);
+                BinaryTreePaving snapshot(destination);
                 if(snapshot.root_cell().grid()!=grid
                         || snapshot.dimension()!=grid.dimension()) {
                     coherent.store(false,std::memory_order_relaxed);
@@ -491,7 +491,7 @@ class TestPavingConcurrentAdjoin : public Ariadne::Testing::ContextFixture {
         Grid grid(1u);
         GridCell root(grid,0u,BinaryWord{});
         GridCell left(grid,0u,make_binary_word("0"));
-        GridTreePaving paving(grid,true);
+        BinaryTreePaving paving(grid,true);
         std::atomic<bool> started{false};
         std::atomic<unsigned> completed{0u};
         std::atomic<bool> correct{true};
@@ -499,7 +499,7 @@ class TestPavingConcurrentAdjoin : public Ariadne::Testing::ContextFixture {
         std::thread reader([&] {
             started.store(true,std::memory_order_release);
             while(completed.load(std::memory_order_acquire)<2u) {
-                GridTreePaving snapshot(paving);
+                BinaryTreePaving snapshot(paving);
                 if(!snapshot.superset(root) || snapshot.root_cell().grid()!=grid) {
                     correct.store(false,std::memory_order_relaxed);
                 }
@@ -541,7 +541,7 @@ class TestPavingConcurrentAdjoin : public Ariadne::Testing::ContextFixture {
 
         // The direct owner branch call must split safely and preserve the
         // existing borrowed mutability contract. Mutate only sequentially.
-        GridTreeSubpaving branch=paving.branch(false);
+        BinaryTreeSubpaving branch=paving.branch(false);
         ARIADNE_TESTING_PROVE(branch.root_cell()==left);
         branch.set_root_cell(false);
         ARIADNE_TESTING_PROVE(!paving.superset(left));
@@ -658,14 +658,14 @@ class TestPavingConcurrentAdjoin : public Ariadne::Testing::ContextFixture {
         GridCell cell(grid,0u,make_binary_word("0"));
         GridCell other_cell(incompatible_grid,0u,make_binary_word("0"));
 
-        GridTreePaving tree(cell);
-        GridTreePaving foreign_tree(other_cell);
+        BinaryTreePaving tree(cell);
+        BinaryTreePaving foreign_tree(other_cell);
         ARIADNE_TESTING_EXPECT_EXCEPTION(tree=foreign_tree);
         ARIADNE_TESTING_PROVE(tree.root_cell().grid()==grid);
         ARIADNE_TESTING_PROVE(tree.superset(cell));
 
         // Geometry may change within the same immutable grid.
-        GridTreePaving same_grid_tree(grid,2u,new BinaryTreeNode(true));
+        BinaryTreePaving same_grid_tree(grid,2u,new BinaryTreeNode(true));
         tree=same_grid_tree;
         ARIADNE_TESTING_PROVE(tree.root_cell().grid()==grid);
         ARIADNE_TESTING_PROVE(tree.root_cell().root_extent()==2u);
@@ -690,9 +690,9 @@ class TestPavingConcurrentAdjoin : public Ariadne::Testing::ContextFixture {
     Void test_tree_owner_projection_and_enclosing_query_during_writes() {
         Grid grid(2u);
         GridCell selected(grid,0u,make_binary_word("00"));
-        GridTreePaving owner(grid,false);
+        BinaryTreePaving owner(grid,false);
         Projection x_only(2u,{0u});
-        GridTreePaving selected_owner(selected);
+        BinaryTreePaving selected_owner(selected);
         std::atomic<bool> started{false};
         std::atomic<bool> finished{false};
         std::atomic<bool> coherent{true};
@@ -701,7 +701,7 @@ class TestPavingConcurrentAdjoin : public Ariadne::Testing::ContextFixture {
             started.store(true,std::memory_order_release);
             while(!finished.load(std::memory_order_acquire)) {
                 // Every call must use a coherent version of the owning tree.
-                GridTreePaving projected=image(owner,x_only);
+                BinaryTreePaving projected=image(owner,x_only);
                 if(projected.dimension()!=1u) {
                     coherent.store(false,std::memory_order_relaxed);
                 } else {
@@ -736,7 +736,7 @@ class TestPavingConcurrentAdjoin : public Ariadne::Testing::ContextFixture {
         reader.join();
 
         ARIADNE_TESTING_PROVE(coherent.load(std::memory_order_acquire));
-        GridTreePaving projected=image(owner,x_only);
+        BinaryTreePaving projected=image(owner,x_only);
         GridCell expected(projected.grid(),0u,make_binary_word("0"));
         ARIADNE_TESTING_PROVE(projected.superset(expected));
     }
@@ -744,20 +744,20 @@ class TestPavingConcurrentAdjoin : public Ariadne::Testing::ContextFixture {
     Void test_grid_tree_concurrent_adjoin() {
         Grid grid(1u);
         auto cells=make_cells(grid);
-        GridTreePaving destination(grid,false);
+        BinaryTreePaving destination(grid,false);
         concurrent_adjoins(destination,cells,[&](GridCell const& cell) {
-            return GridTreePaving(cell);
+            return BinaryTreePaving(cell);
         });
         for(GridCell const& cell:cells) {
             ARIADNE_TESTING_PROVE(destination.superset(cell));
         }
-        GridTreePaving expected(grid,false);
+        BinaryTreePaving expected(grid,false);
         expected.adjoin(cells);
         ARIADNE_TESTING_PROVE(destination.equals(expected));
 
         // Copy/assignment after concurrent insertion preserve exact geometry.
-        GridTreePaving copy(destination);
-        GridTreePaving assigned(grid,false);
+        BinaryTreePaving copy(destination);
+        BinaryTreePaving assigned(grid,false);
         assigned=destination;
         ARIADNE_TESTING_PROVE(copy.equals(expected));
         ARIADNE_TESTING_PROVE(assigned.equals(expected));

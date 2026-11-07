@@ -7,7 +7,7 @@
 #include "paving/paver.hpp"
 #include "set/function_set.hpp"
 #include "function/taylor_function.hpp"
-#include "paving/grid_paving.hpp"
+#include "paving/binary_tree_paving.hpp"
 #include "ariadne-testing.hpp"
 #include "logging/logging.hpp"
 #include <sstream>
@@ -24,29 +24,29 @@ class TestPaver : public Ariadne::Testing::ContextFixture {
     ExactBoxType domain{{0.125_x,0.375_x}};
     ValidatedConstrainedImageSet set(domain,identity);
     Grid grid(1u);
-    GridTreePaving approximation(grid);
+    BinaryTreePaving approximation(grid);
     paver.adjoin_outer_approximation(approximation,set,2u);
     ARIADNE_TESTING_PROVE(approximation.superset(GridCell(grid,0u,BinaryWord("00"))));
     ARIADNE_TESTING_PROVE(approximation.superset(GridCell(grid,0u,BinaryWord("01"))));
     ARIADNE_TESTING_PROVE(definitely(subset(cast_exact_box(approximation.bounding_box()),ExactBoxType{{-0.5_x,0.75_x}})));
-    GridTreePaving full(grid);
+    BinaryTreePaving full(grid);
     full.adjoin(GridCell(grid,0u,BinaryWord()));
     paver.adjoin_outer_approximation(full,set,2u);
     ARIADNE_TESTING_PROVE(full.superset(GridCell(grid,0u,BinaryWord())));
     ValidatedConstrainedImageSet constrained(domain,identity,List<ValidatedConstraint>{0<=x<=1});
-    GridTreePaving constrained_result(grid);
+    BinaryTreePaving constrained_result(grid);
     paver.adjoin_outer_approximation(constrained_result,constrained,2u);
     ARIADNE_TESTING_PROVE(constrained_result.superset(GridCell(grid,0u,BinaryWord("00"))));
     ValidatedConstrainedImageSet below(domain,identity,List<ValidatedConstraint>{x<=-1});
     ValidatedConstrainedImageSet above(domain,identity,List<ValidatedConstraint>{x>=1});
-    GridTreePaving excluded(grid);
+    BinaryTreePaving excluded(grid);
     paver.adjoin_outer_approximation(excluded,below,2u);
     paver.adjoin_outer_approximation(excluded,above,2u);
     ARIADNE_TESTING_PROVE(excluded.is_empty());
     ValidatedConstrainedImageSet empty(ExactBoxType(1u),identity);
     paver.adjoin_outer_approximation(excluded,empty,2u);
     ARIADNE_TESTING_PROVE(excluded.is_empty());
-    GridTreePaving wrong_dimension(Grid(2u));
+    BinaryTreePaving wrong_dimension(Grid(2u));
     ARIADNE_TESTING_EXPECT_EXCEPTION(paver.adjoin_outer_approximation(wrong_dimension,set,2u));
     std::ostringstream repr;
     repr<<paver;
@@ -68,7 +68,7 @@ Void test_nonlinear_pavers() {
     auto v=EffectiveScalarMultivariateFunction::coordinate(2u,1u);
     ValidatedVectorMultivariateFunction nonlinear({u*u,v*v});
     ValidatedVectorMultivariateTaylorFunctionModelDP model(square,nonlinear,TrivialSweeper<FloatDP>(dp));
-    GridTreePaving model_paving(Grid(2u));
+    BinaryTreePaving model_paving(Grid(2u));
     AffinePaver().adjoin_outer_approximation(model_paving,ValidatedConstrainedImageSet(square,ValidatedVectorMultivariateFunctionModelDP(model)),0u);
     ARIADNE_TESTING_PROVE(!model_paving.is_empty());
     ValidatedVectorMultivariateFunction quadratic({x*x});
@@ -77,7 +77,7 @@ Void test_nonlinear_pavers() {
     const Paver strategies[]={Paver(AffinePaver()),Paver(SubdivisionPaver()),Paver(ReducePaver()),Paver(ConstraintPaver()),Paver(OptimalConstraintPaver())};
     for(const auto& paver:strategies) {
         ARIADNE_TESTING_NOTE("paver = " << (paver));
-        GridTreePaving approximation(grid);
+        BinaryTreePaving approximation(grid);
         paver.adjoin_outer_approximation(approximation,set,1u);
         const ExactBoxType bounds=cast_exact_box(approximation.bounding_box());
         ARIADNE_TESTING_PROVE(bounds[0].lower_bound()<=FloatDP(0,dp));
@@ -95,7 +95,7 @@ Void test_intrinsic_uncertainty() {
         for(const auto& paver:strategies) {
             ARIADNE_TESTING_NOTE("arity = " << (arity));
             ARIADNE_TESTING_NOTE("paver = " << (paver));
-            GridTreePaving approximation(Grid(1u));
+            BinaryTreePaving approximation(Grid(1u));
             paver.adjoin_outer_approximation(approximation,set,3u);
             const auto bounds=cast_exact_box(approximation.bounding_box());
             ARIADNE_TESTING_PROVE(bounds[0].lower_bound()<=FloatDP(0.25_x,dp));
@@ -105,7 +105,7 @@ Void test_intrinsic_uncertainty() {
     }
     auto identity=ValidatedVectorMultivariateFunction::identity(1u);
     ValidatedConstrainedImageSet set(ExactBoxType{{0.125_x,0.375_x}},identity);
-    GridTreePaving paving(Grid(1u));
+    BinaryTreePaving paving(Grid(1u));
     SubdivisionPaver subdivision;
     ARIADNE_TESTING_EXPECT_EXCEPTION(subdivision.adjoin_outer_approximation_recursion(paving,set,2u,Vector<FloatDP>(0u,dp)));
     ARIADNE_TESTING_EXPECT_EXCEPTION(subdivision.adjoin_outer_approximation_recursion(paving,set,2u,Vector<FloatDP>(1u,FloatDP(0,dp))));
@@ -115,7 +115,7 @@ Void test_affine_depth_limit() {
     auto x=EffectiveScalarMultivariateFunction::coordinate(1u,0u);
     ValidatedVectorMultivariateFunction mapping({10000000000.0_x*x*x});
     ValidatedConstrainedImageSet set(ExactBoxType{{-1.0_x,1.0_x}},mapping);
-    GridTreePaving approximation(Grid(1u,FloatDP(1000000000000.0_x,dp)));
+    BinaryTreePaving approximation(Grid(1u,FloatDP(1000000000000.0_x,dp)));
     AffinePaver().adjoin_outer_approximation(approximation,set,0u);
     auto bounds=cast_exact_box(approximation.bounding_box());
     ARIADNE_TESTING_PROVE(bounds[0].lower_bound()<=FloatDP(0,dp));
@@ -137,10 +137,10 @@ Void test_reduce_contractors() {
     ExactBoxType interval{{0.0_x,1.0_x}};
     ValidatedVectorMultivariateFunction identity({x});
     ValidatedVectorMultivariateFunction quadratic({x*(1-x)});
-    GridTreePaving empty(Grid(1u));
+    BinaryTreePaving empty(Grid(1u));
     ReducePaver().adjoin_outer_approximation(empty,ValidatedConstrainedImageSet(interval,identity,List<ValidatedConstraint>{x*(1-x)>=0.5_x}),2u);
     ARIADNE_TESTING_PROVE(empty.is_empty());
-    GridTreePaving quadratic_paving(Grid(1u));
+    BinaryTreePaving quadratic_paving(Grid(1u));
     ReducePaver().adjoin_outer_approximation(quadratic_paving,ValidatedConstrainedImageSet(interval,quadratic),2u);
     const auto quadratic_bounds=cast_exact_box(quadratic_paving.bounding_box());
     ARIADNE_TESTING_PROVE(quadratic_bounds[0].lower_bound()<=FloatDP(0,dp));
@@ -149,17 +149,17 @@ Void test_reduce_contractors() {
     auto u=EffectiveScalarMultivariateFunction::coordinate(2u,0u);
     auto v=EffectiveScalarMultivariateFunction::coordinate(2u,1u);
     ValidatedVectorMultivariateFunction circle({u*u+v*v});
-    GridTreePaving circle_paving(Grid(1u));
+    BinaryTreePaving circle_paving(Grid(1u));
     ReducePaver().adjoin_outer_approximation(circle_paving,ValidatedConstrainedImageSet(ExactBoxType{{-1.0_x,1.0_x},{-1.0_x,1.0_x}},circle),2u);
     auto circle_bounds=cast_exact_box(circle_paving.bounding_box());
     ARIADNE_TESTING_PROVE(circle_bounds[0].lower_bound()<=FloatDP(0,dp));
     ARIADNE_TESTING_PROVE(circle_bounds[0].upper_bound()>=FloatDP(2,dp));
     ValidatedVectorMultivariateFunction bilinear({u*v,u+v});
     ValidatedConstrainedImageSet triangle(ExactBoxType{{0.0_x,1.0_x},{0.0_x,1.0_x}},bilinear,List<ValidatedConstraint>{u-v>=0.75_x});
-    GridTreePaving triangle_paving(Grid(2u));
+    BinaryTreePaving triangle_paving(Grid(2u));
     ReducePaver().adjoin_outer_approximation(triangle_paving,triangle,2u);
     ARIADNE_TESTING_PROVE(definitely(subset(ExactBoxType{{0.0_x,0.0_x},{1.0_x,1.0_x}},cast_exact_box(triangle_paving.bounding_box()))));
-    GridTreePaving zero_output(Grid(0u));
+    BinaryTreePaving zero_output(Grid(0u));
     ReducePaver().adjoin_outer_approximation(zero_output,ValidatedConstrainedImageSet(interval,ValidatedVectorMultivariateFunction::zeros(0u,1u)),0u);
     ARIADNE_TESTING_PROVE(!zero_output.is_empty());
     ARIADNE_TESTING_EXPECT_EQUAL(zero_output.dimension(),0u);
@@ -179,7 +179,7 @@ Void TestPaver::test_correlated_constraints() {
         ARIADNE_TESTING_NOTE("i = " << (i));
         ValidatedVectorMultivariateFunction mapping({mappings[i]});
         ValidatedConstrainedImageSet set(ExactBoxType{{0.0_x,1.0_x},{0.0_x,1.0_x}},mapping,List<ValidatedConstraint>{conditions[i]});
-        GridTreePaving paving(Grid(1u));
+        BinaryTreePaving paving(Grid(1u));
         ReducePaver().adjoin_outer_approximation(paving,set,2u);
         const auto bounds=cast_exact_box(paving.bounding_box());
         ARIADNE_TESTING_PROVE(bounds[0].lower_bound()<=FloatDP(0,dp));

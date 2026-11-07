@@ -218,7 +218,7 @@ int main() {
     section("Grid cells and paving: finite set approximations");
 
     // A Grid fixes the coordinate system used by discrete set
-    // approximations.  GridTreePaving then stores active cells in a binary
+    // approximations.  BinaryTreePaving then stores active cells in a binary
     // tree.  Fineness controls how far the approximation is subdivided.
     Grid grid(2);
     show("grid", grid);
@@ -230,10 +230,10 @@ int main() {
     show("smallest enclosing primary cell", primary);
     show("primary cell box", primary.box());
 
-    GridTreePaving coarse = outer_approximation(image_set, grid, 3);
+    BinaryTreePaving coarse = outer_approximation(image_set, grid, 3);
     coarse.recombine();
 
-    GridTreePaving fine = outer_approximation(image_set, grid, 5);
+    BinaryTreePaving fine = outer_approximation(image_set, grid, 5);
     fine.recombine();
 
     show("coarse paving cells", coarse.size());
@@ -246,13 +246,13 @@ int main() {
     // Pavings support ordinary set algebra provided that they share a grid.
     // A second paving built from an observation box can therefore be used as
     // a discrete mask or obstacle.
-    GridTreePaving observation_paving(grid);
+    BinaryTreePaving observation_paving(grid);
     observation_paving.adjoin_over_approximation(observation, 4);
     observation_paving.recombine();
 
-    GridTreePaving common = intersection(fine, observation_paving);
-    GridTreePaving outside_observation = difference(fine, observation_paving);
-    GridTreePaving combined = join(fine, observation_paving);
+    BinaryTreePaving common = intersection(fine, observation_paving);
+    BinaryTreePaving outside_observation = difference(fine, observation_paving);
+    BinaryTreePaving combined = join(fine, observation_paving);
 
     show("intersection cells", common.size());
     show("difference cells", outside_observation.size());
@@ -266,7 +266,7 @@ int main() {
         << "ValidatedConstrainedImageSet: nonlinear dependence with rigorous predicates.\n"
         << "ValidatedAffineConstrainedImageSet: cheaper correlated enclosure.\n"
         << "InterpolatedCurve: sampled paths and trajectories.\n"
-        << "GridTreePaving: finite cell representation for subdivision and set algebra.\n";
+        << "BinaryTreePaving: finite cell representation for subdivision and set algebra.\n";
 
     return 0;
 }

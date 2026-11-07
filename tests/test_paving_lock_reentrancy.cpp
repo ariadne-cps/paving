@@ -10,13 +10,13 @@
  */
 
 #include "ariadne-testing.hpp"
-#include "paving/grid_paving.hpp"
+#include "paving/binary_tree_paving.hpp"
 #include "tree/binary_tree.hpp"
 
 using namespace Ariadne;
 
 // These tests intentionally run on one thread. Prior to the fix in
-// GridTreePaving::restrict_to_lower/remove_from_lower, each test blocked
+// BinaryTreePaving::restrict_to_lower/remove_from_lower, each test blocked
 // re-acquiring the source owner's non-recursive mutex via virtual root_cell().
 class TestPavingLockReentrancy : public Ariadne::Testing::ContextFixture {
   public:
@@ -26,10 +26,10 @@ class TestPavingLockReentrancy : public Ariadne::Testing::ContextFixture {
         Grid grid(1u);
         GridCell left(grid,0u,make_binary_word("0"));
         GridCell right(grid,0u,make_binary_word("1"));
-        GridTreePaving destination(grid,false);
+        BinaryTreePaving destination(grid,false);
         destination.adjoin(left);
         destination.adjoin(right);
-        GridTreePaving source(left);
+        BinaryTreePaving source(left);
 
         destination.restrict(source);
         ARIADNE_TESTING_PROVE(destination.superset(left));
@@ -37,7 +37,7 @@ class TestPavingLockReentrancy : public Ariadne::Testing::ContextFixture {
         ARIADNE_TESTING_PROVE(source.superset(left));
 
         // Exercise the virtual SubPavingInterface dispatch as well.
-        GridTreePaving through_interface(grid,false);
+        BinaryTreePaving through_interface(grid,false);
         through_interface.adjoin(left);
         through_interface.adjoin(right);
         through_interface.restrict(
@@ -50,17 +50,17 @@ class TestPavingLockReentrancy : public Ariadne::Testing::ContextFixture {
         Grid grid(1u);
         GridCell left(grid,0u,make_binary_word("0"));
         GridCell right(grid,0u,make_binary_word("1"));
-        GridTreePaving destination(grid,false);
+        BinaryTreePaving destination(grid,false);
         destination.adjoin(left);
         destination.adjoin(right);
-        GridTreePaving source(right);
+        BinaryTreePaving source(right);
 
         destination.remove(source);
         ARIADNE_TESTING_PROVE(destination.superset(left));
         ARIADNE_TESTING_PROVE(!destination.superset(right));
         ARIADNE_TESTING_PROVE(source.superset(right));
 
-        GridTreePaving through_interface(grid,false);
+        BinaryTreePaving through_interface(grid,false);
         through_interface.adjoin(left);
         through_interface.adjoin(right);
         through_interface.remove(
@@ -72,7 +72,7 @@ class TestPavingLockReentrancy : public Ariadne::Testing::ContextFixture {
     Void test_nonrecursive_is_empty_queries() {
         Grid grid(1u);
         GridCell cell(grid,0u,make_binary_word("0"));
-        GridTreePaving paving(grid,false);
+        BinaryTreePaving paving(grid,false);
         // A single-threaded query previously deadlocked because the locked
         // owner called the base is_empty(), whose virtual size() tried to
         // acquire the same mutex for a second time.
@@ -84,7 +84,7 @@ class TestPavingLockReentrancy : public Ariadne::Testing::ContextFixture {
         ARIADNE_TESTING_PROVE(paving.size()!=0u);
 
         // The base view dispatches to the owner's locked size() exactly once.
-        GridTreeSubpaving const& base=paving;
+        BinaryTreeSubpaving const& base=paving;
         ARIADNE_TESTING_PROVE(!base.is_empty());
 
         paving.set_root_cell(false);
@@ -105,8 +105,8 @@ class TestPavingLockReentrancy : public Ariadne::Testing::ContextFixture {
         // mutex after dimension() became a synchronized owner query.
         for(DimensionType dimensions : {1u,2u,4u}) {
             Grid grid(dimensions);
-            GridTreePaving paving(grid,2u,new BinaryTreeNode(true));
-            GridTreePaving original(paving);
+            BinaryTreePaving paving(grid,2u,new BinaryTreeNode(true));
+            BinaryTreePaving original(paving);
 
             // The no-op branch preserves structure and membership.
             paving.restrict_to_extent(3u);
@@ -127,7 +127,7 @@ class TestPavingLockReentrancy : public Ariadne::Testing::ContextFixture {
     Void test_self_set_operations() {
         Grid grid(1u);
         GridCell cell(grid,0u,make_binary_word("0"));
-        GridTreePaving paving(cell);
+        BinaryTreePaving paving(cell);
 
         paving.restrict(static_cast<SubPavingInterface const&>(paving));
         ARIADNE_TESTING_PROVE(paving.superset(cell));

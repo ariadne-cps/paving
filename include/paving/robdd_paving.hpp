@@ -29,14 +29,14 @@
 
 namespace Ariadne {
 
-class GridTreeSubpaving;
+class BinaryTreeSubpaving;
 class SubPavingInterface;
 
 //! \brief Experimental ROBDD-backed paving with value-like root updates.
 //! \details The GridCell stores the geometric root, while the Robdd stores
 //! membership as a Boolean function of successive binary subdivision bits.
 //! Copies share immutable canonical ROBDD nodes, but changing one paving's
-//! root leaves other copies unchanged. GridTreePaving/GridTreeCursor semantics
+//! root leaves other copies unchanged. BinaryTreePaving/BinaryTreePavingCursor semantics
 //! are unaffected. A shared RobddManager must outlive pavings and iterators.
 class RobddPaving : public virtual PavingInterface {
   public:
@@ -50,7 +50,7 @@ class RobddPaving : public virtual PavingInterface {
 
     //! \brief Encode an existing explicit tree without retaining its node pointers.
     //! \details The root cell and maximal tree depth are copied.
-    RobddPaving(RobddManager& manager, GridTreeSubpaving const& source);
+    RobddPaving(RobddManager& manager, BinaryTreeSubpaving const& source);
 
     //! \brief Import any paving through the representation-neutral interface.
     //! \details Iterates its enabled cells into this manager; no explicit-tree
@@ -226,14 +226,14 @@ class RobddPaving : public virtual PavingInterface {
 
     //! \brief Adjoin the outer approximation of a compact set.
     //! \details Uses certified separation, optional open-set coverage,
-    //! and the grid-relative target depth of GridTreePaving. Does not
+    //! and the grid-relative target depth of BinaryTreePaving. Does not
     //! materialize an explicit binary tree.
     Void adjoin_outer_approximation(
         EffectiveEuclideanCompactSetInterface const& set, Nat fineness) override;
 
     //! \brief Adjoin a grid-aligned outer approximation of a box.
     //! \details Delegates through the compact-set overload, matching
-    //! GridTreePaving's geometric and fineness conventions.
+    //! BinaryTreePaving's geometric and fineness conventions.
     Void adjoin_outer_approximation(UpperBoxType const& box, Nat fineness) override;
 
     //! \brief Adjoin the certified inner approximation of an open set.
@@ -244,7 +244,7 @@ class RobddPaving : public virtual PavingInterface {
         Nat extent, Nat fineness) override;
 
     //! \brief Adjoin an inner approximation using the set's bounding box.
-    //! \details Matches GridTreePaving's extent selection and then
+    //! \details Matches BinaryTreePaving's extent selection and then
     //! delegates to the open-set overload.
     Void adjoin_inner_approximation(
         EffectiveEuclideanSetInterface const& set, Nat fineness) override;

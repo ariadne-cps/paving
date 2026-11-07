@@ -23,12 +23,12 @@ class TestAugmentedPaving : public Ariadne::Testing::ContextFixture {
         paving.adjoin_outer_approximation(box,2u);
         ARIADNE_TESTING_PROVE(!paving.is_empty());
         ARIADNE_TESTING_PROVE(paving.size()>0u);
-        GridTreePaving graph=paving.state_auxiliary_paving();
+        BinaryTreePaving graph=paving.state_auxiliary_paving();
         ARIADNE_TESTING_EXPECT_EQUAL(graph.dimension(),4u);
         ARIADNE_TESTING_PROVE(!graph.is_empty());
 
         // Legacy names must remain mathematically equivalent while clients migrate.
-        GridTreePaving legacy=paving.state_auxiliary_set();
+        BinaryTreePaving legacy=paving.state_auxiliary_set();
         ARIADNE_TESTING_PROVE(subset(graph,legacy));
         ARIADNE_TESTING_PROVE(subset(legacy,graph));
         std::unique_ptr<AugmentedPaving> copy(paving.clone());

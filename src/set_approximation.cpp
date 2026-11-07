@@ -1,6 +1,6 @@
 #include "paving/set_approximation.hpp"
 #include "paving/paver.hpp"
-#include "paving/grid_paving.hpp"
+#include "paving/binary_tree_paving.hpp"
 #include "paving/grid_cell.hpp"
 #include "paving/paving_interface.hpp"
 #include "set/function_set.hpp"
@@ -36,8 +36,8 @@ Void adjoin_outer_approximation_to(PavingInterface& paving, const ConstrainedIma
     return adjoin_outer_approximation_to(paving,set,fineness);
 }
 
-GridTreePaving outer_approximation(const ValidatedConstrainedImageSet& set, const Grid& grid, Nat fineness) {
-    GridTreePaving paving(grid);
+BinaryTreePaving outer_approximation(const ValidatedConstrainedImageSet& set, const Grid& grid, Nat fineness) {
+    BinaryTreePaving paving(grid);
     adjoin_outer_approximation_to(paving,set,fineness);
     return paving;
 }
@@ -48,9 +48,9 @@ Void adjoin_outer_approximation_to(PavingInterface& paving, const ValidatedConst
 }
 
 
-GridTreePaving
+BinaryTreePaving
 outer_approximation(const ValidatedAffineConstrainedImageSet& set, const Grid& g, Nat depth) {
-    GridTreePaving r(g);
+    BinaryTreePaving r(g);
     adjoin_outer_approximation_to(r,set,depth);
     return r;
 }

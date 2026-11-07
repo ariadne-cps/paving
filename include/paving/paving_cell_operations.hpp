@@ -283,7 +283,7 @@ class PavingCellView {
     }
 
     //! \brief Check inclusion using the same narrowed query box as
-    //! GridTreeSubpaving::inside.
+    //! BinaryTreeSubpaving::inside.
     ValidatedLowerKleenean inside(ExactBoxType const& box) const {
         ARIADNE_PRECONDITION_MSG(box.dimension() == dimension(),
             "View and query-box dimensions must agree");

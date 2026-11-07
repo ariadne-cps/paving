@@ -5,7 +5,7 @@ from pyariadne_paving import *
 
 def test_grid_paving():
     grid = Grid(2)
-    paving = GridTreePaving(grid)
+    paving = BinaryTreePaving(grid)
     assert paving.dimension() == 2
 
 def test_set_approximation_bindings():
@@ -15,7 +15,7 @@ def test_set_approximation_bindings():
     outer = set_value.outer_approximation(grid, 0)
     assert outer.dimension() == 1
     assert not outer.is_empty()
-    other = GridTreePaving(grid)
+    other = BinaryTreePaving(grid)
     set_value.adjoin_outer_approximation_to(other, 0)
     assert not other.is_empty()
     direct = outer_approximation(set_value, grid, 0)

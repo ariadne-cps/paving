@@ -18,14 +18,14 @@
 #include <vector>
 
 #include "paving/binary_tree_paving.hpp"
-#include "paving/grid_paving.hpp"
+#include "paving/binary_tree_paving.hpp"
 #include "paving/robdd_paving.hpp"
 #include "paving/paving_cell_operations.hpp"
 #include "ariadne-testing.hpp"
 
 using namespace Ariadne;
 
-static_assert(std::is_same_v<BinaryTreePaving,GridTreePaving>);
+static_assert(std::is_base_of_v<PavingInterface,BinaryTreePaving>);
 
 
 class TestPavingBackends : public Ariadne::Testing::ContextFixture {
@@ -41,7 +41,7 @@ class TestPavingBackends : public Ariadne::Testing::ContextFixture {
         tree.add_enabled(make_binary_word("110"));
         tree.recombine();
 
-        GridTreeSubpaving source(grid,2u,prefix,&tree);
+        BinaryTreeSubpaving source(grid,2u,prefix,&tree);
         RobddPaving snapshot(manager,source);
         ARIADNE_TESTING_EXPECT_EQUAL(snapshot.depth(),3u);
         ARIADNE_TESTING_PROVE(snapshot.root_cell() == source.root_cell());
@@ -100,7 +100,7 @@ class TestPavingBackends : public Ariadne::Testing::ContextFixture {
                 explicit_tree.add_enabled(path);
             }
             explicit_tree.recombine();
-            GridTreeSubpaving source(grid,2u,prefix,&explicit_tree);
+            BinaryTreeSubpaving source(grid,2u,prefix,&explicit_tree);
             RobddPaving snapshot(manager,source);
             // A fully uniform truth table can recombine to a terminal.
             // Restore the declared three-variable universe for evaluation.
@@ -565,7 +565,7 @@ class TestPavingBackends : public Ariadne::Testing::ContextFixture {
         explicit_tree.add_enabled(make_binary_word("0"));
         explicit_tree.add_enabled(make_binary_word("110"));
         explicit_tree.recombine();
-        GridTreeSubpaving source(grid,0u,BinaryWord{},&explicit_tree);
+        BinaryTreeSubpaving source(grid,0u,BinaryWord{},&explicit_tree);
         SubPavingInterface const& generic=source;
 
         // Explicit conversion is allowed for external migration/testing.
@@ -616,7 +616,7 @@ class TestPavingBackends : public Ariadne::Testing::ContextFixture {
 
         Grid other_grid(2u);
         BinaryTreeNode foreign_node(true);
-        GridTreeSubpaving foreign(
+        BinaryTreeSubpaving foreign(
             other_grid,0u,BinaryWord{},&foreign_node);
         SubPavingInterface const& foreign_interface=foreign;
         ARIADNE_TESTING_EXPECT_EXCEPTION(imported.adjoin(foreign_interface));
@@ -681,7 +681,7 @@ class TestPavingBackends : public Ariadne::Testing::ContextFixture {
                 oracle.add_enabled(path);
             }
             oracle.recombine();
-            GridTreeSubpaving source(grid,0u,BinaryWord{},&oracle);
+            BinaryTreeSubpaving source(grid,0u,BinaryWord{},&oracle);
             RobddPaving encoded(manager,source);
             encoded.mince_to_depth(3u);
             for (Bool side : {false,true}) {
@@ -807,7 +807,7 @@ class TestPavingBackends : public Ariadne::Testing::ContextFixture {
                     RobddPaving robdd(
                         manager,root,manager.constant(true),0u);
                     BinaryTreeNode reference_node(true);
-                    GridTreeSubpaving reference(
+                    BinaryTreeSubpaving reference(
                         grid,extent,prefix,&reference_node);
 
                     auto geometry_before=robdd.bounding_box();
@@ -1895,8 +1895,8 @@ class TestPavingBackends : public Ariadne::Testing::ContextFixture {
             ARIADNE_TESTING_EXPECT_EQUAL(iterated_size(tm),tm.size());
             ARIADNE_TESTING_EXPECT_EQUAL(iterated_size(rm),rm.size());
             ARIADNE_TESTING_PROVE(not (
-                static_cast<GridTreeSubpaving const&>(tree_compact)
-                == static_cast<GridTreeSubpaving const&>(tree_minced)));
+                static_cast<BinaryTreeSubpaving const&>(tree_compact)
+                == static_cast<BinaryTreeSubpaving const&>(tree_minced)));
             ARIADNE_TESTING_PROVE(tc.equals(tm));
             ARIADNE_TESTING_PROVE(tm.equals(tc));
             ARIADNE_TESTING_PROVE(rc.equals(rm));
@@ -2085,7 +2085,7 @@ class TestPavingBackends : public Ariadne::Testing::ContextFixture {
                 SubPavingInterface const& rv=robdd_sub;
                 for (Nat fineness : {0u,1u,2u,3u}) {
                     BinaryTreeNode reference_node(true);
-                    GridTreeSubpaving reference(
+                    BinaryTreeSubpaving reference(
                         grid,extent,cell.word(),&reference_node);
                     reference.mince(fineness);
                     std::vector<GridCell> expected;
@@ -2487,8 +2487,8 @@ class TestPavingBackends : public Ariadne::Testing::ContextFixture {
                                 }
                             }
                             ARIADNE_TESTING_PROVE(
-                                static_cast<GridTreeSubpaving const&>(tree)
-                                == static_cast<GridTreeSubpaving const&>(
+                                static_cast<BinaryTreeSubpaving const&>(tree)
+                                == static_cast<BinaryTreeSubpaving const&>(
                                     tree_before));
                             ARIADNE_TESTING_PROVE(
                                 robdd.robdd()==robdd_root_before);

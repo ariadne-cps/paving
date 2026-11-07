@@ -29,7 +29,7 @@
 #include "geometry/box.hpp"
 #include "set/affine_set.hpp"
 #include "set/function_set.hpp"
-#include "paving/grid_paving.hpp"
+#include "paving/binary_tree_paving.hpp"
 #include "paving/set_approximation.hpp"
 
 #include "ariadne-testing.hpp"
@@ -68,7 +68,7 @@ class TestAffineSetPaving : public Ariadne::Testing::ContextFixture
         set=ValidatedAffineConstrainedImageSet(D,{x[0],x[1]});
         set.new_parameter_constraint(x[0]+x[1]<=0.5_x);
 
-        GridTreePaving paving(Grid(2));
+        BinaryTreePaving paving(Grid(2));
         robust_adjoin_outer_approximation_to(paving,set,0);
         ARIADNE_TESTING_PROVE(paving.size()>0);
 
@@ -80,20 +80,20 @@ class TestAffineSetPaving : public Ariadne::Testing::ContextFixture
 
         ValidatedAffineConstrainedImageSet empty_set(D,{x[0],x[1]});
         empty_set.new_parameter_constraint(x[0]<=-2.0_x);
-        GridTreePaving empty_paving(Grid(2));
+        BinaryTreePaving empty_paving(Grid(2));
         robust_adjoin_outer_approximation_to(empty_paving,empty_set,0);
         ARIADNE_TESTING_EXPECT_EQUAL(empty_paving.size(),0u);
 
         ValidatedAffineConstrainedImageSet infeasible_set(D,{x[0],x[1]});
         infeasible_set.new_parameter_constraint(x[0]<=-2.0_x);
         infeasible_set.new_parameter_constraint(-x[0]<=-2.0_x);
-        GridTreePaving infeasible_paving(Grid(2));
+        BinaryTreePaving infeasible_paving(Grid(2));
         robust_adjoin_outer_approximation_to(infeasible_paving,infeasible_set,0);
         ARIADNE_TESTING_EXPECT_EQUAL(infeasible_paving.size(),0u);
 
         ExactBoxType small_box({{0.25_x,0.75_x},{0.25_x,0.75_x}});
         ValidatedAffineConstrainedImageSet small_set(small_box);
-        GridTreePaving covered_paving(Grid(2));
+        BinaryTreePaving covered_paving(Grid(2));
         robust_adjoin_outer_approximation_to(covered_paving,small_set,0);
         ARIADNE_TESTING_PROVE(covered_paving.size()>0);
         SizeType covered_size=covered_paving.size();
@@ -112,7 +112,7 @@ class TestAffineSetPaving : public Ariadne::Testing::ContextFixture
             ARIADNE_TESTING_NOTE("set = " << (set));
 
             const auto start1=std::chrono::steady_clock::now();
-        GridTreePaving paving = outer_approximation(set,Grid(2),4);
+        BinaryTreePaving paving = outer_approximation(set,Grid(2),4);
         const auto elapsed_ms1=std::chrono::duration<double,std::milli>(std::chrono::steady_clock::now()-start1).count();
         ARIADNE_TESTING_NOTE("test_outer_approximation case 1: " << elapsed_ms1 << " ms");
             paving.recombine();
@@ -130,7 +130,7 @@ class TestAffineSetPaving : public Ariadne::Testing::ContextFixture
             set.new_parameter_constraint(-0.5_x*x[0]-1.0_x*x[1]<=0.875_x);
 
             const auto start2=std::chrono::steady_clock::now();
-        GridTreePaving paving=outer_approximation(set,Grid(2),3);
+        BinaryTreePaving paving=outer_approximation(set,Grid(2),3);
         const auto elapsed_ms2=std::chrono::duration<double,std::milli>(std::chrono::steady_clock::now()-start2).count();
         ARIADNE_TESTING_NOTE("test_outer_approximation case 2: " << elapsed_ms2 << " ms");
             ARIADNE_TESTING_PROVE(paving.size()>0);
@@ -147,7 +147,7 @@ class TestAffineSetPaving : public Ariadne::Testing::ContextFixture
             set.new_parameter_constraint(-2.01_pr*x[0]-3.01_pr*x[1]-1.02_pr*x[2]<=3.01_pr);
 
             Grid grid(2);
-            GridTreePaving paving(grid);
+            BinaryTreePaving paving(grid);
             const auto start3=std::chrono::steady_clock::now();
         adjoin_outer_approximation_to(paving,set,3);
         const auto elapsed_ms3=std::chrono::duration<double,std::milli>(std::chrono::steady_clock::now()-start3).count();
@@ -163,7 +163,7 @@ class TestAffineSetPaving : public Ariadne::Testing::ContextFixture
             ARIADNE_TESTING_NOTE("set = " << (set));
 
             const auto start4=std::chrono::steady_clock::now();
-        GridTreePaving paving = outer_approximation(set,Grid(2),4);
+        BinaryTreePaving paving = outer_approximation(set,Grid(2),4);
         const auto elapsed_ms4=std::chrono::duration<double,std::milli>(std::chrono::steady_clock::now()-start4).count();
         ARIADNE_TESTING_NOTE("test_outer_approximation case 4: " << elapsed_ms4 << " ms");
             paving.recombine();
@@ -189,8 +189,8 @@ class TestAffineSetPaving : public Ariadne::Testing::ContextFixture
         ARIADNE_TESTING_NOTE("set2 = " << (set2));
 
         Grid g(2);
-        GridTreePaving paving1=outer_approximation(set1,g,4);
-        GridTreePaving paving2=outer_approximation(set2,g,4);
+        BinaryTreePaving paving1=outer_approximation(set1,g,4);
+        BinaryTreePaving paving2=outer_approximation(set2,g,4);
 
         ARIADNE_TESTING_PROVE(paving1==paving2);
 
@@ -206,7 +206,7 @@ class TestAffineSetPaving : public Ariadne::Testing::ContextFixture
 
         ARIADNE_TESTING_PROVE(!definitely(set.separated(ExactBoxType{{-0.5_x,+0.5_x},{-0.5_x,+0.5_x}})));
 
-        GridTreePaving paving(Grid(2));
+        BinaryTreePaving paving(Grid(2));
         robust_adjoin_outer_approximation_to(paving,set,0);
         ARIADNE_TESTING_PROVE(paving.size()>0);
 
@@ -220,7 +220,7 @@ class TestAffineSetPaving : public Ariadne::Testing::ContextFixture
         D=ExactBoxType::unit_box(2);
         x=Affine<FloatDPBounds>::variables(2,dp);
         set=ValidatedAffineConstrainedImageSet(D,{x[0],x[1]});
-        GridTreePaving bad_paving(Grid(1));
+        BinaryTreePaving bad_paving(Grid(1));
         ARIADNE_TESTING_EXPECT_EXCEPTION(adjoin_outer_approximation_to(bad_paving,set,0));
         ARIADNE_TESTING_EXPECT_EXCEPTION(robust_adjoin_outer_approximation_to(bad_paving,set,0));
     }

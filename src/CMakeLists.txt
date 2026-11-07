@@ -1,6 +1,6 @@
 add_library(PAVING_SRC OBJECT
     grid.cpp
-    grid_paving.cpp
+    binary_tree_paving.cpp
     grid_cell_alignment.cpp
     robdd_paving.cpp
     paver.cpp

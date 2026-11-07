@@ -34,7 +34,7 @@ representation.
 
 ## Supported operations (first M5 increment)
 
-- Import a `GridTreeSubpaving` without retaining its mutable tree pointers.
+- Import a `BinaryTreeSubpaving` without retaining its mutable tree pointers.
 - Query membership at exact logical depth and count/visit enabled cells.
 - Adjust logical depth (`mince_to_depth`) and reduce it to the
   maximum supported variable index (`recombine`) without BDD mutation.
@@ -44,8 +44,8 @@ representation.
   Binary functions are evaluated at a logical depth equal to the maximum
   of the operand depths. The results are immutable snapshots.
 
-The existing `GridTreePaving`, `GridTreeSubpaving`, iterators and
-`GridTreeCursor` remain unchanged. This prototype does not yet implement
+The existing `BinaryTreePaving`, `BinaryTreeSubpaving`, iterators and
+`BinaryTreePavingCursor` remain unchanged. This prototype does not yet implement
 variable-index alignment between distinct geometric roots, geometric
 queries, projections, or generic `PavingInterface` polymorphism.
 
@@ -72,7 +72,7 @@ by the connector-only integration workflow. If CI reports a source or
 semantic failure, diagnose whether the fault is a test oracle, the
 new paving adapter, or a dependency before changing an expectation.
 
-Next milestone: real `GridTreePaving` parity under root-cell
+Next milestone: real `BinaryTreePaving` parity under root-cell
 alignment/height changes, projection and efficient path-based snapshot
 iteration. Do not replace pointer-based cursors with raw pointers into
 an immutable ROBDD DAG.
@@ -80,12 +80,12 @@ an immutable ROBDD DAG.
 ## 2026-11-06 - Explicit backend naming
 
 Standardized the public representation-specific C++ names:
-`BinaryTreeGridPaving` for the existing explicit binary tree backend,
+`BinaryTreePaving` for the existing explicit binary tree backend,
 and `RobddGridPaving` for the new ROBDD prototype.
 
-`BinaryTreeGridPaving` is currently a type alias for the longstanding
-`GridTreePaving`, declared in
-`include/paving/binary_tree_grid_paving.hpp`. The old name remains valid,
+`BinaryTreePaving` is currently a type alias for the longstanding
+`BinaryTreePaving`, declared in
+`include/paving/binary_tree_binary_tree_paving.hpp`. The old name remains valid,
 preserving the numerous existing references and virtual interface
 implementations. No legacy class or algorithm was changed.
 
@@ -159,7 +159,7 @@ to be confirmed.
 
 ## 2026-11-06 - Compact enabled-leaf iteration versus fixed-depth cells
 
-The explicit `GridTreeSubpaving::begin/end` iterator visits enabled
+The explicit `BinaryTreeSubpaving::begin/end` iterator visits enabled
 leaves, and its `size()` counts those leaves. The ROBDD M5 prototype
 previously only enumerated satisfying *full-length* assignments.
 These two representations must not silently conflate the number of
@@ -195,7 +195,7 @@ Regression cases cover constant true/false, early true terminals,
 skipped levels, complemented edges, stable visitation order,
 invalid visitor, and invariance of the manager's node count.
 All 256 three-variable truth tables are compared against
-`GridTreeSubpaving`'s leaf iterator after explicit-tree
+`BinaryTreeSubpaving`'s leaf iterator after explicit-tree
 recombination. A second independent oracle checks all eight
 membership assignments and the fixed-depth model count.
 The implementation, tests and documentation are modified only
@@ -214,12 +214,12 @@ The backend types are now named `BinaryTreePaving` and `RobddPaving`.
 Both provide pavings on a `Grid`, which is already required by
 `PavingInterface`; the "Grid" qualifier in the implementation names
 adds no information. The newly introduced names
-`BinaryTreeGridPaving` / `RobddGridPaving` and their headers are
+`BinaryTreePaving` / `RobddGridPaving` and their headers are
 **deleted outright**. There are no transition compatibility headers or
 aliases for these two names.
 
 `BinaryTreePaving` is a public type alias of the long-established
-`GridTreePaving` concrete class. That original class is still used
+`BinaryTreePaving` concrete class. That original class is still used
 throughout the paving implementation and downstream reasoning, and
 renaming it is a separate legacy migration rather than retention of
 one of the new temporary names. `RobddPaving` is a standalone class,
@@ -241,13 +241,13 @@ clone/copy behaviour, and the difference between compact-leaf size and
 fixed-depth assignment counts must be resolved explicitly.
 
 Current downstream `ariadne-cps/reasoning` dependencies go beyond
-spelling: `Storage::_state_set` owns `GridTreePaving` by value,
+spelling: `Storage::_state_set` owns `BinaryTreePaving` by value,
 `Storage::state_set()` returns a concrete reference, and
 `Storage::state_auxiliary_set()` uses `outer_skew_product`.
 `Storage` also calls functions not currently exposed by
 `PavingInterface`, such as `clear`, `restrict_to_extent`,
 `adjoin_lower_approximation`, and concrete drawing support.
-`LabelledStorage`, `LabelledGridTreePaving`,
+`LabelledStorage`, `LabelledBinaryTreePaving`,
 `SpaceAnalysisTraits<EuclideanSpace>`, and hybrid storage/type
 traits require coordinated follow-up changes. The paver integration
 already accepts `PavingInterface&`, which is a useful interface
@@ -285,7 +285,7 @@ changed, provided the owning `RobddManager` remains alive. It does
 not own the manager. Past-the-end dereference and increment are
 precondition violations.
 
-The legacy `GridTreePaving::size()` can count redundant explicitly
+The legacy `BinaryTreePaving::size()` can count redundant explicitly
 minced leaves, whereas the ROBDD `size()` counts the compact
 recombined interpretation. They agree after recombination; they are
 not universally identical for unnormalized explicit trees. The
@@ -436,7 +436,7 @@ iterator, rather than by converting the entire ROBDD to a
 `bounding_box` computes the coordinate-wise hull of enabled
 leaf-cell boxes and returns an empty box of the ambient
 dimension for an empty paving. The Boolean predicates preserve
-the exact box semantics of `GridTreeSubpaving`:
+the exact box semantics of `BinaryTreeSubpaving`:
 `inside` compares every enabled cell with the narrowed query
 box; `separated` requires that no enabled cell's interior
 overlaps the widened query box; and `overlaps` succeeds when
@@ -447,7 +447,7 @@ check dimension compatibility and leave the paving unchanged.
 
 A reference-oracle regression enumerates all 256 Boolean
 functions over three subdivision bits and compares the four
-queries against a recombined `GridTreeSubpaving` using six
+queries against a recombined `BinaryTreeSubpaving` using six
 geometric boxes, including disjoint, touching, whole-root,
 and nested cases. It also checks empty/full roots, invariance
 of bounding geometry under logical mincing, and invalid
@@ -464,7 +464,7 @@ work is proportional to the compact leaves traversed. The
 
 Reworked `test_geometric_queries_against_explicit_tree` as
 `test_geometric_queries_between_backends`. The previous test
-constructed a `GridTreeSubpaving` from a `BinaryTreeNode` and then
+constructed a `BinaryTreeSubpaving` from a `BinaryTreeNode` and then
 imported it into `RobddPaving`; this validated the tree-to-ROBDD
 conversion alongside the geometry, rather than fully independent
 backend construction.
@@ -481,7 +481,7 @@ counts and traversal order, enabled membership for every
 three-bit cell, bounding boxes, and `inside`/`separated`/
 `overlaps` for all six original geometric query boxes.
 
-The existing `GridTreeSubpaving` cases remain in the suite
+The existing `BinaryTreeSubpaving` cases remain in the suite
 solely for scenarios that specifically require importing an
 explicit subtree, exercising non-primary root paths, or
 checking polymorphism through `SubPavingInterface`.
@@ -498,7 +498,7 @@ Implemented two further `PavingInterface`-compatible operations in
 `RobddPaving` without introducing incomplete virtual overrides:
 
 - `mince(Nat fineness)` computes the same subdivision-depth target
-  used by `GridTreeSubpaving::mince`:
+  used by `BinaryTreeSubpaving::mince`:
   `max(0,(root_extent+fineness)*dimension-root_word_size)`.
   The operations check size arithmetic for overflow before adjusting
   the declared logical depth. No ROBDD nodes are expanded and existing
@@ -514,7 +514,7 @@ Implemented two further `PavingInterface`-compatible operations in
 The regression exercises one-, two- and three-dimensional grids,
 different primary extents, and nonempty root paths; compares geometric
 predicates and root identity with a corresponding
-`GridTreeSubpaving`; verifies the computed logical depth and stable
+`BinaryTreeSubpaving`; verifies the computed logical depth and stable
 compact-leaf count; checks primary-cell enclosure; and rejects
 incompatible query dimensions. An explicit tree is physically minced
 only for small target depths to prevent accidental exponential
@@ -530,7 +530,7 @@ remain unchanged. CI must validate this increment.
 ## 2026-11-06 - Representation-neutral cell mutations and detached subpaving slices
 
 Revisited the mutable branch-view design before adding a backend-specific
-`RobddSubpaving` type. Existing `GridTreeSubpaving` borrows the
+`RobddSubpaving` type. Existing `BinaryTreeSubpaving` borrows the
 parent's mutable `BinaryTreeNode`, whereas an ROBDD paving is a
 value-like holder of an immutable canonical DAG root. A writable branch
 view cannot simply reuse `RobddPaving::branch(Bool)`, since that
@@ -652,7 +652,7 @@ enabled cells already clipped to the view's root by
 owner's geometry and do not materialize a new paving.
 The result therefore reflects subsequent owner mutations.
 
-As in `GridTreeSubpaving`, inclusion uses the conservatively
+As in `BinaryTreeSubpaving`, inclusion uses the conservatively
 narrowed box, separation the widened box and interior overlap
 the narrowed box; mismatched query dimensions are rejected.
 The bounding box computes the hull of clipped enabled leaves;
@@ -702,7 +702,7 @@ is pending.
 Implemented `RobddPaving::adjoin_outer_approximation(UpperBoxType const&,Nat)`
 as a first native geometric approximation operation. It reproduces the
 primary-cell alignment and target subdivision depth of the explicit
-`GridTreePaving` backend, and visits cells recursively. Cells proved
+`BinaryTreePaving` backend, and visits cells recursively. Cells proved
 separated from the input box are skipped; already-enabled cells are
 skipped; cells provably covered by the query set or at the target
 depth are staged for insertion. Selected cells are then adjoined to
@@ -800,9 +800,9 @@ retains the reduced Boolean DAG.
 
 Cross-backend paving set operations are intentionally
 **not** permitted. The temporary generic fallback added to
-`GridTreeSubpaving::equals`/`subset`/`intersects` was
+`BinaryTreeSubpaving::equals`/`subset`/`intersects` was
 reverted: those methods retain the same-backend
-`GridTreeSubpaving` dynamic cast. The ROBDD virtual
+`BinaryTreeSubpaving` dynamic cast. The ROBDD virtual
 `adjoin`, `restrict`, `remove`, `subset`, `intersects`
 and `equals` now accept only `RobddPaving` operands or
 `PavingCellViewAdapter<RobddPaving>` child views. Different
@@ -813,7 +813,7 @@ also remains in force.
 Geometric cross-backend validation belongs only in external
 test/oracle code, where each backend is constructed and queried
 independently. The existing explicit constructors from
-`GridTreeSubpaving` or `SubPavingInterface` remain available
+`BinaryTreeSubpaving` or `SubPavingInterface` remain available
 as **opt-in migration/conversion**, not as a mechanism for
 automatic mixed-backend set operations.
 
@@ -886,7 +886,7 @@ by the full CI matrix. CI validation of this test is pending.
 Reorganized the C++ regression suites without changing the behavioral
 assertions of existing test cases:
 
-- `tests/test_grid_paving.cpp` was renamed to
+- `tests/test_binary_tree_paving.cpp` was renamed to
   `tests/test_binary_tree_paving.cpp`. The fixture class is now
   `TestBinaryTreePaving` and the test suite is registered as
   `test_binary_tree_paving`; method names and their assertions stay
@@ -913,7 +913,7 @@ retained), and no comparison logic was weakened or converted into
 mixed-backend set operations.
 
 This change is solely test organization. The production
-`GridTreePaving` class and its public API retain their existing
+`BinaryTreePaving` class and its public API retain their existing
 names, as does the independent `test_grid_paving_extensions` suite.
 No changes to the `bdd`, `drawing` or `reasoning` repositories.
 The rename and test relocation require CI validation.
@@ -953,7 +953,7 @@ any production API. The full CI matrix must validate it.
 ## 2026-11-06 - Fix crash when branching a uniform tree leaf
 
 The new `test_polymorphic_alignment_across_primary_extents` uncovered
-a real `GridTreeSubpaving` bug: after a uniform enabled region is
+a real `BinaryTreeSubpaving` bug: after a uniform enabled region is
 recombined to a leaf, the tree's virtual `_branch()` unconditionally
 returned `child_node(side)`, which is null for any leaf.
 `SubPavingHandle` consequently exposed a live view with a null
@@ -963,8 +963,8 @@ The reported crash followed the check
 mutating the nested child views. The ROBDD snapshot was not the
 origin of this failure.
 
-Fixed both `GridTreeSubpaving::_branch(Bool)` and the concrete
-`GridTreeSubpaving::branch(Bool)`: each splits the current node
+Fixed both `BinaryTreeSubpaving::_branch(Bool)` and the concrete
+`BinaryTreeSubpaving::branch(Bool)`: each splits the current node
 when necessary before constructing the borrowed child view.
 `BinaryTreeNode::split()` copies a uniform leaf's enabled/disabled
 state into its two children, so this changes only the *tree's
@@ -1041,7 +1041,7 @@ Fineness is relative to the zero-level grid cell.
 Virtual equals(SubPavingInterface) now performs representation-independent
 geometric equality for same-backend operands. The tree implementation
 uses two geometric subset checks instead of structural operator==.
-The concrete GridTreeSubpaving::operator== deliberately stays structural.
+The concrete BinaryTreeSubpaving::operator== deliberately stays structural.
 Cross-backend paving operands remain forbidden.
 
 The new polymorphic refinement regression covers full 1D and 2D roots,
@@ -1092,7 +1092,7 @@ Audited repository consumers:
 - Calls to recombine() in approximation code, C++ and Python tutorials,
   and tree projection compact a concrete representation; they do not
   request enumeration and are unchanged.
-- outer_skew_product() previously const_cast a const input GridTreePaving
+- outer_skew_product() previously const_cast a const input BinaryTreePaving
   merely to call mince() before iteration. It now uses the new streaming
   enumerator for both inputs, removing the const mutation and avoiding
   transient physical leaf expansion. An existing product regression is
@@ -1126,7 +1126,7 @@ represented by complete cells at that depth, and is rejected.
 Iteration order is left-to-right as in the existing backend iterators.
 
 SubPavingInterface::uniform_cell_paving(f) materializes a detached
-PavingHandle carrying an explicit GridTreePaving with exactly the same
+PavingHandle carrying an explicit BinaryTreePaving with exactly the same
 geometric region and uniformly sized enabled leaves; it can therefore
 be consumed by algorithms requiring a regular-cell partition, including
 restarting continuous evolution from a fixed spatial discretization.
@@ -1477,7 +1477,7 @@ The batch overload is now part of PavingInterface, not only
 RobddPaving. The virtual default `adjoin(std::vector<GridCell> const&)` loops
 through `adjoin(GridCell const&)`, so the existing binary-tree backend
 continues to implement the same semantics without new storage code.
-GridTreePaving re-exposes the inherited overload using a using
+BinaryTreePaving re-exposes the inherited overload using a using
 declaration; PavingHandle forwards it virtually. RobddPaving
 explicitly overrides the new virtual to invoke its bottom-up trie
 compiler, preserving its amortized efficient batch insertion.
@@ -1491,7 +1491,7 @@ still forbidden by design. Separately, the explicit conversion
 constructor `RobddPaving(manager, SubPavingInterface const&)` now collects
 source enabled cells into one vector and bulk-adjoins them, rather
 than executing one singleton union per source leaf. The specialized
-GridTreeSubpaving constructor already encodes its tree directly
+BinaryTreeSubpaving constructor already encodes its tree directly
 and is unchanged.
 
 Regression tests exercise direct and virtual batch dispatch on the
@@ -1547,7 +1547,7 @@ claim precise heap allocation counts.
 
 **Status: design decision and implementation roadmap, NOT implemented.**
 The public PavingInterface contract must eventually be safe for concurrent
-operations on the same paving object for both GridTreePaving (BinaryTreePaving)
+operations on the same paving object for both BinaryTreePaving (BinaryTreePaving)
 and RobddPaving. Once this contract passes concurrent stress tests and TSan,
 optimize RobddManager for parallel internal BDD operations, using the existing
 Ariadne ThreadManager and work stealing. Do not introduce a separate scheduler
@@ -1590,7 +1590,7 @@ or claim that the present manager-level mutex protects paving metadata.
 
 PavingInterface specifies the semantic guarantee but should not carry
 a universal mutex, since the synchronization/ownership strategies differ.
-GridTreePaving initially uses synchronized mutable state and detached,
+BinaryTreePaving initially uses synchronized mutable state and detached,
 stable iterator snapshots; copying a tree may be costly and should be
 measured. RobddPaving initially uses synchronized coherent triples
 (root cell, canonical ROBDD handle, logical depth) while manager-owned
@@ -1607,7 +1607,7 @@ using the same manager, nor public manager operations called directly.
 
 1. Specify lifetime, iterator/view and concurrent-operation semantics
    precisely, including existing live PavingCellViewAdapter behavior.
-2. Implement the common contract on GridTreePaving and RobddPaving.
+2. Implement the common contract on BinaryTreePaving and RobddPaving.
    Do not label PavingInterface thread-safe while some public methods
    still return unguarded references to mutable state.
 3. Add the *same* multiworker correctness workload for both backends:
@@ -1632,7 +1632,7 @@ single-cell adjoin must remain independently safe.
 
 ## 2026-11-07 - First implementation milestone: serialized concurrent adjoin
 
-Implementation introduced per-paving mutexes for GridTreePaving and RobddPaving, with an explicitly limited concurrency contract. Both backends serialize adjoin(single GridCell), adjoin(vector<GridCell>) and native-backend adjoin(SubPavingInterface); the vector overload holds one lock for the whole batch, rather than taking a lock for each member. Backend-internal unlocked primitives avoid repeated locking. Tree-to-tree unions of separately owned pavings lock source and destination together using std::scoped_lock (self-union is a no-op); ROBDD unions snapshot the source under its own mutex before locking the destination, and publish the newly computed root metadata coherently. Copies and assignments of both owning pavings synchronize with concurrent adjoin. The manager's mutex is unaffected.
+Implementation introduced per-paving mutexes for BinaryTreePaving and RobddPaving, with an explicitly limited concurrency contract. Both backends serialize adjoin(single GridCell), adjoin(vector<GridCell>) and native-backend adjoin(SubPavingInterface); the vector overload holds one lock for the whole batch, rather than taking a lock for each member. Backend-internal unlocked primitives avoid repeated locking. Tree-to-tree unions of separately owned pavings lock source and destination together using std::scoped_lock (self-union is a no-op); ROBDD unions snapshot the source under its own mutex before locking the destination, and publish the newly computed root metadata coherently. Copies and assignments of both owning pavings synchronize with concurrent adjoin. The manager's mutex is unaffected.
 
 The common test_paving_concurrent_adjoin runs 8 std::thread workers on the same PavingInterface destination for each backend, mixing singleton cells, vector batches and full-paving sources; the test validates the final union and copy/assignment after the workers join.
 
@@ -1640,7 +1640,7 @@ The common test_paving_concurrent_adjoin runs 8 std::thread workers on the same 
 
 ## 2026-11-07 - Coherent basic readers during concurrent adjoin
 
-Second incremental milestone: GridTreePaving protects superset(GridCell), size and root_cell with the same mutex used by adjoin. Tree cell superset evaluates through a borrowed base view under the lock (no expensive deep copy and no recursive lock). Private tree alignment and union bypass the synchronized public root_cell accessor under the owning lock. RobddPaving protects superset, root_cell, depth, emptiness, root-handle access and count/membership, and creates compact iterators and enumerations from coherent snapshots. Its robdd() accessor returns a canonical handle *by value*, replacing an unsafe reference to a mutable field. Geometric queries and detached subpaving creation take an initial snapshot; visitors do not hold the origin mutex. The regression suite now overlaps eight concurrent writers with repeated read/count/root/copy probes for both backends.
+Second incremental milestone: BinaryTreePaving protects superset(GridCell), size and root_cell with the same mutex used by adjoin. Tree cell superset evaluates through a borrowed base view under the lock (no expensive deep copy and no recursive lock). Private tree alignment and union bypass the synchronized public root_cell accessor under the owning lock. RobddPaving protects superset, root_cell, depth, emptiness, root-handle access and count/membership, and creates compact iterators and enumerations from coherent snapshots. Its robdd() accessor returns a canonical handle *by value*, replacing an unsafe reference to a mutable field. Geometric queries and detached subpaving creation take an initial snapshot; visitors do not hold the origin mutex. The regression suite now overlaps eight concurrent writers with repeated read/count/root/copy probes for both backends.
 
 **Explicitly incomplete:** tree iterators, live child views, cross-paving operations and references returned by grid(), plus remove/restrict/mince/recombine and other non-adjoin mutations, remain outside the supported concurrency contract. No internal BDD or binary-tree parallelism is introduced in this change.
 
@@ -1655,7 +1655,7 @@ The concurrent-read snapshot change accidentally wrote `box.snapshot.dimension()
 
 ## 2026-11-07 - Concurrent root mutations, bounded increment
 
-The owning GridTreePaving and RobddPaving now synchronize `set_root_cell`,
+The owning BinaryTreePaving and RobddPaving now synchronize `set_root_cell`,
 `mince`, and `recombine` with the same mutex as `adjoin` and basic readers.
 ROBDD `mince` changes depth under one lock, avoiding nested acquisition
 of the nonrecursive mutex via `mince_to_depth`. Tree paving overrides
@@ -1671,11 +1671,11 @@ cross-paving operations, or other unsynchronized mutation paths.
 The two owning paving backends now serialize `restrict` and `remove` with
 concurrent destination mutations. The explicit-tree backend acquires both
 owner mutexes through `std::scoped_lock` when the source is another owning
-`GridTreePaving`, with self-intersection and self-difference handled
+`BinaryTreePaving`, with self-intersection and self-difference handled
 separately. The helpers use qualified base accessors while the owner is
 already locked, preventing recursive mutex acquisition. Removing an
 individual tree cell and restricting by root extent also acquire the
-owner mutex. Borrowed `GridTreeSubpaving` source views still require
+owner mutex. Borrowed `BinaryTreeSubpaving` source views still require
 external stability; they are not made safe against invalidation.
 
 The ROBDD backend copies a stable source before acquiring the destination
@@ -1690,18 +1690,18 @@ including calls through `SubPavingInterface`.
 Two stress cases mix polymorphic remove/restrict, concurrent insertion and
 snapshot reads; they also check both self-operations. This phase does not
 claim thread-safety for non-owning live views, iterators, inherited
-`GridTreeSubpaving` APIs, or all geometric approximation operations.
+`BinaryTreeSubpaving` APIs, or all geometric approximation operations.
 
 
 ## 2026-11-07 - Eliminate nested source-owner locking in set algebra
 
-The first owner-locking implementation of `GridTreePaving::restrict` and
+The first owner-locking implementation of `BinaryTreePaving::restrict` and
 `remove` acquired both owner mutexes through `std::scoped_lock`, then
-called `GridTreePaving::root_cell()` on the source indirectly via virtual
+called `BinaryTreePaving::root_cell()` on the source indirectly via virtual
 dispatch inside `restrict_to_lower()` / `remove_from_lower()`. The
 non-recursive source mutex was therefore acquired twice by the same thread,
 deadlocking even a single-threaded set operation. All four calls now
-explicitly target `GridTreeSubpaving::root_cell()`, which accesses the
+explicitly target `BinaryTreeSubpaving::root_cell()`, which accesses the
 already-protected geometry without re-entering the owner's mutex.
 
 A separate single-threaded regression executable verifies native and
@@ -1713,10 +1713,10 @@ lock-order regressions instead of indefinitely blocking CI.
 
 ## 2026-11-07 - Owning tree snapshot iterators
 
-The owning `GridTreePaving` now returns deep-copy snapshot iterators via
+The owning `BinaryTreePaving` now returns deep-copy snapshot iterators via
 both concrete `begin()/end()` and the polymorphic `PavingInterface`
 iterator API. The copy is made under the owner's existing mutex, and
-`GridTreeConstIterator` retains the copied `GridTreePaving` through
+`BinaryTreePavingConstIterator` retains the copied `BinaryTreePaving` through
 `shared_ptr`. The stack of node pointers therefore remains valid after
 concurrent owner mutations and even after the owner is destroyed.
 Copies of iterators share the same snapshot. Two fresh `begin()`
@@ -1725,8 +1725,8 @@ not allocation addresses; comparing historical snapshots from different
 versions is not a supported ordering relation. An `end()` iterator is
 stateless.
 
-`GridTreeSubpaving` still represents a borrowed mutable view. Its
-`GridTreeCursor` and direct `begin/end` do not keep an owner alive;
+`BinaryTreeSubpaving` still represents a borrowed mutable view. Its
+`BinaryTreePavingCursor` and direct `begin/end` do not keep an owner alive;
 callers must stabilize the owner through any traversal and must not
 retain these views across subtree mutations. Owner `_branch()` now
 serializes initial splitting with other owner operations, but the
@@ -1737,10 +1737,10 @@ independent traversal.
 
 ## 2026-11-07 - Geometric reads of mutable owning tree pavings
 
-`GridTreePaving` now captures an independent, owner-locked snapshot for
+`BinaryTreePaving` now captures an independent, owner-locked snapshot for
 `bounding_box`, `inside`, `separated`, `overlaps`, `measure` and
 polymorphic `equals`, `subset` and `intersects` calls. The snapshot
-invokes the qualified `GridTreeSubpaving` implementation to avoid a
+invokes the qualified `BinaryTreeSubpaving` implementation to avoid a
 recursive lock when the base algorithm reads root-cell geometry or
 traverses the binary tree. `is_empty` and `dimension` instead use the
 owner mutex directly. If the right operand is another owning tree paving,
@@ -1751,20 +1751,20 @@ views must remain stable during comparisons.
 Concurrent geometric-read regressions overlap these APIs, including
 polymorphic calls, with insertion and restriction. Neither the
 reference-returning `grid()` accessor nor raw binary-tree pointers or
-borrowed `GridTreeSubpaving` views gain lifetime guarantees from this
+borrowed `BinaryTreeSubpaving` views gain lifetime guarantees from this
 change. Those remain outside the concurrent contract and must not race
 with mutations or owner assignment.
 
 
 ## 2026-11-07 - Fix reentrant emptiness query after geometric snapshot rollout
 
-The first owner-side `GridTreePaving::is_empty()` implementation acquired
-`_adjoin_mutex` and then called `GridTreeSubpaving::is_empty()`. The
+The first owner-side `BinaryTreePaving::is_empty()` implementation acquired
+`_adjoin_mutex` and then called `BinaryTreeSubpaving::is_empty()`. The
 base implementation tests `this->size()`, whose virtual dispatch reaches
-`GridTreePaving::size()` and attempts to acquire the same non-recursive
+`BinaryTreePaving::size()` and attempts to acquire the same non-recursive
 mutex again. This caused `std::system_error` (resource deadlock would
 occur) on MSVC and hung CTest on some other platforms. The owning query
-now calls qualified `GridTreeSubpaving::size()` directly while holding
+now calls qualified `BinaryTreeSubpaving::size()` directly while holding
 the mutex, avoiding the second lock acquisition without weakening the
 snapshot and data-race guarantees.
 
@@ -1776,12 +1776,12 @@ signal if a recursive lock is reintroduced.
 
 ## 2026-11-07 - Fix reentrant dimension access during extent restriction
 
-`GridTreePaving::restrict_to_extent()` acquired the owner's
+`BinaryTreePaving::restrict_to_extent()` acquired the owner's
 non-recursive mutex, then called `this->dimension()`. After the
 geometric-reader refactoring, that virtual owner method also acquired
 `_adjoin_mutex`, triggering a recursive-lock `std::system_error` on
 Windows and blocking some other platforms. The extent-restriction
-algorithm now calls qualified `GridTreeSubpaving::dimension()` under the
+algorithm now calls qualified `BinaryTreeSubpaving::dimension()` under the
 existing owner lock, and the owning `dimension()` method reads its
 protected geometry directly rather than calling any virtual accessor.
 A dedicated, time-bounded sequential regression exercises both the no-op
@@ -1791,22 +1791,22 @@ The previous `is_empty()` correction remains unchanged.
 
 ## 2026-11-07 - Scoped mutable subpaving access
 
-The owning `GridTreePaving` now exposes `with_locked_subpaving(callback)`
+The owning `BinaryTreePaving` now exposes `with_locked_subpaving(callback)`
 and `with_locked_branch(right,callback)` for operations on live borrowed
 subtrees that must be synchronized with concurrent owner updates. Both
 helpers acquire the same non-recursive owner mutex used by `adjoin`,
 `remove`, `restrict`, `mince`, `recombine` and snapshot copying, and
 hold it until the callback returns. A callback receives a
-`GridTreeSubpaving&` and must return `void`. The root callback creates
+`BinaryTreeSubpaving&` and must return `void`. The root callback creates
 a temporary borrowed base view; the branch callback also performs the
 necessary semantics-preserving split while holding the lock.
 
 The callback must not call another operation of the owning
-`GridTreePaving` that attempts to acquire its mutex (non-recursive).
+`BinaryTreePaving` that attempts to acquire its mutex (non-recursive).
 It also must not retain/capture the view, an iterator, or a node pointer
 past the scope: although the void return constraint prevents accidentally
 returning the view, C++ cannot prevent clients from storing borrowed
-references elsewhere. The existing `GridTreeSubpaving::branch()` and
+references elsewhere. The existing `BinaryTreeSubpaving::branch()` and
 `SubPavingInterface::branch()` remain live, non-owning APIs with no
 cross-call lifetime guarantee. Changing them to snapshots would silently
 break mutability semantics and is deliberately avoided.
@@ -1827,10 +1827,10 @@ direct mutation, including tree alignment and recursive updates. Delegating
 box/located/regular overloads retain their existing call graph and enter
 one of these guarded terminal algorithms, avoiding nested acquisition of
 the non-recursive mutex. Owner `root_cell()` access inside the four locked
-functions is now explicitly qualified to the base `GridTreeSubpaving`
+functions is now explicitly qualified to the base `BinaryTreeSubpaving`
 accessor, avoiding the previous virtual-dispatch deadlock pattern.
 
-`GridTreePaving::clear()` now performs both its root-geometry reset to
+`BinaryTreePaving::clear()` now performs both its root-geometry reset to
 extent zero and the disabling of the binary-tree root under a single owner
 mutex. Previously, clear constructed a replacement using an unprotected
 reference to the owner's grid before a separately synchronized assignment.
@@ -1848,7 +1848,7 @@ view lifetime restrictions remain unchanged.
 
 ## 2026-11-07 - Guard remaining concrete tree refinements and output
 
-The public owning `GridTreePaving` now hides and synchronizes the
+The public owning `BinaryTreePaving` now hides and synchronizes the
 borrowed-base methods `mince_to_depth`, `mince_to_tree_depth`,
 `subdivide` and `tree_depth`. The original owning `mince` remains
 synchronized; its qualified base implementation calls a nonvirtual base
@@ -1856,7 +1856,7 @@ helper, so no recursive lock is introduced. The three new mutators hold
 the same mutex as `adjoin`, `recombine`, `clear` and snapshot copying,
 preventing concurrent changes from invalidating an active tree traversal.
 
-A concrete `GridTreePaving::branch` now serializes the split required to
+A concrete `BinaryTreePaving::branch` now serializes the split required to
 construct a borrowed child view; it does NOT extend the lock to the use
 of that view after return. Use `with_locked_branch` for this. The owning
 stream insertion operator and the virtual `_write` now print from a
@@ -1866,7 +1866,7 @@ A concurrency regression overlaps the direct refinements with the owning
 `mince/recombine` operations and with snapshot/stream/depth readers,
 then verifies the sequential borrowed-branch mutability behavior.
 
-The `GridTreeSubpaving` base class still exposes unsynchronized methods
+The `BinaryTreeSubpaving` base class still exposes unsynchronized methods
 and raw borrowed node pointers. Explicitly invoking them on an owning
 object through a base reference bypasses the above concrete wrappers.
 Concurrent callers must not do this, retain mutable views beyond their
@@ -1935,7 +1935,7 @@ dimension and enclosing geometry.
 ## 2026-11-07 - Enforce lifetime-invariant grid in copy assignment
 
 The grid of an owning paving is immutable after construction. Previously,
-`GridTreePaving::operator=` and `RobddPaving::operator=` could replace it
+`BinaryTreePaving::operator=` and `RobddPaving::operator=` could replace it
 with an incompatible grid while changing the root. Both operators now
 reject cross-grid assignment before changing the destination: tree
 assignment checks inside the joint owner lock, while ROBDD assignment
@@ -1961,12 +1961,12 @@ concrete tree's `smallest_enclosing_primary_cell` now obtains one
 synchronized `root_cell()` value before checking dimensions and locating
 the primary cell. It does not allow any grid changes.
 
-`image(GridTreePaving, Projection)` now takes a single owner-locked
+`image(BinaryTreePaving, Projection)` now takes a single owner-locked
 snapshot at the start, and computes projected geometry and enumerates
 enabled cells from that one version. It explicitly traverses the borrowed
 base view of the local snapshot to avoid constructing a second deep copy
 inside the owning `begin()` method. Similarly,
-`outer_skew_product(GridTreePaving, ...)` captures its entire input
+`outer_skew_product(BinaryTreePaving, ...)` captures its entire input
 source once before reading its root extent, depth, grid and enabled cells.
 Neither operation holds the original owner's lock during long geometric
 computation.
@@ -1975,7 +1975,7 @@ A stress regression overlaps changing root shapes and same-grid copy
 assignment with `image` and enclosing-primary-cell queries, checking
 that projection is either empty or the correct single projected cell.
 This does not protect legacy free operations on directly borrowed
-`GridTreeSubpaving` views: their owner must remain stable for the entire
+`BinaryTreeSubpaving` views: their owner must remain stable for the entire
 operation, or the caller must use an independent owner snapshot.
 
 
@@ -1987,9 +1987,9 @@ iterator's deep snapshot from the cost of traversing enabled leaves.
 The new optional `--tree-iterator-cost` flag adds per-shape/dimension/
 fineness diagnostics on the exact same immutable tree:
 
-- creation of an owning `GridTreePaving::begin()` iterator, including its
+- creation of an owning `BinaryTreePaving::begin()` iterator, including its
   thread-safe deep snapshot;
-- creation of a borrowed `GridTreeSubpaving::begin()` iterator, which is
+- creation of a borrowed `BinaryTreeSubpaving::begin()` iterator, which is
   legal only while the owner remains unmodified;
 - full owning traversal, including snapshot construction;
 - full borrowed traversal, excluding snapshot construction.

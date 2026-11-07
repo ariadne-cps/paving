@@ -17,14 +17,14 @@
 #include <vector>
 
 #include "paving/binary_tree_paving.hpp"
-#include "paving/grid_paving.hpp"
+#include "paving/binary_tree_paving.hpp"
 #include "paving/robdd_paving.hpp"
 #include "paving/paving_cell_operations.hpp"
 #include "ariadne-testing.hpp"
 
 using namespace Ariadne;
 
-static_assert(std::is_same_v<BinaryTreePaving,GridTreePaving>);
+static_assert(std::is_base_of_v<PavingInterface,BinaryTreePaving>);
 
 
 class TestRobddPaving : public Ariadne::Testing::ContextFixture {
@@ -60,7 +60,7 @@ class TestRobddPaving : public Ariadne::Testing::ContextFixture {
         ARIADNE_TESTING_EXPECT_EQUAL(empty.depth(),0u);
 
         BinaryTreeNode enabled(true);
-        GridTreeSubpaving source(grid,0u,BinaryWord{},&enabled);
+        BinaryTreeSubpaving source(grid,0u,BinaryWord{},&enabled);
         RobddPaving imported(manager,source);
         ARIADNE_TESTING_PROVE(imported.robdd().is_true());
         ARIADNE_TESTING_PROVE(imported.to_binary_tree()->is_enabled());
@@ -79,8 +79,8 @@ class TestRobddPaving : public Ariadne::Testing::ContextFixture {
         right_tree.add_enabled(make_binary_word("111"));
         right_tree.recombine();
 
-        GridTreeSubpaving left_explicit(grid,0u,BinaryWord{},&left_tree);
-        GridTreeSubpaving right_explicit(grid,0u,BinaryWord{},&right_tree);
+        BinaryTreeSubpaving left_explicit(grid,0u,BinaryWord{},&left_tree);
+        BinaryTreeSubpaving right_explicit(grid,0u,BinaryWord{},&right_tree);
         RobddPaving lhs(manager,left_explicit);
         RobddPaving rhs(manager,right_explicit);
         ARIADNE_TESTING_PROVE(not lhs.intersects(rhs));

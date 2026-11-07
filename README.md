@@ -52,15 +52,13 @@ ownership, semantics, limitations and the completed extraction.
 The two representation-specific C++ names are:
 
 - `BinaryTreePaving` (header
-  `paving/binary_tree_paving.hpp`): the public name of the existing
-  `GridTreePaving` implementation, which remains used by legacy clients.
+  `paving/binary_tree_paving.hpp`): the concrete binary-tree-backed paving implementation.
 - `RobddPaving` (header `paving/robdd_paving.hpp`):
   an experimental ROBDD-backed paving snapshot.
 
 Both backends implement the polymorphic `PavingInterface`, while
 representation-specific operations and performance characteristics differ.
-The `BinaryTreePaving` name aliases the established concrete implementation;
-the ROBDD backend is an independent concrete implementation.
+`BinaryTreePaving` and `RobddPaving` are independent concrete implementations.
 
 The two backends share representation-independent geometric alignment
 through `paving/grid_cell_alignment.hpp`, including paths relative to a
@@ -70,7 +68,7 @@ primary-cell extent, common root cells and relative subdivision paths.
 
 `RobddPaving` is an additive prototype for comparing immutable
 ROBDD storage with the current explicit binary-tree backend. It imports a
-`GridTreeSubpaving`, retains the geometric `GridCell` root and a logical
+`BinaryTreeSubpaving`, retains the geometric `GridCell` root and a logical
 subdivision depth, and stores membership in a shared `RobddManager`.
 It supports finite-depth membership, counting and visiting cells,
 compact enabled-leaf counting/iteration (`enabled_leaf_count`,
@@ -97,7 +95,7 @@ Set operations do not implicitly convert between backends.
 The manager must outlive snapshots. Both operands in a set operation must
 share one manager and lie on the same grid; roots are aligned even when
 their paths and primary-cell extents differ. Projection, geometry queries
-and integration with `GridTreeCursor` are deliberately deferred. Existing paving APIs and
+and integration with `BinaryTreePavingCursor` are deliberately deferred. Existing paving APIs and
 representation choices remain unchanged.
 
 ## Representation-independent cell refinement
@@ -400,6 +398,6 @@ registered with CTest; invoke it explicitly when needed.
 
 ### Concurrent adjoin (initial correctness milestone)
 
-Both `GridTreePaving` and `RobddPaving` serialize concurrent `adjoin(GridCell)`, `adjoin(std::vector<GridCell>)`, and same-backend `adjoin(SubPavingInterface)` calls on one destination. A vector batch holds one paving mutex for the full operation. The tree backend additionally locks both owning tree pavings in a deadlock-safe order when merging them; the ROBDD backend snapshots the source before acquiring the destination mutex. Independently owned sources are supported; borrowed source views must remain valid and stable during the operation.
+Both `BinaryTreePaving` and `RobddPaving` serialize concurrent `adjoin(GridCell)`, `adjoin(std::vector<GridCell>)`, and same-backend `adjoin(SubPavingInterface)` calls on one destination. A vector batch holds one paving mutex for the full operation. The tree backend additionally locks both owning tree pavings in a deadlock-safe order when merging them; the ROBDD backend snapshots the source before acquiring the destination mutex. Independently owned sources are supported; borrowed source views must remain valid and stable during the operation.
 
 **Scope limit:** This is an incremental thread-safety milestone, not a full `PavingInterface` guarantee. `superset(GridCell)`, `size()`, `root_cell()`, `clone()` and owning snapshot/copy construction can now run alongside `adjoin` on both backends. ROBDD additionally snapshots its Boolean root, depth, enabled-cell counts, compact iterators and enumeration. Other concurrent mutations, explicit tree iterators, borrowed views, generic multi-paving comparisons and reference-valued `grid()` are not yet protected. Do not invoke those APIs concurrently with adjoin on the same paving. `RobddManager` retains its separate synchronization. Regression tests exercise both backend read/write overlap.

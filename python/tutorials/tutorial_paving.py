@@ -119,7 +119,7 @@ def tutorial_paving():
     print("Box: fast coordinate-aligned enclosure and predicates.")
     print("ValidatedConstrainedImageSet: keeps nonlinear parameter dependence and constraints.")
     print("ValidatedAffineConstrainedImageSet: rigorous affine surrogate for cheaper geometry.")
-    print("GridTreePaving: finite cell representation for subdivision and set algebra.")
+    print("BinaryTreePaving: finite cell representation for subdivision and set algebra.")
 
 
 if __name__ == "__main__":

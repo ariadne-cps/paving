@@ -38,7 +38,7 @@
 
 #include "tree/binary_tree.hpp"
 #include "set/function_set.hpp"
-#include "paving/grid_paving.hpp"
+#include "paving/binary_tree_paving.hpp"
 #include "geometry/set_interface.hpp"
 #include "geometry/set_wrapper.hpp"
 #include "function/projection.hpp"
@@ -64,10 +64,10 @@ class TestBinaryTreePaving : public Ariadne::Testing::ContextFixture {
     template<class ExpectedCells>
     Void check_grid_tree_subpaving_iterator(
         ExpectedCells const& expected_result,
-        GridTreeSubpaving const& paving,
+        BinaryTreeSubpaving const& paving,
         SizeType expected_number_elements) {
         SizeType elements_count=0u;
-        for (GridTreeSubpaving::ConstIterator it=paving.begin(), end=paving.end();
+        for (BinaryTreeSubpaving::ConstIterator it=paving.begin(), end=paving.end();
              it!=end; it++, elements_count++) {
             if (elements_count < expected_number_elements) {
                 ARIADNE_TESTING_NOTE("The next Iterator node is:");
@@ -108,15 +108,15 @@ class TestBinaryTreePaving : public Ariadne::Testing::ContextFixture {
     thePathToSubPavingRoot.push_back(false);
     thePathToSubPavingRoot.push_back(true);
 
-    //Create the GridTreeSubpaving
-    GridTreeSubpaving theGridSubPavingSmall( theGrid, theExtent, thePathToSubPavingRoot, pRootTreeNode->left_node()->right_node() );
-    //Create the Cursor for the GridTreeSubpaving
-    GridTreeCursor theGSPCursorSmall( &theGridSubPavingSmall );
+    //Create the BinaryTreeSubpaving
+    BinaryTreeSubpaving theGridSubPavingSmall( theGrid, theExtent, thePathToSubPavingRoot, pRootTreeNode->left_node()->right_node() );
+    //Create the Cursor for the BinaryTreeSubpaving
+    BinaryTreePavingCursor theGSPCursorSmall( &theGridSubPavingSmall );
 
-    //Create the GridTreeSubpaving
-    GridTreeSubpaving theGridSubPavingLarge( theGrid, theExtent, BinaryWord(), pRootTreeNode );
-    //Create the Cursor for the GridTreeSubpaving
-    GridTreeCursor theGSPCursorLarge( &theGridSubPavingLarge );
+    //Create the BinaryTreeSubpaving
+    BinaryTreeSubpaving theGridSubPavingLarge( theGrid, theExtent, BinaryWord(), pRootTreeNode );
+    //Create the Cursor for the BinaryTreeSubpaving
+    BinaryTreePavingCursor theGSPCursorLarge( &theGridSubPavingLarge );
 
     // !!!
     ARIADNE_TESTING_NOTE("Check the created Cursor data on a small subpaving");
@@ -136,9 +136,9 @@ class TestBinaryTreePaving : public Ariadne::Testing::ContextFixture {
     ARIADNE_TESTING_NOTE("Let's move the cursor of theGSPCursorLarge: left, right, we should be in the root of the smaller subpaving then");
     theGSPCursorLarge.move_left();
     theGSPCursorLarge.move_right();
-    GridTreeSubpaving tmpSubPaving = *theGSPCursorLarge;
+    BinaryTreeSubpaving tmpSubPaving = *theGSPCursorLarge;
     BinaryTreeNode expected_subset_root(*theGridSubPavingSmall.binary_tree());
-    GridTreeSubpaving expected_tree_subset( theGrid, theExtent, make_binary_word("01"), &expected_subset_root );
+    BinaryTreeSubpaving expected_tree_subset( theGrid, theExtent, make_binary_word("01"), &expected_subset_root );
     ARIADNE_TESTING_NOTE("The cursor has moved and we have the following subpaving: ");
     ARIADNE_TESTING_EXPECT_EQUAL( expected_tree_subset, tmpSubPaving);
 
@@ -194,9 +194,9 @@ class TestBinaryTreePaving : public Ariadne::Testing::ContextFixture {
     pRootTreeNode = new BinaryTreeNode(true);
     ARIADNE_TESTING_NOTE("Mince the enabled binary tree node to level 2");
     pRootTreeNode->mince(2);
-    GridTreePaving theGridTreePaving( theGrid, theExtent, pRootTreeNode );
-    //Create the Cursor for the GridTreeSubpaving
-    GridTreeCursor theGPCursor( &theGridTreePaving );
+    BinaryTreePaving theBinaryTreePaving( theGrid, theExtent, pRootTreeNode );
+    //Create the Cursor for the BinaryTreeSubpaving
+    BinaryTreePavingCursor theGPCursor( &theBinaryTreePaving );
     //Move to the leaf node
     ARIADNE_TESTING_NOTE("Move the cursor to the right most leaf and check it");
     theGPCursor.move_right();
@@ -229,8 +229,8 @@ Void test_grid_paving_const_iterator(){
     BinaryTreeNode rootTreeNode(true);
     BinaryTreeNode * pRootTreeNode = &rootTreeNode;
 
-    //Create the GridTreeSubpaving
-    GridTreeSubpaving theGridSubPavingLarge( theGrid, theExtent, BinaryWord(), pRootTreeNode );
+    //Create the BinaryTreeSubpaving
+    BinaryTreeSubpaving theGridSubPavingLarge( theGrid, theExtent, BinaryWord(), pRootTreeNode );
 
     // !!!
     ARIADNE_TESTING_NOTE("Test the sequence in which GridPavingIterator goes through the tree leafs ");
@@ -351,8 +351,8 @@ Void test_grid_paving_const_iterator(){
 
     // !!!
     ARIADNE_TESTING_NOTE("Test how the constant Cursor can be retrieved from the Constant Iterator");
-    GridTreeSubpaving::ConstIterator it = theGridSubPavingLarge.begin();
-    const GridTreeCursor theGPCursor = it.cursor();
+    BinaryTreeSubpaving::ConstIterator it = theGridSubPavingLarge.begin();
+    const BinaryTreePavingCursor theGPCursor = it.cursor();
     ARIADNE_TESTING_EXPECT_EQUAL(theGPCursor.is_leaf(), true);
     ARIADNE_TESTING_EXPECT_EQUAL(theGPCursor.is_root(), false);
     ARIADNE_TESTING_EXPECT_EQUAL(theGPCursor.is_enabled(), true);
@@ -385,11 +385,11 @@ Void test_grid_sub_paving_one(){
     thePathToSubPavingRoot.push_back(false);
     thePathToSubPavingRoot.push_back(true);
 
-    //Create the GridTreeSubpaving
-    GridTreeSubpaving theGridSPOneDim( theOneDimGrid, theRootExtent, thePathToSubPavingRoot, pRootTreeNode );
+    //Create the BinaryTreeSubpaving
+    BinaryTreeSubpaving theGridSPOneDim( theOneDimGrid, theRootExtent, thePathToSubPavingRoot, pRootTreeNode );
 
     //
-    ARIADNE_TESTING_NOTE("Test Mincing operations of GridTreeSubpaving on the one dimensional Grid");
+    ARIADNE_TESTING_NOTE("Test Mincing operations of BinaryTreeSubpaving on the one dimensional Grid");
     ARIADNE_TESTING_NOTE("The initial paving: ");
     ARIADNE_TESTING_EXPECT_EQUAL( theGridSPOneDim.grid() , theOneDimGrid );
     ARIADNE_TESTING_EXPECT_EQUAL( theGridSPOneDim.root_cell().root_extent() , theRootExtent );
@@ -447,12 +447,12 @@ Void test_grid_sub_paving_one(){
     clean_test_vector( expected_result_arr );
 
     // !!!
-    ARIADNE_TESTING_NOTE("Test Mincing operations of GridTreeSubpaving on the two dimensional Grid");
+    ARIADNE_TESTING_NOTE("Test Mincing operations of BinaryTreeSubpaving on the two dimensional Grid");
     //Allocate the Grid, one Dimension
     const Grid theTwoDimGrid( {-0.25, 0.5}, {0.25, 0.5} );
 
-    //Create the GridTreeSubpaving
-    GridTreeSubpaving theGridSPTwoDim( theTwoDimGrid, theRootExtent, thePathToSubPavingRoot, pRootTreeNode );
+    //Create the BinaryTreeSubpaving
+    BinaryTreeSubpaving theGridSPTwoDim( theTwoDimGrid, theRootExtent, thePathToSubPavingRoot, pRootTreeNode );
 
     ARIADNE_TESTING_NOTE("Recombine and Mince the sub-paving to depth 2, this should give us four sub cells");
     theGridSPTwoDim.recombine();
@@ -479,7 +479,7 @@ Void test_grid_sub_paving_one(){
     theGridSPTwoDim.subdivide(0.4);
 
     BinaryTreeNode binaryTree( make_binary_word("1111001001100100111001001100100"), make_binary_word("1111111111111111") );
-    GridTreeSubpaving expected_result( theTwoDimGrid, theRootExtent, make_binary_word("01"), &binaryTree );
+    BinaryTreeSubpaving expected_result( theTwoDimGrid, theRootExtent, make_binary_word("01"), &binaryTree );
     ARIADNE_TESTING_NOTE("The sub paving with 16 leaf nodes: ");
     ARIADNE_TESTING_EXPECT_EQUAL( expected_result, theGridSPTwoDim );
 
@@ -504,8 +504,8 @@ Void test_grid_sub_paving_two() {
     thePathToSubPavingRoot.push_back(false);
     thePathToSubPavingRoot.push_back(false);
 
-    //Create the GridTreeSubpaving
-    GridTreeSubpaving theGridSPOneDim( theTwoDimGrid, theRootExtent, thePathToSubPavingRoot, pRootTreeNode );
+    //Create the BinaryTreeSubpaving
+    BinaryTreeSubpaving theGridSPOneDim( theTwoDimGrid, theRootExtent, thePathToSubPavingRoot, pRootTreeNode );
     std::vector< GridCell* > expected_result_arr( 16 );
 
     ARIADNE_TESTING_NOTE("Take the [-1,1]x[-1,1] box and do mince(0), i.e. down to the lovel of zero cells");
@@ -554,8 +554,8 @@ Void test_grid_sub_paving_three() {
     //to pRootTreeNode->left_node()->left_node()->left_node()->left_node()
     BinaryWord thePathToSubPavingRoot = make_binary_word("0000");
 
-    //Create the GridTreeSubpaving
-    GridTreeSubpaving theGridSPOneDim( theTwoDimGrid, theRootExtent, thePathToSubPavingRoot, pRootTreeNode );
+    //Create the BinaryTreeSubpaving
+    BinaryTreeSubpaving theGridSPOneDim( theTwoDimGrid, theRootExtent, thePathToSubPavingRoot, pRootTreeNode );
     std::vector< GridCell* > expected_result_arr( 4 );
 
     ARIADNE_TESTING_NOTE("Take the [-1,-0.5]x[-1,-0.5] box and do mince(0), i.e. nothing should get minced");
@@ -585,37 +585,37 @@ Void test_grid_paving(){
     Grid trivialFourDimGrid( {0.0,0.0,0.0,0.0}, {1.0,1.0,1.0,1.0} );
 
     // !!!
-    ARIADNE_TESTING_NOTE("Test allocation of a trivial GridTreePaving");
-    GridTreePaving trivialPaving(4, true);
-    GridTreePaving * pTrivialPaving = &trivialPaving;
-    GridTreePaving expected_result1( trivialFourDimGrid , 0, make_binary_word("0"), make_binary_word("1") );
+    ARIADNE_TESTING_NOTE("Test allocation of a trivial BinaryTreePaving");
+    BinaryTreePaving trivialPaving(4, true);
+    BinaryTreePaving * pTrivialPaving = &trivialPaving;
+    BinaryTreePaving expected_result1( trivialFourDimGrid , 0, make_binary_word("0"), make_binary_word("1") );
     ARIADNE_TESTING_NOTE("A trivial paving for [0,1]x[0,1]x[0,1]x[0,1], enabled cell: ");
     ARIADNE_TESTING_EXPECT_EQUAL( expected_result1, (*pTrivialPaving) );
 
     // !!!
-    ARIADNE_TESTING_NOTE("Test GridTreePaving copy constructor");
-    GridTreePaving theTrivialPaving( ( *pTrivialPaving ) );
+    ARIADNE_TESTING_NOTE("Test BinaryTreePaving copy constructor");
+    BinaryTreePaving theTrivialPaving( ( *pTrivialPaving ) );
     pTrivialPaving->mince_to_tree_depth(1);
 
     ARIADNE_TESTING_NOTE("Minced trivial paving for [0,1]x[0,1]x[0,1]x[0,1], enabled cell: ");
-    GridTreePaving expected_result_minced(trivialFourDimGrid , 0, make_binary_word("100"), make_binary_word("11") );
+    BinaryTreePaving expected_result_minced(trivialFourDimGrid , 0, make_binary_word("100"), make_binary_word("11") );
     ARIADNE_TESTING_EXPECT_EQUAL( expected_result_minced, (*pTrivialPaving) );
 
     ARIADNE_TESTING_NOTE("A copy of the original paving, should stay unchanged: ");
     ARIADNE_TESTING_EXPECT_EQUAL( expected_result1, theTrivialPaving );
 
     // !!!
-    ARIADNE_TESTING_NOTE("Test GridTreePaving (Grid, ExactBoxType) constructor");
+    ARIADNE_TESTING_NOTE("Test BinaryTreePaving (Grid, ExactBoxType) constructor");
     //Allocate the Grid, one Dimension
     const Grid theTwoDimGrid( {-0.25,0.5}, {0.25,0.5} );
     //Note: the box is related to the grid, but not to the original space
-    GridTreePaving theTwoDimPaving( theTwoDimGrid, make_box("[0,1.5]x[-1.5,3.5]") );
-    ARIADNE_TESTING_NOTE("The resulting GridTreePaving: ");
-    GridTreePaving expected_result2( theTwoDimGrid, 4, make_binary_word("0"), make_binary_word("0") );
+    BinaryTreePaving theTwoDimPaving( theTwoDimGrid, make_box("[0,1.5]x[-1.5,3.5]") );
+    ARIADNE_TESTING_NOTE("The resulting BinaryTreePaving: ");
+    BinaryTreePaving expected_result2( theTwoDimGrid, 4, make_binary_word("0"), make_binary_word("0") );
     ARIADNE_TESTING_EXPECT_EQUAL( expected_result2, theTwoDimPaving );
 
     // !!!
-    ARIADNE_TESTING_NOTE("Test GridTreePaving (Grid, Height, BooleanArray, BooleanArray ) constructor");
+    ARIADNE_TESTING_NOTE("Test BinaryTreePaving (Grid, Height, BooleanArray, BooleanArray ) constructor");
     BooleanArray theTree(9), theEnabledLeafs(5);
     theTree[0] = true;
     theTree[1] = true;
@@ -626,8 +626,8 @@ Void test_grid_paving(){
     theTree[6] = false;  theEnabledLeafs[2] = true;
     theTree[7] = false;  theEnabledLeafs[3] = false;
     theTree[8] = false;  theEnabledLeafs[4] = true;
-    GridTreePaving theTwoDimTreePaving( theTwoDimGrid, 2, theTree, theEnabledLeafs );
-    ARIADNE_TESTING_NOTE("The resulting GridTreePaving: ");
+    BinaryTreePaving theTwoDimTreePaving( theTwoDimGrid, 2, theTree, theEnabledLeafs );
+    ARIADNE_TESTING_NOTE("The resulting BinaryTreePaving: ");
     BinaryTreeNode * pRootTreeNode = new BinaryTreeNode(false);
     pRootTreeNode->split();
     pRootTreeNode->left_node()->split();
@@ -636,16 +636,16 @@ Void test_grid_paving(){
     pRootTreeNode->right_node()->right_node()->set_enabled();
     pRootTreeNode->right_node()->left_node()->split();
     pRootTreeNode->right_node()->left_node()->left_node()->set_enabled();
-    GridTreePaving expected_result3( theTwoDimGrid, 2, pRootTreeNode );
+    BinaryTreePaving expected_result3( theTwoDimGrid, 2, pRootTreeNode );
     ARIADNE_TESTING_EXPECT_EQUAL( expected_result3, theTwoDimTreePaving );
 
     // !!!
     //Create a trivial 2-dimensional Grid
     Grid trivialTwoDimGrid( {0.0,0.0}, {1.0,1.0} );
-    ARIADNE_TESTING_NOTE("Test GridTreePaving::restrict_to_extent( const Nat theExtent )");
-    GridTreePaving initialTreeSetOne( trivialTwoDimGrid, 2, make_binary_word("1111001000100"), make_binary_word("10010001") );
-    GridTreePaving initialTreeSetOneCopyOne( initialTreeSetOne );
-    GridTreePaving initialTreeSetOneCopyTwo( initialTreeSetOne );
+    ARIADNE_TESTING_NOTE("Test BinaryTreePaving::restrict_to_extent( const Nat theExtent )");
+    BinaryTreePaving initialTreeSetOne( trivialTwoDimGrid, 2, make_binary_word("1111001000100"), make_binary_word("10010001") );
+    BinaryTreePaving initialTreeSetOneCopyOne( initialTreeSetOne );
+    BinaryTreePaving initialTreeSetOneCopyTwo( initialTreeSetOne );
 
     ARIADNE_TESTING_NOTE("The initialTreeSetOne.root_cell().root_extent() == 2, theExtent == 3, nothing should change");
     initialTreeSetOne.restrict_to_extent( 3 );
@@ -653,18 +653,18 @@ Void test_grid_paving(){
 
     ARIADNE_TESTING_NOTE("The initialTreeSetOneCopyOne.root_cell().root_extent() == 2, theExtent == 1");
     initialTreeSetOneCopyOne.restrict_to_extent( 1 );
-    GridTreePaving expectedTreeSetOne( trivialTwoDimGrid, 2, make_binary_word("11110010000"), make_binary_word("100100") );
+    BinaryTreePaving expectedTreeSetOne( trivialTwoDimGrid, 2, make_binary_word("11110010000"), make_binary_word("100100") );
     ARIADNE_TESTING_EXPECT_EQUAL( expectedTreeSetOne, initialTreeSetOneCopyOne );
 
     ARIADNE_TESTING_NOTE("The initialTreeSetOneCopyTwo.root_cell().root_extent() == 2, theExtent == 0");
     initialTreeSetOneCopyTwo.restrict_to_extent( 0 );
-    GridTreePaving expectedTreeSetTwo( trivialTwoDimGrid, 2, make_binary_word("111010000"), make_binary_word("00100") );
+    BinaryTreePaving expectedTreeSetTwo( trivialTwoDimGrid, 2, make_binary_word("111010000"), make_binary_word("00100") );
     ARIADNE_TESTING_EXPECT_EQUAL( expectedTreeSetTwo, initialTreeSetOneCopyTwo );
 
     ARIADNE_TESTING_NOTE("The initialTreeSetTwo.root_cell().root_extent() == 1, theExtent == 0");
-    GridTreePaving initialTreeSetTwo( trivialTwoDimGrid, 1, make_binary_word("11000"), make_binary_word("100") );
+    BinaryTreePaving initialTreeSetTwo( trivialTwoDimGrid, 1, make_binary_word("11000"), make_binary_word("100") );
     initialTreeSetTwo.restrict_to_extent( 0 );
-    GridTreePaving expectedTreeSetThree( trivialTwoDimGrid, 1, make_binary_word("100"), make_binary_word("00") );
+    BinaryTreePaving expectedTreeSetThree( trivialTwoDimGrid, 1, make_binary_word("100"), make_binary_word("00") );
     ARIADNE_TESTING_EXPECT_EQUAL( expectedTreeSetThree, initialTreeSetTwo );
 }
 
@@ -951,7 +951,7 @@ Void test_grid_open_cell_five() {
     expected_result_arr[2] = new GridCell( theTrivialGrid, theRootExtent, make_binary_word("1001") );
     expected_result_arr[3] = new GridCell( theTrivialGrid, theRootExtent, make_binary_word("1100") );
 
-    GridTreePaving closureSet = openCell.closure();
+    BinaryTreePaving closureSet = openCell.closure();
     check_grid_tree_subpaving_iterator( expected_result_arr, closureSet, 4 );
     clean_test_vector( expected_result_arr );
 
@@ -1421,7 +1421,7 @@ Void test_adjoin_operation_one(){
     Grid theGrid(2, 1.0);
 
     // !!!
-    ARIADNE_TESTING_NOTE("Test adjoining a GridCell to the GridTreePaving");
+    ARIADNE_TESTING_NOTE("Test adjoining a GridCell to the BinaryTreePaving");
     //Define the GridCell that is rooted to a high primary cell
     const Int theHigherCellExtent = 2;
     BinaryWord theHigherCellPath;
@@ -1437,16 +1437,16 @@ Void test_adjoin_operation_one(){
     ARIADNE_TESTING_EXPECT_EQUAL( expected_box, theHigherLevelCell.box() );
 
     //Define the higth of the primary root cell.
-    //Create the GridTreePaving with the box related to the grid, but not to the original space
-    GridTreePaving theOneCellPaving( theGrid, true );
+    //Create the BinaryTreePaving with the box related to the grid, but not to the original space
+    BinaryTreePaving theOneCellPaving( theGrid, true );
     ARIADNE_TESTING_NOTE(theOneCellPaving);
-    ARIADNE_TESTING_NOTE("The GridTreePaving with the primary root cell extent = 0");
-    GridTreePaving expected_one_cell_paving( theGrid, 0, make_binary_word("0"), make_binary_word("1") );
+    ARIADNE_TESTING_NOTE("The BinaryTreePaving with the primary root cell extent = 0");
+    BinaryTreePaving expected_one_cell_paving( theGrid, 0, make_binary_word("0"), make_binary_word("1") );
     ARIADNE_TESTING_EXPECT_EQUAL( expected_one_cell_paving, theOneCellPaving );
 
-    ARIADNE_TESTING_NOTE("The GridTreePaving after adding the cell: ");
+    ARIADNE_TESTING_NOTE("The BinaryTreePaving after adding the cell: ");
     theOneCellPaving.adjoin( theHigherLevelCell );
-    GridTreePaving expected_two_cell_paving( theGrid, 2, make_binary_word("111010001101000"), make_binary_word("00100100") );
+    BinaryTreePaving expected_two_cell_paving( theGrid, 2, make_binary_word("111010001101000"), make_binary_word("00100100") );
     ARIADNE_TESTING_EXPECT_EQUAL( expected_two_cell_paving, theOneCellPaving );
 }
 
@@ -1456,7 +1456,7 @@ Void test_adjoin_operation_two(){
     Grid theGrid(2, 1.0);
 
     // !!!
-    ARIADNE_TESTING_NOTE("Test adjoining a GridCell to the GridTreePaving");
+    ARIADNE_TESTING_NOTE("Test adjoining a GridCell to the BinaryTreePaving");
     //Define the GridCell that is rooted to the lower primary cell
     const Int theLowerCellExtent = 1;
     BinaryWord theLowerCellPath;
@@ -1479,15 +1479,15 @@ Void test_adjoin_operation_two(){
     pRootTreeNode->right_node()->left_node()->right_node()->split();
     pRootTreeNode->right_node()->left_node()->right_node()->left_node()->set_enabled();
 
-    //Create the GridTreePaving with the box is related to the grid, but not to the original space
-    GridTreePaving theOneCellPaving( theGrid, theExtent, pRootTreeNode );
-    ARIADNE_TESTING_NOTE("The GridTreePaving with the primary root cell extent = 2");
-    GridTreePaving expected_tree_set( theGrid, theExtent, make_binary_word("101101000"), make_binary_word("00100") );
+    //Create the BinaryTreePaving with the box is related to the grid, but not to the original space
+    BinaryTreePaving theOneCellPaving( theGrid, theExtent, pRootTreeNode );
+    ARIADNE_TESTING_NOTE("The BinaryTreePaving with the primary root cell extent = 2");
+    BinaryTreePaving expected_tree_set( theGrid, theExtent, make_binary_word("101101000"), make_binary_word("00100") );
     ARIADNE_TESTING_EXPECT_EQUAL( expected_tree_set, theOneCellPaving );
 
-    ARIADNE_TESTING_NOTE("The GridTreePaving after adding the cell: ");
+    ARIADNE_TESTING_NOTE("The BinaryTreePaving after adding the cell: ");
     theOneCellPaving.adjoin( theLowerLevelCell );
-    GridTreePaving expected_tree_set_result( theGrid, theExtent, make_binary_word("111010001101000"), make_binary_word("00100100") );
+    BinaryTreePaving expected_tree_set_result( theGrid, theExtent, make_binary_word("111010001101000"), make_binary_word("00100100") );
     ARIADNE_TESTING_EXPECT_EQUAL( expected_tree_set_result, theOneCellPaving );
 }
 
@@ -1498,7 +1498,7 @@ Void test_adjoin_operation_three(){
     Grid theGrid(2, 1.0);
 
     // !!!
-    ARIADNE_TESTING_NOTE("Test adjoining a GridCell to the GridTreePaving");
+    ARIADNE_TESTING_NOTE("Test adjoining a GridCell to the BinaryTreePaving");
     //Define the GridCell that is rooted to the same primary cell
     const Int theLowerCellExtent = 2;
     BinaryWord theLowerCellPath;
@@ -1523,15 +1523,15 @@ Void test_adjoin_operation_three(){
     pRootTreeNode->right_node()->left_node()->right_node()->split();
     pRootTreeNode->right_node()->left_node()->right_node()->left_node()->set_enabled();
 
-    //Create the GridTreePaving with the box is related to the grid, but not to the original space
-    ARIADNE_TESTING_NOTE("The GridTreePaving with the primary root cell extent = 2");
-    GridTreePaving theOneCellPaving( theGrid, theExtent, pRootTreeNode );
-    GridTreePaving expected_tree_set( theGrid, theExtent, make_binary_word("101101000"), make_binary_word("00100") );
+    //Create the BinaryTreePaving with the box is related to the grid, but not to the original space
+    ARIADNE_TESTING_NOTE("The BinaryTreePaving with the primary root cell extent = 2");
+    BinaryTreePaving theOneCellPaving( theGrid, theExtent, pRootTreeNode );
+    BinaryTreePaving expected_tree_set( theGrid, theExtent, make_binary_word("101101000"), make_binary_word("00100") );
     ARIADNE_TESTING_EXPECT_EQUAL( expected_tree_set, theOneCellPaving );
 
-    ARIADNE_TESTING_NOTE("The GridTreePaving after adding the cell: ");
+    ARIADNE_TESTING_NOTE("The BinaryTreePaving after adding the cell: ");
     theOneCellPaving.adjoin( theLowerLevelCell );
-    GridTreePaving expected_tree_set_result( theGrid, theExtent, make_binary_word("111010001101000"), make_binary_word("00100100") );
+    BinaryTreePaving expected_tree_set_result( theGrid, theExtent, make_binary_word("111010001101000"), make_binary_word("00100100") );
     ARIADNE_TESTING_EXPECT_EQUAL( expected_tree_set_result, theOneCellPaving );
 }
 
@@ -1540,7 +1540,7 @@ Void test_adjoin_outer_approximation_operation(){
     Grid theTrivialGrid(2, 1.0);
 
     // !!!
-    ARIADNE_TESTING_NOTE("Test adjoining_outer_approximation a SetInterface to the GridTreePaving");
+    ARIADNE_TESTING_NOTE("Test adjoining_outer_approximation a SetInterface to the BinaryTreePaving");
     ExactBoxType initialRectangle( make_box("[-0.5,1.5]x[-0.3,1.0]") );
 
     //Define the higth of the primary root cell.
@@ -1553,22 +1553,22 @@ Void test_adjoin_outer_approximation_operation(){
     pRootTreeNode->right_node()->left_node()->right_node()->split();
     pRootTreeNode->right_node()->left_node()->right_node()->left_node()->set_enabled();
 
-    //Create the GridTreePaving with the box related to the grid, but not to the original space
-    ARIADNE_TESTING_NOTE("The initial GridTreePaving with the primary root cell extent = 2");
-    GridTreePaving theOneCellPaving( theTrivialGrid, theExtent, pRootTreeNode );
+    //Create the BinaryTreePaving with the box related to the grid, but not to the original space
+    ARIADNE_TESTING_NOTE("The initial BinaryTreePaving with the primary root cell extent = 2");
+    BinaryTreePaving theOneCellPaving( theTrivialGrid, theExtent, pRootTreeNode );
     BinaryWord tree = make_binary_word("101101000");
     BinaryWord leaves = make_binary_word("00100");
-    GridTreePaving expected_grid_tree_set1( theTrivialGrid, theExtent, tree, leaves );
+    BinaryTreePaving expected_grid_tree_set1( theTrivialGrid, theExtent, tree, leaves );
     ARIADNE_TESTING_EXPECT_EQUAL( expected_grid_tree_set1, theOneCellPaving );
 
-    ARIADNE_TESTING_NOTE("The GridTreePaving after adding the cell: ");
+    ARIADNE_TESTING_NOTE("The BinaryTreePaving after adding the cell: ");
     theOneCellPaving.adjoin_outer_approximation( initialRectangle, 1 );
     tree = make_binary_word("1110101111110010011001001110010011001001111001000111001000111110010011001001001111001000000");
     leaves = make_binary_word("0001011111010111111010010100010111111010100000");
-    GridTreePaving expected_grid_tree_set2( theTrivialGrid, 4, tree, leaves );
+    BinaryTreePaving expected_grid_tree_set2( theTrivialGrid, 4, tree, leaves );
     ARIADNE_TESTING_EXPECT_EQUAL( expected_grid_tree_set2, theOneCellPaving );
 
-    ARIADNE_TESTING_NOTE("Recombined GridTreePaving after adding the cell: ");
+    ARIADNE_TESTING_NOTE("Recombined BinaryTreePaving after adding the cell: ");
     std::vector< GridCell* > expected_result_arr(16);
     expected_result_arr[0] = new GridCell( theTrivialGrid, 4, make_binary_word("[0,0,1,1,0,0,0,0,0,1]") );
     expected_result_arr[1] = new GridCell( theTrivialGrid, 4, make_binary_word("[0,0,1,1,0,0,0,0,1,1]") );
@@ -1591,22 +1591,22 @@ Void test_adjoin_outer_approximation_operation(){
     clean_test_vector( expected_result_arr );
 
     // !!!
-    ARIADNE_TESTING_NOTE("Create an outer_approximation of the rectangle on the scaling grid and get the GridTreePaving");
+    ARIADNE_TESTING_NOTE("Create an outer_approximation of the rectangle on the scaling grid and get the BinaryTreePaving");
     Grid theScalingGrid(2, 2.0);
-    GridTreePaving theOuterApproxGridTreePaving = outer_approximation( initialRectangle, theScalingGrid, 1 );
+    BinaryTreePaving theOuterApproxBinaryTreePaving = outer_approximation( initialRectangle, theScalingGrid, 1 );
     //IVAN S. ZAPREEV
     //NOTE: The recombination is needed because in the scaling Grid doing
     //    outer_approximation( theScalingGrid, initialRectangle, 2 )
     //will result in subdivisions that are equal to unit cell in the original
     //space in this case we will get much more elements, e.g. the cells
     //  [-1,0]x[0,2], [0,2]x[0,2] will be subdivided as well
-    theOuterApproxGridTreePaving.recombine();
+    theOuterApproxBinaryTreePaving.recombine();
     expected_result_arr[0] = new GridCell( theScalingGrid, 3, make_binary_word("[1,1,0,0,0,0,1,1]") );
     expected_result_arr[1] = new GridCell( theScalingGrid, 3, make_binary_word("[1,1,0,0,0,1,1]") );
     expected_result_arr[2] = new GridCell( theScalingGrid, 3, make_binary_word("[1,1,0,0,1,0,0,1]") );
     expected_result_arr[3] = new GridCell( theScalingGrid, 3, make_binary_word("[1,1,0,0,1,0,1,1]") );
     expected_result_arr[4] = new GridCell( theScalingGrid, 3, make_binary_word("[1,1,0,0,1,1]") );
-    check_grid_tree_subpaving_iterator( expected_result_arr, theOuterApproxGridTreePaving, 5 );
+    check_grid_tree_subpaving_iterator( expected_result_arr, theOuterApproxBinaryTreePaving, 5 );
     clean_test_vector( expected_result_arr );
 }
 
@@ -1616,8 +1616,8 @@ Void test_adjoin_inner_approximation_operation_one(){
 
     //Create an empty set to which we will be adding inner approximations
     //theSetTwo = empty, with the bounding box [0,1]x[0,1]
-    GridTreePaving theSetZero( theTrivialGrid, extentZero, new BinaryTreeNode( make_binary_word("0"), make_binary_word("0") ) );
-    GridTreePaving theSetZeroCopy( theSetZero );
+    BinaryTreePaving theSetZero( theTrivialGrid, extentZero, new BinaryTreeNode( make_binary_word("0"), make_binary_word("0") ) );
+    BinaryTreePaving theSetZeroCopy( theSetZero );
     ExactBoxSetType theBoxZeroOne = make_box("[-0.9,-0.1]x[0.1,0.9]");
     ExactBoxType theBoundingBoxZeroOne = make_box("[0.01,0.99]x[0.01,0.99]");
 
@@ -1658,8 +1658,8 @@ Void test_adjoin_inner_approximation_operation_two(){
 
     //Create an empty set to which we will be adding inner approximations
     //theSetTwo = empty, with the bounding box [-1,1]x[-1,1]
-    GridTreePaving theSetOne( theTrivialGrid, extentOne, new BinaryTreeNode( make_binary_word("0"), make_binary_word("0") ) );
-    GridTreePaving theSetOneCopy( theSetOne );
+    BinaryTreePaving theSetOne( theTrivialGrid, extentOne, new BinaryTreeNode( make_binary_word("0"), make_binary_word("0") ) );
+    BinaryTreePaving theSetOneCopy( theSetOne );
     ExactBoxSetType theBoxOneOne = make_box("[-1.9,-0.1]x[0.1,1.75]");
     ExactBoxType theBoundingBoxOneOne = make_box("[-0.99,0.99]x[-0.99,1.99]");
 
@@ -1703,8 +1703,8 @@ Void test_adjoin_inner_approximation_operation_three(){
     //Create a more complex set set to which we will be adding inner approximations
     //theSetTwo = [-1,0]x[-1,0] U [0,1]x[0,1] U [1,3]x[1,3]
     //The set's bounding box is [-1,3]x[-1,3]
-    GridTreePaving theSetTwo( theTrivialGrid, extentTwo, new BinaryTreeNode( make_binary_word("1111001000100"), make_binary_word("1001001") ) );
-    GridTreePaving theSetTwoCopy( theSetTwo );
+    BinaryTreePaving theSetTwo( theTrivialGrid, extentTwo, new BinaryTreeNode( make_binary_word("1111001000100"), make_binary_word("1001001") ) );
+    BinaryTreePaving theSetTwoCopy( theSetTwo );
     ExactBoxSetType theBoxTwoOne = make_box("[0.49,1.51]x[0.49,1.51]");
 
     // !!!
@@ -1749,8 +1749,8 @@ Void test_restrict() {
     pTwoEnabledNodeTreeH2->right_node()->left_node()->left_node()->set_enabled();
     pTwoEnabledNodeTreeH2->right_node()->left_node()->right_node()->split();
     pTwoEnabledNodeTreeH2->right_node()->left_node()->right_node()->left_node()->set_enabled();
-    //Create the GridTreePaving
-    GridTreePaving theTwoCellPavingH2( theTrivialGrid, extentTwo, pTwoEnabledNodeTreeH2 );
+    //Create the BinaryTreePaving
+    BinaryTreePaving theTwoCellPavingH2( theTrivialGrid, extentTwo, pTwoEnabledNodeTreeH2 );
 
     //Create another binary tree
     BinaryTreeNode * pThreeEnabledNodeTreeH2 = new BinaryTreeNode( *pTwoEnabledNodeTreeH2 );
@@ -1761,8 +1761,8 @@ Void test_restrict() {
     pThreeEnabledNodeTreeH2->right_node()->left_node()->left_node()->split();
     pThreeEnabledNodeTreeH2->right_node()->left_node()->left_node()->right_node()->set_disabled();
 
-    //Create another GridTreePaving
-    GridTreePaving theThreeCellPavingH2( theTrivialGrid, extentTwo, pThreeEnabledNodeTreeH2 );
+    //Create another BinaryTreePaving
+    BinaryTreePaving theThreeCellPavingH2( theTrivialGrid, extentTwo, pThreeEnabledNodeTreeH2 );
 
     //Create another binary tree
     BinaryTreeNode ownedThreeEnabledNodeTreeH3(false);
@@ -1773,19 +1773,19 @@ Void test_restrict() {
     BinaryWord thePathToSubPavingRoot;
     thePathToSubPavingRoot.push_back(true);
     thePathToSubPavingRoot.push_back(true);
-    //Create the GridTreeSubpaving
-    GridTreeSubpaving theThreeCellSubPavingH3( theTrivialGrid, extentThree , thePathToSubPavingRoot, pThreeEnabledNodeTreeH3->right_node()->right_node() );
+    //Create the BinaryTreeSubpaving
+    BinaryTreeSubpaving theThreeCellSubPavingH3( theTrivialGrid, extentThree , thePathToSubPavingRoot, pThreeEnabledNodeTreeH3->right_node()->right_node() );
 
     // !!!
-    ARIADNE_TESTING_NOTE("Test restrict operation: GridTreePaving1.restrict( GridTreePaving2 )");
-    ARIADNE_TESTING_NOTE("The initial GridTreePaving1: ");
+    ARIADNE_TESTING_NOTE("Test restrict operation: BinaryTreePaving1.restrict( BinaryTreePaving2 )");
+    ARIADNE_TESTING_NOTE("The initial BinaryTreePaving1: ");
     expected_result_arr[0] = new GridCell( theTrivialGrid, 2, make_binary_word("[0,0]") );
     expected_result_arr[1] = new GridCell( theTrivialGrid, 2, make_binary_word("[1,0,0,0]") );
     expected_result_arr[2] = new GridCell( theTrivialGrid, 2, make_binary_word("[1,0,1,1]") );
     check_grid_tree_subpaving_iterator( expected_result_arr, theThreeCellPavingH2, 3 );
     clean_test_vector( expected_result_arr );
 
-    ARIADNE_TESTING_NOTE("The initial GridTreePaving2: ");
+    ARIADNE_TESTING_NOTE("The initial BinaryTreePaving2: ");
     expected_result_arr[0] = new GridCell( theTrivialGrid, 2, make_binary_word("[1,0,0]") );
     expected_result_arr[1] = new GridCell( theTrivialGrid, 2, make_binary_word("[1,0,1,0]") );
     check_grid_tree_subpaving_iterator( expected_result_arr, theTwoCellPavingH2, 2 );
@@ -1798,14 +1798,14 @@ Void test_restrict() {
     clean_test_vector( expected_result_arr );
 
     // !!!
-    ARIADNE_TESTING_NOTE("Test restrict operation: GridTreePaving.restrict( GridTreeSubpaving )");
-    ARIADNE_TESTING_NOTE("The initial GridTreePaving: ");
+    ARIADNE_TESTING_NOTE("Test restrict operation: BinaryTreePaving.restrict( BinaryTreeSubpaving )");
+    ARIADNE_TESTING_NOTE("The initial BinaryTreePaving: ");
     expected_result_arr[0] = new GridCell( theTrivialGrid, 2, make_binary_word("[1,0,0]") );
     expected_result_arr[1] = new GridCell( theTrivialGrid, 2, make_binary_word("[1,0,1,0]") );
     check_grid_tree_subpaving_iterator( expected_result_arr, theTwoCellPavingH2, 2 );
     clean_test_vector( expected_result_arr );
 
-    ARIADNE_TESTING_NOTE("The initial GridTreeSubpaving: ");
+    ARIADNE_TESTING_NOTE("The initial BinaryTreeSubpaving: ");
     expected_result_arr[0] = new GridCell( theTrivialGrid, 3, make_binary_word("[1,1,0,0]") );
     expected_result_arr[1] = new GridCell( theTrivialGrid, 3, make_binary_word("[1,1,1,0,0,0]") );
     expected_result_arr[2] = new GridCell( theTrivialGrid, 3, make_binary_word("[1,1,1,0,1,1]") );
@@ -1818,8 +1818,8 @@ Void test_restrict() {
     check_grid_tree_subpaving_iterator( expected_result_arr, theTwoCellPavingH2, 1 );
     clean_test_vector( expected_result_arr );
 
-    //TODO: Test the case when the GridTreePaving has primary cell of the level 3
-    //    The GridTreeSubpaving is at level 1 and it's primary cell is at level 2
+    //TODO: Test the case when the BinaryTreePaving has primary cell of the level 3
+    //    The BinaryTreeSubpaving is at level 1 and it's primary cell is at level 2
 }
 
 Void test_remove_one() {
@@ -1836,8 +1836,8 @@ Void test_remove_one() {
     pTwoEnabledNodeTreeH2->right_node()->left_node()->left_node()->set_enabled();
     pTwoEnabledNodeTreeH2->right_node()->left_node()->right_node()->split();
     pTwoEnabledNodeTreeH2->right_node()->left_node()->right_node()->left_node()->set_enabled();
-    //Create the GridTreePaving
-    GridTreePaving theTwoCellPavingH2( theTrivialGrid, extentTwo, pTwoEnabledNodeTreeH2 );
+    //Create the BinaryTreePaving
+    BinaryTreePaving theTwoCellPavingH2( theTrivialGrid, extentTwo, pTwoEnabledNodeTreeH2 );
 
     //Create another binary tree
     BinaryTreeNode * pThreeEnabledNodeTreeH2 = new BinaryTreeNode( *pTwoEnabledNodeTreeH2 );
@@ -1848,8 +1848,8 @@ Void test_remove_one() {
     pThreeEnabledNodeTreeH2->right_node()->left_node()->left_node()->split();
     pThreeEnabledNodeTreeH2->right_node()->left_node()->left_node()->right_node()->set_disabled();
 
-    //Create another GridTreePaving
-    GridTreePaving theThreeCellPavingH2( theTrivialGrid, extentTwo, pThreeEnabledNodeTreeH2 );
+    //Create another BinaryTreePaving
+    BinaryTreePaving theThreeCellPavingH2( theTrivialGrid, extentTwo, pThreeEnabledNodeTreeH2 );
 
     //Create another binary tree
     BinaryTreeNode ownedThreeEnabledNodeTreeH3(false);
@@ -1860,19 +1860,19 @@ Void test_remove_one() {
     BinaryWord thePathToSubPavingRoot;
     thePathToSubPavingRoot.push_back(true);
     thePathToSubPavingRoot.push_back(true);
-    //Create the GridTreeSubpaving
-    GridTreeSubpaving theThreeCellSubPavingH3( theTrivialGrid, extentThree , thePathToSubPavingRoot, pThreeEnabledNodeTreeH3->right_node()->right_node() );
+    //Create the BinaryTreeSubpaving
+    BinaryTreeSubpaving theThreeCellSubPavingH3( theTrivialGrid, extentThree , thePathToSubPavingRoot, pThreeEnabledNodeTreeH3->right_node()->right_node() );
 
     // !!!
-    ARIADNE_TESTING_NOTE("Test remove operation: GridTreePaving1.remove( GridTreePaving2 )");
-    ARIADNE_TESTING_NOTE("The initial GridTreePaving1: ");
+    ARIADNE_TESTING_NOTE("Test remove operation: BinaryTreePaving1.remove( BinaryTreePaving2 )");
+    ARIADNE_TESTING_NOTE("The initial BinaryTreePaving1: ");
     expected_result_arr[0] = new GridCell( theTrivialGrid, 2, make_binary_word("[0,0]") );
     expected_result_arr[1] = new GridCell( theTrivialGrid, 2, make_binary_word("[1,0,0,0]") );
     expected_result_arr[2] = new GridCell( theTrivialGrid, 2, make_binary_word("[1,0,1,1]") );
     check_grid_tree_subpaving_iterator( expected_result_arr, theThreeCellPavingH2, 3 );
     clean_test_vector( expected_result_arr );
 
-    ARIADNE_TESTING_NOTE("The initial GridTreePaving2: ");
+    ARIADNE_TESTING_NOTE("The initial BinaryTreePaving2: ");
     expected_result_arr[0] = new GridCell( theTrivialGrid, 2, make_binary_word("[1,0,0]") );
     expected_result_arr[1] = new GridCell( theTrivialGrid, 2, make_binary_word("[1,0,1,0]") );
     check_grid_tree_subpaving_iterator( expected_result_arr, theTwoCellPavingH2, 2 );
@@ -1886,14 +1886,14 @@ Void test_remove_one() {
     clean_test_vector( expected_result_arr );
 
     // !!!
-    ARIADNE_TESTING_NOTE("Test remove operation: GridTreePaving.remove( GridTreeSubpaving )");
-    ARIADNE_TESTING_NOTE("The initial GridTreePaving: ");
+    ARIADNE_TESTING_NOTE("Test remove operation: BinaryTreePaving.remove( BinaryTreeSubpaving )");
+    ARIADNE_TESTING_NOTE("The initial BinaryTreePaving: ");
     expected_result_arr[0] = new GridCell( theTrivialGrid, 2, make_binary_word("[1,0,0]") );
     expected_result_arr[1] = new GridCell( theTrivialGrid, 2, make_binary_word("[1,0,1,0]") );
     check_grid_tree_subpaving_iterator( expected_result_arr, theTwoCellPavingH2, 2 );
     clean_test_vector( expected_result_arr );
 
-    ARIADNE_TESTING_NOTE("The initial GridTreeSubpaving: ");
+    ARIADNE_TESTING_NOTE("The initial BinaryTreeSubpaving: ");
     expected_result_arr[0] = new GridCell( theTrivialGrid, 3, make_binary_word("[1,1,0,0]") );
     expected_result_arr[1] = new GridCell( theTrivialGrid, 3, make_binary_word("[1,1,1,0,0,0]") );
     expected_result_arr[2] = new GridCell( theTrivialGrid, 3, make_binary_word("[1,1,1,0,1,1]") );
@@ -1907,8 +1907,8 @@ Void test_remove_one() {
     check_grid_tree_subpaving_iterator( expected_result_arr, theTwoCellPavingH2, 2 );
     clean_test_vector( expected_result_arr );
 
-    //TODO: Test the case when the GridTreePaving has primary cell of the level 3
-    //    The GridTreeSubpaving is at level 1 and it's primary cell is at level 2
+    //TODO: Test the case when the BinaryTreePaving has primary cell of the level 3
+    //    The BinaryTreeSubpaving is at level 1 and it's primary cell is at level 2
 }
 
 Void test_remove_two() {
@@ -1917,17 +1917,17 @@ Void test_remove_two() {
     //Allocate a trivial Grid
     Grid theTrivialGrid(2, 1.0);
 
-    //Create a GridTreePaving and its copies
-    GridTreePaving theSet01( theTrivialGrid, extentOne, make_binary_word("110010100"), make_binary_word("10001") );
-    GridTreePaving theSet02( theSet01 );
-    GridTreePaving theSet03( theSet01 );
-    GridTreePaving theSet04( theSet01 );
-    GridTreePaving theSet05( theSet01 );
-    GridTreePaving theSet06( theSet01 );
+    //Create a BinaryTreePaving and its copies
+    BinaryTreePaving theSet01( theTrivialGrid, extentOne, make_binary_word("110010100"), make_binary_word("10001") );
+    BinaryTreePaving theSet02( theSet01 );
+    BinaryTreePaving theSet03( theSet01 );
+    BinaryTreePaving theSet04( theSet01 );
+    BinaryTreePaving theSet05( theSet01 );
+    BinaryTreePaving theSet06( theSet01 );
 
     //Create the cells we will be removing and test removals on the copies of the set
 
-    ARIADNE_TESTING_NOTE("Remove a GridCell (p.c. extent=0) form a GridTreePaving(p.c. extent=1): The cell is a subset.");
+    ARIADNE_TESTING_NOTE("Remove a GridCell (p.c. extent=0) form a BinaryTreePaving(p.c. extent=1): The cell is a subset.");
     GridCell lowerPrimaryCellSubset( theTrivialGrid, extentZero, make_binary_word("11") );
     theSet01.remove( lowerPrimaryCellSubset );
     expected_result_arr[0] = new GridCell( theTrivialGrid, extentOne, make_binary_word("00") );
@@ -1935,7 +1935,7 @@ Void test_remove_two() {
     check_grid_tree_subpaving_iterator( expected_result_arr, theSet01, 2 );
     clean_test_vector( expected_result_arr );
 
-    ARIADNE_TESTING_NOTE("Remove a GridCell (p.c. extent=0) form a GridTreePaving(p.c. extent=1): The cell does not intersect the set.");
+    ARIADNE_TESTING_NOTE("Remove a GridCell (p.c. extent=0) form a BinaryTreePaving(p.c. extent=1): The cell does not intersect the set.");
     GridCell lowerPrimaryCellNoIntersection( theTrivialGrid, extentZero, make_binary_word("00") );
     theSet02.remove( lowerPrimaryCellNoIntersection );
     expected_result_arr[0] = new GridCell( theTrivialGrid, extentOne, make_binary_word("00") );
@@ -1943,14 +1943,14 @@ Void test_remove_two() {
     check_grid_tree_subpaving_iterator( expected_result_arr, theSet02, 2 );
     clean_test_vector( expected_result_arr );
 
-    ARIADNE_TESTING_NOTE("Remove a GridCell (p.c. extent=0) form a GridTreePaving(p.c. extent=1): The cell intersects the set.");
+    ARIADNE_TESTING_NOTE("Remove a GridCell (p.c. extent=0) form a BinaryTreePaving(p.c. extent=1): The cell intersects the set.");
     GridCell lowerPrimaryCellIntersection( theTrivialGrid, extentZero, BinaryWord() );
     theSet03.remove( lowerPrimaryCellIntersection );
     expected_result_arr[0] = new GridCell( theTrivialGrid, extentOne, make_binary_word("00") );
     check_grid_tree_subpaving_iterator( expected_result_arr, theSet03, 1 );
     clean_test_vector( expected_result_arr );
 
-    ARIADNE_TESTING_NOTE("Remove a GridCell (p.c. extent=2) form a GridTreePaving(p.c. extent=1): The cell is a subset.");
+    ARIADNE_TESTING_NOTE("Remove a GridCell (p.c. extent=2) form a BinaryTreePaving(p.c. extent=1): The cell is a subset.");
     GridCell higherPrimaryCellSubset( theTrivialGrid, extentTwo, make_binary_word("000011") );
     theSet04.remove( higherPrimaryCellSubset );
     expected_result_arr[0] = new GridCell( theTrivialGrid, extentTwo, make_binary_word("00000") );
@@ -1959,7 +1959,7 @@ Void test_remove_two() {
     check_grid_tree_subpaving_iterator( expected_result_arr, theSet04, 3 );
     clean_test_vector( expected_result_arr );
 
-    ARIADNE_TESTING_NOTE("Remove a GridCell (p.c. extent=2) form a GridTreePaving(p.c. extent=1): The cell does not intersect the set.");
+    ARIADNE_TESTING_NOTE("Remove a GridCell (p.c. extent=2) form a BinaryTreePaving(p.c. extent=1): The cell does not intersect the set.");
     GridCell higherPrimaryCellNoIntersection( theTrivialGrid, extentTwo, make_binary_word("010") );
     theSet05.remove( higherPrimaryCellNoIntersection );
     expected_result_arr[0] = new GridCell( theTrivialGrid, extentTwo, make_binary_word("0000") );
@@ -1967,7 +1967,7 @@ Void test_remove_two() {
     check_grid_tree_subpaving_iterator( expected_result_arr, theSet05, 2 );
     clean_test_vector( expected_result_arr );
 
-    ARIADNE_TESTING_NOTE("Remove a GridCell (p.c. extent=2) form a GridTreePaving(p.c. extent=1): The cell intersects the set.");
+    ARIADNE_TESTING_NOTE("Remove a GridCell (p.c. extent=2) form a BinaryTreePaving(p.c. extent=1): The cell intersects the set.");
     GridCell higherPrimaryCellIntersection( theTrivialGrid, extentTwo, make_binary_word("0011") );
     theSet06.remove( higherPrimaryCellIntersection );
     expected_result_arr[0] = new GridCell( theTrivialGrid, extentTwo, make_binary_word("0000") );
@@ -2002,12 +2002,12 @@ Void test_cell_subset_subset() {
     pBinaryTreeRoot->left_node()->left_node()->right_node()->left_node()->set_disabled();
     pBinaryTreeRoot->left_node()->left_node()->left_node()->right_node()->set_disabled();
 
-    //Create the GridTreeSubpaving, will be rooted to the primary cell of height smallExtent
-    GridTreeSubpaving theSmallSubPaving( theTrivialGrid, smallExtent, make_binary_word("0011"),
+    //Create the BinaryTreeSubpaving, will be rooted to the primary cell of height smallExtent
+    BinaryTreeSubpaving theSmallSubPaving( theTrivialGrid, smallExtent, make_binary_word("0011"),
                                       pBinaryTreeRoot->left_node()->left_node()->right_node()->right_node() );
 
     // !!!
-    ARIADNE_TESTING_NOTE("Test subset operation GridCell (extent=1), GridTreeSubpaving.mince_to_tree_depth(2) (extent=0)");
+    ARIADNE_TESTING_NOTE("Test subset operation GridCell (extent=1), BinaryTreeSubpaving.mince_to_tree_depth(2) (extent=0)");
     theSmallSubPaving.mince_to_tree_depth(2);
     ARIADNE_TESTING_NOTE("theCell");
     ARIADNE_TESTING_NOTE(theCell);
@@ -2016,7 +2016,7 @@ Void test_cell_subset_subset() {
     ARIADNE_TESTING_EXPECT_EQUAL( subset( theCell, theSmallSubPaving), false );
 
     // !!!
-    ARIADNE_TESTING_NOTE("Test subset operation GridCell (extent=1), GridTreeSubpaving.recombine() (extent=0)");
+    ARIADNE_TESTING_NOTE("Test subset operation GridCell (extent=1), BinaryTreeSubpaving.recombine() (extent=0)");
     theSmallSubPaving.recombine();
     ARIADNE_TESTING_NOTE("theCell");
     ARIADNE_TESTING_NOTE(theCell);
@@ -2024,12 +2024,12 @@ Void test_cell_subset_subset() {
     ARIADNE_TESTING_NOTE(theSmallSubPaving);
     ARIADNE_TESTING_EXPECT_EQUAL( subset( theCell, theSmallSubPaving), false );
 
-    //Create the GridTreeSubpaving, will be rooted to the primary cell of height bigExtent
-    GridTreeSubpaving theBigSubPaving( theTrivialGrid, bigExtent, make_binary_word("0011"),
+    //Create the BinaryTreeSubpaving, will be rooted to the primary cell of height bigExtent
+    BinaryTreeSubpaving theBigSubPaving( theTrivialGrid, bigExtent, make_binary_word("0011"),
                                     pBinaryTreeRoot->left_node()->left_node()->right_node()->right_node() );
 
     // !!!
-    ARIADNE_TESTING_NOTE("Test subset operation GridCell (extent=1), GridTreeSubpaving.mince_to_tree_depth(2) (extent=2)");
+    ARIADNE_TESTING_NOTE("Test subset operation GridCell (extent=1), BinaryTreeSubpaving.mince_to_tree_depth(2) (extent=2)");
     theSmallSubPaving.mince_to_tree_depth(2);
     ARIADNE_TESTING_NOTE("theCell");
     ARIADNE_TESTING_NOTE(theCell);
@@ -2038,7 +2038,7 @@ Void test_cell_subset_subset() {
     ARIADNE_TESTING_EXPECT_EQUAL( subset( theCell, theBigSubPaving), true );
 
     // !!!
-    ARIADNE_TESTING_NOTE("Test subset operation GridCell (extent=1), GridTreeSubpaving.recombine() (extent=2)");
+    ARIADNE_TESTING_NOTE("Test subset operation GridCell (extent=1), BinaryTreeSubpaving.recombine() (extent=2)");
     theSmallSubPaving.recombine();
     ARIADNE_TESTING_NOTE("theCell");
     ARIADNE_TESTING_NOTE(theCell);
@@ -2047,7 +2047,7 @@ Void test_cell_subset_subset() {
     ARIADNE_TESTING_EXPECT_EQUAL( subset( theCell, theBigSubPaving), true );
 
     // !!!
-    ARIADNE_TESTING_NOTE("Test subset operation GridCell (extent=1), GridTreeSubpaving.mince_to_tree_depth(2), left_node()->left_node()->set_disabled() (extent=2)");
+    ARIADNE_TESTING_NOTE("Test subset operation GridCell (extent=1), BinaryTreeSubpaving.mince_to_tree_depth(2), left_node()->left_node()->set_disabled() (extent=2)");
     theSmallSubPaving.mince_to_tree_depth(2);
     theSmallSubPaving.binary_tree()->left_node()->left_node()->set_disabled();
     ARIADNE_TESTING_NOTE("theCell");
@@ -2057,7 +2057,7 @@ Void test_cell_subset_subset() {
     ARIADNE_TESTING_EXPECT_EQUAL( subset( theCell, theBigSubPaving), false );
 
     // !!!
-    ARIADNE_TESTING_NOTE("Test subset operation GridCell (extent=1), GridTreeSubpaving.mince_to_tree_depth(2), left_node()->left_node()->set_enabled(), right_node()->make_leaf(false) (extent=2)");
+    ARIADNE_TESTING_NOTE("Test subset operation GridCell (extent=1), BinaryTreeSubpaving.mince_to_tree_depth(2), left_node()->left_node()->set_enabled(), right_node()->make_leaf(false) (extent=2)");
     theSmallSubPaving.mince_to_tree_depth(2);
     theSmallSubPaving.binary_tree()->left_node()->left_node()->set_enabled();
     theSmallSubPaving.binary_tree()->right_node()->make_leaf(false);
@@ -2068,16 +2068,16 @@ Void test_cell_subset_subset() {
     ARIADNE_TESTING_EXPECT_EQUAL( subset( theCell, theBigSubPaving), true );
 
 
-    //Create the GridTreeSub, will be rooted to the primary cell of height smallExtent
-    // GridTreePaving owns its root: do not transfer a subtree owned by pBinaryTreeRoot.
-    GridTreePaving theSmallPaving( theTrivialGrid, smallExtent,
+    //Create the BinaryTreeSub, will be rooted to the primary cell of height smallExtent
+    // BinaryTreePaving owns its root: do not transfer a subtree owned by pBinaryTreeRoot.
+    BinaryTreePaving theSmallPaving( theTrivialGrid, smallExtent,
                                    new BinaryTreeNode(*pBinaryTreeRoot->left_node()->left_node()->right_node()->right_node()) );
     //Restore the binary tree
     theSmallPaving.binary_tree()->right_node()->set_enabled();
     theSmallPaving.binary_tree()->right_node()->split();
 
     // !!!
-    ARIADNE_TESTING_NOTE("Test subset operation GridCell (extent=1), GridTreePaving.mince_to_tree_depth(2) (after restoring the binary tree) (extent=2)");
+    ARIADNE_TESTING_NOTE("Test subset operation GridCell (extent=1), BinaryTreePaving.mince_to_tree_depth(2) (after restoring the binary tree) (extent=2)");
     theSmallPaving.mince_to_tree_depth(2);
     ARIADNE_TESTING_NOTE("theCell");
     ARIADNE_TESTING_NOTE(theCell);
@@ -2086,7 +2086,7 @@ Void test_cell_subset_subset() {
     ARIADNE_TESTING_EXPECT_EQUAL( subset( theCell, theSmallPaving), true );
 
     // !!!
-    ARIADNE_TESTING_NOTE("Test subset operation GridCell (extent=1), GridTreePaving.recombine() (extent=2)");
+    ARIADNE_TESTING_NOTE("Test subset operation GridCell (extent=1), BinaryTreePaving.recombine() (extent=2)");
     theSmallPaving.recombine();
     ARIADNE_TESTING_NOTE("theCell");
     ARIADNE_TESTING_NOTE(theCell);
@@ -2095,7 +2095,7 @@ Void test_cell_subset_subset() {
     ARIADNE_TESTING_EXPECT_EQUAL( subset( theCell, theSmallPaving), true );
 
     // !!!
-    ARIADNE_TESTING_NOTE("Test subset operation GridCell (extent=1), GridTreePaving.mince_to_tree_depth(2), left_node()->left_node()->set_disabled() (extent=2)");
+    ARIADNE_TESTING_NOTE("Test subset operation GridCell (extent=1), BinaryTreePaving.mince_to_tree_depth(2), left_node()->left_node()->set_disabled() (extent=2)");
     theSmallPaving.mince_to_tree_depth(2);
     theSmallPaving.binary_tree()->left_node()->left_node()->set_disabled();
     ARIADNE_TESTING_NOTE("theCell");
@@ -2105,7 +2105,7 @@ Void test_cell_subset_subset() {
     ARIADNE_TESTING_EXPECT_EQUAL( subset( theCell, theSmallPaving), false );
 
     // !!!
-    ARIADNE_TESTING_NOTE("Test subset operation GridCell (extent=1), GridTreePaving.mince_to_tree_depth(2), left_node()->left_node()->set_enabled(), ...right_node()->make_leaf(false) (extent=2)");
+    ARIADNE_TESTING_NOTE("Test subset operation GridCell (extent=1), BinaryTreePaving.mince_to_tree_depth(2), left_node()->left_node()->set_enabled(), ...right_node()->make_leaf(false) (extent=2)");
     theSmallPaving.mince_to_tree_depth(2);
     theSmallPaving.binary_tree()->left_node()->left_node()->set_enabled();
     theSmallPaving.binary_tree()->right_node()->make_leaf(false);
@@ -2116,17 +2116,17 @@ Void test_cell_subset_subset() {
     ARIADNE_TESTING_EXPECT_EQUAL( subset( theCell, theSmallPaving), true );
 
 
-    //Create the GridTreeSub, will be rooted to the primary cell of height bigExtent
+    //Create the BinaryTreeSub, will be rooted to the primary cell of height bigExtent
     // Preserve the shared-subtree state expected by the subsequent big-paving tests.
     pBinaryTreeRoot->left_node()->left_node()->right_node()->right_node()->copy_from(theSmallPaving.binary_tree());
     BinaryTreeNode * pBinaryTreeRootCopy = new BinaryTreeNode( * pBinaryTreeRoot );
-    GridTreePaving theBigPaving( theTrivialGrid, bigExtent, pBinaryTreeRootCopy );
+    BinaryTreePaving theBigPaving( theTrivialGrid, bigExtent, pBinaryTreeRootCopy );
     //Restore the binary tree
     pBinaryTreeRootCopy->left_node()->left_node()->right_node()->right_node()->right_node()->set_enabled();
     pBinaryTreeRootCopy->left_node()->left_node()->right_node()->right_node()->right_node()->split();
 
     // !!!
-    ARIADNE_TESTING_NOTE("Test subset operation GridCell (extent=1), GridTreePaving.mince_to_tree_depth(6) (after restoring the binary tree) (extent=2)");
+    ARIADNE_TESTING_NOTE("Test subset operation GridCell (extent=1), BinaryTreePaving.mince_to_tree_depth(6) (after restoring the binary tree) (extent=2)");
     theBigPaving.mince_to_tree_depth(6);
     ARIADNE_TESTING_NOTE("theCell");
     ARIADNE_TESTING_NOTE(theCell);
@@ -2135,7 +2135,7 @@ Void test_cell_subset_subset() {
     ARIADNE_TESTING_EXPECT_EQUAL( subset( theCell, theBigPaving), true );
 
     // !!!
-    ARIADNE_TESTING_NOTE("Test subset operation GridCell (extent=1), GridTreePaving.recombine() (extent=2)");
+    ARIADNE_TESTING_NOTE("Test subset operation GridCell (extent=1), BinaryTreePaving.recombine() (extent=2)");
     theBigPaving.recombine();
     ARIADNE_TESTING_NOTE("theCell");
     ARIADNE_TESTING_NOTE(theCell);
@@ -2144,7 +2144,7 @@ Void test_cell_subset_subset() {
     ARIADNE_TESTING_EXPECT_EQUAL( subset( theCell, theBigPaving), true );
 
     // !!!
-    ARIADNE_TESTING_NOTE("Test subset operation GridCell (extent=1), GridTreePaving.mince_to_tree_depth(6), ...left_node()->left_node()->set_disabled() (extent=2)");
+    ARIADNE_TESTING_NOTE("Test subset operation GridCell (extent=1), BinaryTreePaving.mince_to_tree_depth(6), ...left_node()->left_node()->set_disabled() (extent=2)");
     theBigPaving.mince_to_tree_depth(6);
     theBigPaving.binary_tree()->left_node()->left_node()->right_node()->right_node()->left_node()->left_node()->set_disabled();
     ARIADNE_TESTING_NOTE("theCell");
@@ -2154,7 +2154,7 @@ Void test_cell_subset_subset() {
     ARIADNE_TESTING_EXPECT_EQUAL( subset( theCell, theBigPaving), false );
 
     // !!!
-    ARIADNE_TESTING_NOTE("Test subset operation GridCell (extent=1), GridTreePaving.mince_to_tree_depth(6), ...left_node()->left_node()->set_enabled(), ...right_node()->make_leaf(false) (extent=2)");
+    ARIADNE_TESTING_NOTE("Test subset operation GridCell (extent=1), BinaryTreePaving.mince_to_tree_depth(6), ...left_node()->left_node()->set_enabled(), ...right_node()->make_leaf(false) (extent=2)");
     theBigPaving.mince_to_tree_depth(6);
     theBigPaving.binary_tree()->left_node()->left_node()->right_node()->right_node()->left_node()->left_node()->set_enabled();
     theBigPaving.binary_tree()->left_node()->left_node()->right_node()->right_node()->right_node()->make_leaf(false);
@@ -2177,13 +2177,13 @@ Void test_subsets_join() {
     BinaryWord tree = make_binary_word("1100100");
     BinaryWord leaves = make_binary_word("1010");
     BinaryTreeNode binaryTreeRootOne( tree, leaves );
-    GridTreeSubpaving theSet1( theTrivialGrid, smallExtent, BinaryWord(), &binaryTreeRootOne );
+    BinaryTreeSubpaving theSet1( theTrivialGrid, smallExtent, BinaryWord(), &binaryTreeRootOne );
 
     //Make set two
     tree = make_binary_word("1100100");
     leaves = make_binary_word("0101");
     BinaryTreeNode binaryTreeRootTwo( tree, leaves );
-    GridTreeSubpaving theSet2( theTrivialGrid, bigExtent, make_binary_word("00"), &binaryTreeRootTwo );
+    BinaryTreeSubpaving theSet2( theTrivialGrid, bigExtent, make_binary_word("00"), &binaryTreeRootTwo );
 
     // !!!
     ARIADNE_TESTING_NOTE("Join theSet1 and theSet2, when recombined they should give us the primary cell of height 1 rooted to the primary cell of height 2");
@@ -2191,9 +2191,9 @@ Void test_subsets_join() {
     ARIADNE_TESTING_NOTE(theSet1);
     ARIADNE_TESTING_NOTE("theSet2");
     ARIADNE_TESTING_NOTE(theSet2);
-    GridTreePaving resultSet = join( theSet1, theSet2 );
+    BinaryTreePaving resultSet = join( theSet1, theSet2 );
     resultSet.recombine();
-    GridTreePaving expectedResultSet( theTrivialGrid, bigExtent, make_binary_word("11000"), make_binary_word("1000") );
+    BinaryTreePaving expectedResultSet( theTrivialGrid, bigExtent, make_binary_word("11000"), make_binary_word("1000") );
     ARIADNE_TESTING_EXPECT_EQUAL( expectedResultSet, resultSet);
 }
 
@@ -2209,13 +2209,13 @@ Void test_subsets_intersection() {
     BinaryWord tree = make_binary_word("1100100");
     BinaryWord leaves = make_binary_word("1010");
     BinaryTreeNode binaryTreeRootOne( tree, leaves );
-    GridTreeSubpaving theSet1( theTrivialGrid, smallExtent, BinaryWord(), &binaryTreeRootOne );
+    BinaryTreeSubpaving theSet1( theTrivialGrid, smallExtent, BinaryWord(), &binaryTreeRootOne );
 
     //Make set two
     tree = make_binary_word("1100100");
     leaves = make_binary_word("0111");
     BinaryTreeNode binaryTreeRootTwo( tree, leaves );
-    GridTreeSubpaving theSet2( theTrivialGrid, bigExtent, make_binary_word("00"), &binaryTreeRootTwo );
+    BinaryTreeSubpaving theSet2( theTrivialGrid, bigExtent, make_binary_word("00"), &binaryTreeRootTwo );
 
     // !!!
     ARIADNE_TESTING_NOTE("Intersect theSet1 and theSet2, should give us a set rooted to the primary cell of height 2");
@@ -2223,8 +2223,8 @@ Void test_subsets_intersection() {
     ARIADNE_TESTING_NOTE(theSet1);
     ARIADNE_TESTING_NOTE("theSet2");
     ARIADNE_TESTING_NOTE(theSet2);
-    GridTreePaving resultSet = intersection( theSet1, theSet2 );
-    GridTreePaving expectedResultSet( theTrivialGrid, bigExtent, make_binary_word("11110010000"), make_binary_word("001000") );
+    BinaryTreePaving resultSet = intersection( theSet1, theSet2 );
+    BinaryTreePaving expectedResultSet( theTrivialGrid, bigExtent, make_binary_word("11110010000"), make_binary_word("001000") );
     ARIADNE_TESTING_EXPECT_EQUAL( expectedResultSet, resultSet);
 }
 
@@ -2240,13 +2240,13 @@ Void test_subsets_difference() {
     BinaryWord tree = make_binary_word("1100100");
     BinaryWord leaves = make_binary_word("1010");
     BinaryTreeNode binaryTreeRootOne( tree, leaves );
-    GridTreeSubpaving theSet1( theTrivialGrid, smallExtent, BinaryWord(), &binaryTreeRootOne );
+    BinaryTreeSubpaving theSet1( theTrivialGrid, smallExtent, BinaryWord(), &binaryTreeRootOne );
 
     //Make set two
     tree = make_binary_word("1100100");
     leaves = make_binary_word("0111");
     BinaryTreeNode binaryTreeRootTwo( tree, leaves );
-    GridTreeSubpaving theSet2( theTrivialGrid, bigExtent, make_binary_word("00"), &binaryTreeRootTwo );
+    BinaryTreeSubpaving theSet2( theTrivialGrid, bigExtent, make_binary_word("00"), &binaryTreeRootTwo );
 
     // !!!
     ARIADNE_TESTING_NOTE("Removing theSet1 from theSet2, should give us a set rooted to the primary cell of height 2");
@@ -2254,8 +2254,8 @@ Void test_subsets_difference() {
     ARIADNE_TESTING_NOTE(theSet1);
     ARIADNE_TESTING_NOTE("theSet2");
     ARIADNE_TESTING_NOTE(theSet2);
-    GridTreePaving resultSet = difference( theSet1, theSet2 );
-    GridTreePaving expectedResultSet( theTrivialGrid, bigExtent, make_binary_word("11110010000"), make_binary_word("100000") );
+    BinaryTreePaving resultSet = difference( theSet1, theSet2 );
+    BinaryTreePaving expectedResultSet( theTrivialGrid, bigExtent, make_binary_word("11110010000"), make_binary_word("100000") );
     ARIADNE_TESTING_EXPECT_EQUAL( expectedResultSet, resultSet);
 }
 
@@ -2267,10 +2267,10 @@ Void test_cell_intersect_subset() {
     BinaryWord tree = make_binary_word("1111001000100");
     BinaryWord leaves = make_binary_word("1001001");
     //Create the set and the subset of this set, they are both rooted to the same primary node of extentTwo
-    GridTreePaving theSet( theTrivialGrid, extentTwo, new BinaryTreeNode( tree, leaves ) );
+    BinaryTreePaving theSet( theTrivialGrid, extentTwo, new BinaryTreeNode( tree, leaves ) );
     //The subset is basically the zero level primary cell
     BinaryWord path = make_binary_word("11");
-    GridTreeSubpaving theSubset( theTrivialGrid, extentOne, path, theSet.binary_tree()->left_node()->left_node()->right_node()->right_node() );
+    BinaryTreeSubpaving theSubset( theTrivialGrid, extentOne, path, theSet.binary_tree()->left_node()->left_node()->right_node()->right_node() );
 
     GridCell theLowCell( theTrivialGrid, extentZero, make_binary_word("111") );        // does intersect with the set and the subset
     GridCell theMediumCellOne( theTrivialGrid, extentOne, make_binary_word("1000") );    // does not intersect with the set and the subset
@@ -2280,7 +2280,7 @@ Void test_cell_intersect_subset() {
     GridCell theHighCellThree( theTrivialGrid, extentTwo, make_binary_word("00") );        // does intersect with the set and the subset
 
     // !!!
-    ARIADNE_TESTING_NOTE("Testing Bool intersect( const GridCell& , const GridTreeSubpaving& )");
+    ARIADNE_TESTING_NOTE("Testing Bool intersect( const GridCell& , const BinaryTreeSubpaving& )");
     ARIADNE_TESTING_NOTE("theSet");
     ARIADNE_TESTING_NOTE(theSet);
     ARIADNE_TESTING_NOTE("theLowCell");
@@ -2288,7 +2288,7 @@ Void test_cell_intersect_subset() {
     ARIADNE_TESTING_EXPECT_EQUAL( intersect( theLowCell, theSet ), true );
 
     // !!!
-    ARIADNE_TESTING_NOTE("Testing Bool intersect( const GridCell& , const GridTreeSubpaving& )");
+    ARIADNE_TESTING_NOTE("Testing Bool intersect( const GridCell& , const BinaryTreeSubpaving& )");
     ARIADNE_TESTING_NOTE("theSet");
     ARIADNE_TESTING_NOTE(theSet);
     ARIADNE_TESTING_NOTE("theMediumCellOne");
@@ -2296,7 +2296,7 @@ Void test_cell_intersect_subset() {
     ARIADNE_TESTING_EXPECT_EQUAL( intersect( theMediumCellOne, theSet ), false );
 
     // !!!
-    ARIADNE_TESTING_NOTE("Testing Bool intersect( const GridCell& , const GridTreeSubpaving& )");
+    ARIADNE_TESTING_NOTE("Testing Bool intersect( const GridCell& , const BinaryTreeSubpaving& )");
     ARIADNE_TESTING_NOTE("theSet");
     ARIADNE_TESTING_NOTE(theSet);
     ARIADNE_TESTING_NOTE("theMediumCellTwo");
@@ -2304,7 +2304,7 @@ Void test_cell_intersect_subset() {
     ARIADNE_TESTING_EXPECT_EQUAL( intersect( theMediumCellTwo, theSet ), true );
 
     // !!!
-    ARIADNE_TESTING_NOTE("Testing Bool intersect( const GridCell& , const GridTreeSubpaving& )");
+    ARIADNE_TESTING_NOTE("Testing Bool intersect( const GridCell& , const BinaryTreeSubpaving& )");
     ARIADNE_TESTING_NOTE("theSet");
     ARIADNE_TESTING_NOTE(theSet);
     ARIADNE_TESTING_NOTE("theHighCellOne");
@@ -2312,7 +2312,7 @@ Void test_cell_intersect_subset() {
     ARIADNE_TESTING_EXPECT_EQUAL( intersect( theHighCellOne, theSet ), true );
 
     // !!!
-    ARIADNE_TESTING_NOTE("Testing Bool intersect( const GridCell& , const GridTreeSubpaving& )");
+    ARIADNE_TESTING_NOTE("Testing Bool intersect( const GridCell& , const BinaryTreeSubpaving& )");
     ARIADNE_TESTING_NOTE("theSet");
     ARIADNE_TESTING_NOTE(theSet);
     ARIADNE_TESTING_NOTE("");
@@ -2320,7 +2320,7 @@ Void test_cell_intersect_subset() {
     ARIADNE_TESTING_EXPECT_EQUAL( intersect( theHighCellTwo, theSet ), false );
 
     // !!!
-    ARIADNE_TESTING_NOTE("Testing Bool intersect( const GridCell& , const GridTreeSubpaving& )");
+    ARIADNE_TESTING_NOTE("Testing Bool intersect( const GridCell& , const BinaryTreeSubpaving& )");
     ARIADNE_TESTING_NOTE("theSet");
     ARIADNE_TESTING_NOTE(theSet);
     ARIADNE_TESTING_NOTE("theHighCellThree");
@@ -2328,7 +2328,7 @@ Void test_cell_intersect_subset() {
     ARIADNE_TESTING_EXPECT_EQUAL( intersect( theHighCellThree, theSet ), true );
 
     // !!!
-    ARIADNE_TESTING_NOTE("Testing Bool intersect( const GridCell& , const GridTreePaving& )");
+    ARIADNE_TESTING_NOTE("Testing Bool intersect( const GridCell& , const BinaryTreePaving& )");
     ARIADNE_TESTING_NOTE("theSubset");
     ARIADNE_TESTING_NOTE(theSubset);
     ARIADNE_TESTING_NOTE("theLowCell");
@@ -2336,7 +2336,7 @@ Void test_cell_intersect_subset() {
     ARIADNE_TESTING_EXPECT_EQUAL( intersect( theLowCell, theSubset ), true );
 
     // !!!
-    ARIADNE_TESTING_NOTE("Testing Bool intersect( const GridCell& , const GridTreePaving& )");
+    ARIADNE_TESTING_NOTE("Testing Bool intersect( const GridCell& , const BinaryTreePaving& )");
     ARIADNE_TESTING_NOTE("theSubset");
     ARIADNE_TESTING_NOTE(theSubset);
     ARIADNE_TESTING_NOTE("theMediumCellOne");
@@ -2344,7 +2344,7 @@ Void test_cell_intersect_subset() {
     ARIADNE_TESTING_EXPECT_EQUAL( intersect( theMediumCellOne, theSubset ), false );
 
     // !!!
-    ARIADNE_TESTING_NOTE("Testing Bool intersect( const GridCell& , const GridTreePaving& )");
+    ARIADNE_TESTING_NOTE("Testing Bool intersect( const GridCell& , const BinaryTreePaving& )");
     ARIADNE_TESTING_NOTE("theSubset");
     ARIADNE_TESTING_NOTE(theSubset);
     ARIADNE_TESTING_NOTE("theMediumCellTwo");
@@ -2352,7 +2352,7 @@ Void test_cell_intersect_subset() {
     ARIADNE_TESTING_EXPECT_EQUAL( intersect( theMediumCellTwo, theSubset ), false );
 
     // !!!
-    ARIADNE_TESTING_NOTE("Testing Bool intersect( const GridCell& , const GridTreePaving& )");
+    ARIADNE_TESTING_NOTE("Testing Bool intersect( const GridCell& , const BinaryTreePaving& )");
     ARIADNE_TESTING_NOTE("theSubset");
     ARIADNE_TESTING_NOTE(theSubset);
     ARIADNE_TESTING_NOTE("theHighCellOne");
@@ -2360,7 +2360,7 @@ Void test_cell_intersect_subset() {
     ARIADNE_TESTING_EXPECT_EQUAL( intersect( theHighCellOne, theSubset ), false );
 
     // !!!
-    ARIADNE_TESTING_NOTE("Testing Bool intersect( const GridCell& , const GridTreePaving& )");
+    ARIADNE_TESTING_NOTE("Testing Bool intersect( const GridCell& , const BinaryTreePaving& )");
     ARIADNE_TESTING_NOTE("theSubset");
     ARIADNE_TESTING_NOTE(theSubset);
     ARIADNE_TESTING_NOTE("theHighCellTwo");
@@ -2368,7 +2368,7 @@ Void test_cell_intersect_subset() {
     ARIADNE_TESTING_EXPECT_EQUAL( intersect( theHighCellTwo, theSubset ), false );
 
     // !!!
-    ARIADNE_TESTING_NOTE("Testing Bool intersect( const GridCell& , const GridTreePaving& )");
+    ARIADNE_TESTING_NOTE("Testing Bool intersect( const GridCell& , const BinaryTreePaving& )");
     ARIADNE_TESTING_NOTE("theSubset");
     ARIADNE_TESTING_NOTE(theSubset);
     ARIADNE_TESTING_NOTE("theHighCellThree");
@@ -2386,13 +2386,13 @@ Void test_subset_intersect_subset() {
     BinaryWord tree = make_binary_word("1111001000100");
     BinaryWord leaves = make_binary_word("1001001");
     //Create the set and the subset of this set, they are both rooted to the same primary node of extentTwo
-    GridTreePaving theSet( theTrivialGrid, extentTwo, new BinaryTreeNode( tree, leaves ) );
+    BinaryTreePaving theSet( theTrivialGrid, extentTwo, new BinaryTreeNode( tree, leaves ) );
     //The subset is basically the zero level primary cell
     BinaryWord path = make_binary_word("11");
-    GridTreeSubpaving theSubset( theTrivialGrid, extentOne, path, theSet.binary_tree()->left_node()->left_node()->right_node()->right_node() );
+    BinaryTreeSubpaving theSubset( theTrivialGrid, extentOne, path, theSet.binary_tree()->left_node()->left_node()->right_node()->right_node() );
 
     // !!!
-    ARIADNE_TESTING_NOTE("Testing Bool intersect( const GridTreeSubpaving& theSet, const GridTreeSubpaving& theSubset )");
+    ARIADNE_TESTING_NOTE("Testing Bool intersect( const BinaryTreeSubpaving& theSet, const BinaryTreeSubpaving& theSubset )");
     ARIADNE_TESTING_NOTE("theSet");
     ARIADNE_TESTING_NOTE(theSet);
     ARIADNE_TESTING_NOTE("theSubset");
@@ -2400,7 +2400,7 @@ Void test_subset_intersect_subset() {
     ARIADNE_TESTING_EXPECT_EQUAL( intersect( theSet, theSubset ), true );
 
     // !!!
-    ARIADNE_TESTING_NOTE("Testing Bool intersect( const GridTreeSubpaving& theSubset, const GridTreeSubpaving& theSet )");
+    ARIADNE_TESTING_NOTE("Testing Bool intersect( const BinaryTreeSubpaving& theSubset, const BinaryTreeSubpaving& theSet )");
     ARIADNE_TESTING_NOTE("theSet");
     ARIADNE_TESTING_NOTE(theSet);
     ARIADNE_TESTING_NOTE("theSubset");
@@ -2412,10 +2412,10 @@ Void test_subset_intersect_subset() {
     BinaryWord leavesOne = make_binary_word("010010001");
     BinaryTreeNode binaryTreeRootOne( treeOne, leavesOne );
     //Create a set that intersects with theSet but not the theSubset
-    GridTreeSubpaving theSubSetOne( theTrivialGrid, extentThree, make_binary_word("11"), &binaryTreeRootOne );
+    BinaryTreeSubpaving theSubSetOne( theTrivialGrid, extentThree, make_binary_word("11"), &binaryTreeRootOne );
 
     // !!!
-    ARIADNE_TESTING_NOTE("Testing Bool intersect( const GridTreeSubpaving& theSet, const GridTreeSubpaving& theSubSetOne )");
+    ARIADNE_TESTING_NOTE("Testing Bool intersect( const BinaryTreeSubpaving& theSet, const BinaryTreeSubpaving& theSubSetOne )");
     ARIADNE_TESTING_NOTE("theSet");
     ARIADNE_TESTING_NOTE(theSet);
     ARIADNE_TESTING_NOTE("theSubSetOne");
@@ -2423,7 +2423,7 @@ Void test_subset_intersect_subset() {
     ARIADNE_TESTING_EXPECT_EQUAL( intersect( theSet, theSubSetOne ), true );
 
     // !!!
-    ARIADNE_TESTING_NOTE("Testing Bool intersect( const GridTreeSubpaving& theSubset, const GridTreeSubpaving& theSubSetOne )");
+    ARIADNE_TESTING_NOTE("Testing Bool intersect( const BinaryTreeSubpaving& theSubset, const BinaryTreeSubpaving& theSubSetOne )");
     ARIADNE_TESTING_NOTE("theSubset");
     ARIADNE_TESTING_NOTE(theSubset);
     ARIADNE_TESTING_NOTE("theSubSetOne");
@@ -2432,10 +2432,10 @@ Void test_subset_intersect_subset() {
 
     //Make the subset two: a subset that does not intersect with theSubSetOne
     //This is done simply changing the prefix in such a way that they do not intersect
-    GridTreeSubpaving theSubSetTwo( theTrivialGrid, extentThree, make_binary_word("10"), &binaryTreeRootOne );
+    BinaryTreeSubpaving theSubSetTwo( theTrivialGrid, extentThree, make_binary_word("10"), &binaryTreeRootOne );
 
     // !!!
-    ARIADNE_TESTING_NOTE("Testing Bool intersect( const GridTreeSubpaving& theSubSetOne, const GridTreeSubpaving& theSubSetTwo )");
+    ARIADNE_TESTING_NOTE("Testing Bool intersect( const BinaryTreeSubpaving& theSubSetOne, const BinaryTreeSubpaving& theSubSetTwo )");
     ARIADNE_TESTING_NOTE("theSubSetOne");
     ARIADNE_TESTING_NOTE(theSubSetOne);
     ARIADNE_TESTING_NOTE("theSubSetTwo");
@@ -2444,10 +2444,10 @@ Void test_subset_intersect_subset() {
 
     //Make a set that intersects with theSet: Just root it to height zero and
     //reuse the tree make a copy of the tree to avoid double deallocations.
-    GridTreePaving theSetOne( theTrivialGrid, extentZero, new BinaryTreeNode( binaryTreeRootOne ) );
+    BinaryTreePaving theSetOne( theTrivialGrid, extentZero, new BinaryTreeNode( binaryTreeRootOne ) );
 
     // !!!
-    ARIADNE_TESTING_NOTE("Testing Bool intersect( const GridTreeSubpaving& theSet, const GridTreeSubpaving& theSetOne )");
+    ARIADNE_TESTING_NOTE("Testing Bool intersect( const BinaryTreeSubpaving& theSet, const BinaryTreeSubpaving& theSetOne )");
     ARIADNE_TESTING_NOTE("theSet");
     ARIADNE_TESTING_NOTE(theSet);
     ARIADNE_TESTING_NOTE("theSetOne");
@@ -2458,7 +2458,7 @@ Void test_subset_intersect_subset() {
     ARIADNE_TESTING_EXPECT_EQUAL( intersect( theSet, theSetOne ), true );
 
     // !!!
-    ARIADNE_TESTING_NOTE("Testing Bool intersect( const GridTreeSubpaving& theSetOne, const GridTreeSubpaving& theSet )");
+    ARIADNE_TESTING_NOTE("Testing Bool intersect( const BinaryTreeSubpaving& theSetOne, const BinaryTreeSubpaving& theSet )");
     ARIADNE_TESTING_NOTE("Mince theSet to depth 20, just to make things more complex");
     theSet.mince_to_tree_depth(20);
     ARIADNE_TESTING_EXPECT_EQUAL( intersect( theSetOne, theSet ), true );
@@ -2472,12 +2472,12 @@ Void test_subset_subset_subset() {
 
     //Create the set and the subset of this set, they are both rooted to the same primary node of extentTwo
     //theSetOne = [-1,0]x[-1,0] U [0,1]x[0,1] U [1,3]x[1,3]
-    GridTreePaving theSetOne( theTrivialGrid, extentTwo, new BinaryTreeNode( make_binary_word("1111001000100"), make_binary_word("1001001") ) );
+    BinaryTreePaving theSetOne( theTrivialGrid, extentTwo, new BinaryTreeNode( make_binary_word("1111001000100"), make_binary_word("1001001") ) );
     //theSubsetOne = [-1,0]x[-1,0] U [0,1]x[0,1]
-    GridTreeSubpaving theSubsetOne( theTrivialGrid, extentTwo, make_binary_word("0"), theSetOne.binary_tree()->left_node() );
+    BinaryTreeSubpaving theSubsetOne( theTrivialGrid, extentTwo, make_binary_word("0"), theSetOne.binary_tree()->left_node() );
 
     // !!!
-    ARIADNE_TESTING_NOTE("Testing Bool subset( const GridTreeSubpaving& theSetOne, const GridTreeSubpaving& theSubsetOne )");
+    ARIADNE_TESTING_NOTE("Testing Bool subset( const BinaryTreeSubpaving& theSetOne, const BinaryTreeSubpaving& theSubsetOne )");
     ARIADNE_TESTING_NOTE("theSetOne");
     ARIADNE_TESTING_NOTE(theSetOne);
     ARIADNE_TESTING_NOTE("theSubsetOne");
@@ -2485,20 +2485,20 @@ Void test_subset_subset_subset() {
     ARIADNE_TESTING_EXPECT_EQUAL( subset( theSetOne, theSubsetOne ), false );
 
     // !!!
-    ARIADNE_TESTING_NOTE("Testing Bool subset( const GridTreeSubpaving& theSubsetOne, const GridTreeSubpaving& theSetOne )");
+    ARIADNE_TESTING_NOTE("Testing Bool subset( const BinaryTreeSubpaving& theSubsetOne, const BinaryTreeSubpaving& theSetOne )");
     ARIADNE_TESTING_EXPECT_EQUAL( subset( theSubsetOne, theSetOne ), true );
 
     //Make two subsets such that the tree of the first one is a super tree of the second one,
     //but the second one contains the first one as a set
     BinaryTreeNode binaryTreeRootTwo( make_binary_word("1111001000100"), make_binary_word("1001000") );
     //theSubSetTwo = [-1,0]x[-1,0] U [0,1]x[0,1]
-    GridTreeSubpaving theSubSetTwo( theTrivialGrid, extentTwo, BinaryWord(), &binaryTreeRootTwo );
+    BinaryTreeSubpaving theSubSetTwo( theTrivialGrid, extentTwo, BinaryWord(), &binaryTreeRootTwo );
     BinaryTreeNode binaryTreeRootThree( make_binary_word("100"), make_binary_word("10") );
     //theSubSetThree = [-1,1]x[-1,3]
-    GridTreeSubpaving theSubSetThree( theTrivialGrid, extentThree, make_binary_word("110"), &binaryTreeRootThree );
+    BinaryTreeSubpaving theSubSetThree( theTrivialGrid, extentThree, make_binary_word("110"), &binaryTreeRootThree );
 
     // !!!
-    ARIADNE_TESTING_NOTE("Testing Bool subset( const GridTreeSubpaving& theSubSetTwo, const GridTreeSubpaving& theSubSetThree )");
+    ARIADNE_TESTING_NOTE("Testing Bool subset( const BinaryTreeSubpaving& theSubSetTwo, const BinaryTreeSubpaving& theSubSetThree )");
     ARIADNE_TESTING_NOTE("theSubSetTwo");
     ARIADNE_TESTING_NOTE(theSubSetTwo);
     ARIADNE_TESTING_NOTE("theSubSetThree");
@@ -2506,11 +2506,11 @@ Void test_subset_subset_subset() {
     ARIADNE_TESTING_EXPECT_EQUAL( subset( theSubSetTwo, theSubSetThree ), true );
 
     // !!!
-    ARIADNE_TESTING_NOTE("Testing Bool subset( const GridTreeSubpaving& theSubSetThree, const GridTreeSubpaving& theSubSetTwo )");
+    ARIADNE_TESTING_NOTE("Testing Bool subset( const BinaryTreeSubpaving& theSubSetThree, const BinaryTreeSubpaving& theSubSetTwo )");
     ARIADNE_TESTING_EXPECT_EQUAL( subset( theSubSetThree, theSubSetTwo ), false );
 
     // !!!
-    ARIADNE_TESTING_NOTE("Testing Bool subset( const GridTreeSubpaving& theSubSetTwo, const GridTreeSubpaving& theSubSetThree )");
+    ARIADNE_TESTING_NOTE("Testing Bool subset( const BinaryTreeSubpaving& theSubSetTwo, const BinaryTreeSubpaving& theSubSetThree )");
     ARIADNE_TESTING_NOTE("Mince theSubSetThree to depth 10, just to make things more complex");
     theSubSetThree.mince_to_tree_depth(10);
     ARIADNE_TESTING_EXPECT_EQUAL( subset( theSubSetTwo, theSubSetThree ), true );
@@ -2521,16 +2521,16 @@ Void test_subset_subset_subset() {
     binaryTreeRootFour.mince(5);
     binaryTreeRootFour.left_node()->left_node()->left_node()->left_node()->left_node()->set_disabled();
     //theSubSetThree = [-1,1]x[-1,3] \ [-1,-1]x[-0.5,-0.5]
-    GridTreeSubpaving theSubSetFour( theTrivialGrid, extentThree, make_binary_word("110"), &binaryTreeRootFour );
+    BinaryTreeSubpaving theSubSetFour( theTrivialGrid, extentThree, make_binary_word("110"), &binaryTreeRootFour );
 
     // !!!
-    ARIADNE_TESTING_NOTE("Testing Bool subset( const GridTreeSubpaving& theSubSetFour, const GridTreeSubpaving& theSubSetThree )");
+    ARIADNE_TESTING_NOTE("Testing Bool subset( const BinaryTreeSubpaving& theSubSetFour, const BinaryTreeSubpaving& theSubSetThree )");
     ARIADNE_TESTING_NOTE("theSubSetFour");
     ARIADNE_TESTING_NOTE(theSubSetFour);
     ARIADNE_TESTING_EXPECT_EQUAL( subset( theSubSetFour, theSubSetThree ), true );
 
     // !!!
-    ARIADNE_TESTING_NOTE("Testing Bool subset( const GridTreeSubpaving& theSubSetTwo, const GridTreeSubpaving& theSubSetFour )");
+    ARIADNE_TESTING_NOTE("Testing Bool subset( const BinaryTreeSubpaving& theSubSetTwo, const BinaryTreeSubpaving& theSubSetFour )");
     ARIADNE_TESTING_EXPECT_EQUAL( subset( theSubSetTwo, theSubSetFour ), false );
 
 }
@@ -2542,10 +2542,10 @@ Void test_subset_intersects_box() {
 
     //Create the set and the subset of this set, they are both rooted to the same primary node of extentTwo
     //theSetOne = [-1,0]x[-1,0] U [0,1]x[0,1] U [1,3]x[1,3]
-    GridTreePaving theSetOne( theTrivialGrid, extentTwo, new BinaryTreeNode( make_binary_word("1111001000100"), make_binary_word("1001001") ) );
+    BinaryTreePaving theSetOne( theTrivialGrid, extentTwo, new BinaryTreeNode( make_binary_word("1111001000100"), make_binary_word("1001001") ) );
 
     // !!!
-    ARIADNE_TESTING_NOTE("Testing ValidatedKleenean GridTreeSubpaving::intersects( const ExactBoxType& box ) ");
+    ARIADNE_TESTING_NOTE("Testing ValidatedKleenean BinaryTreeSubpaving::intersects( const ExactBoxType& box ) ");
     ARIADNE_TESTING_NOTE("A box that does not intersects with theSetOne");
     ExactBoxType box = make_box("[-2.0,-1.5]x[10,20]");
     ARIADNE_TESTING_NOTE("theSetOne: " << theSetOne);
@@ -2553,7 +2553,7 @@ Void test_subset_intersects_box() {
     ARIADNE_TESTING_EXPECT_EQUAL( theSetOne.intersects( box ), false );
 
     // !!!
-    ARIADNE_TESTING_NOTE("Testing ValidatedKleenean GridTreeSubpaving::intersects( const ExactBoxType& box ) ");
+    ARIADNE_TESTING_NOTE("Testing ValidatedKleenean BinaryTreeSubpaving::intersects( const ExactBoxType& box ) ");
     ARIADNE_TESTING_NOTE("A box that encloses theSetOne as a strict subset");
     box = make_box("[-2.0,4.0]x[-2.0,4.0]");
     ARIADNE_TESTING_NOTE("theSetOne: " << theSetOne);
@@ -2561,7 +2561,7 @@ Void test_subset_intersects_box() {
     ARIADNE_TESTING_EXPECT_EQUAL( theSetOne.intersects( box ), true );
 
     // !!!
-    ARIADNE_TESTING_NOTE("Testing ValidatedKleenean GridTreeSubpaving::intersects( const ExactBoxType& box ) ");
+    ARIADNE_TESTING_NOTE("Testing ValidatedKleenean BinaryTreeSubpaving::intersects( const ExactBoxType& box ) ");
     ARIADNE_TESTING_NOTE("A box that coincides with one cell of theSetOne");
     box = make_box("[-1.0,0.0]x[-1.0,0.0]");
     ARIADNE_TESTING_NOTE("theSetOne: " << theSetOne);
@@ -2569,7 +2569,7 @@ Void test_subset_intersects_box() {
     ARIADNE_TESTING_EXPECT_EQUAL( theSetOne.intersects( box ), true );
 
     // !!!
-    ARIADNE_TESTING_NOTE("Testing ValidatedKleenean GridTreeSubpaving::intersects( const ExactBoxType& box ) ");
+    ARIADNE_TESTING_NOTE("Testing ValidatedKleenean BinaryTreeSubpaving::intersects( const ExactBoxType& box ) ");
     ARIADNE_TESTING_NOTE("A box that is a subset of one cell of theSetOne");
     box = make_box("[1.5,2.5]x[1.5,2.5]");
     ARIADNE_TESTING_NOTE("theSetOne: " << theSetOne);
@@ -2577,7 +2577,7 @@ Void test_subset_intersects_box() {
     ARIADNE_TESTING_EXPECT_EQUAL( theSetOne.intersects( box ), true );
 
     // !!!
-    ARIADNE_TESTING_NOTE("Testing ValidatedKleenean GridTreeSubpaving::intersects( const ExactBoxType& box ) ");
+    ARIADNE_TESTING_NOTE("Testing ValidatedKleenean BinaryTreeSubpaving::intersects( const ExactBoxType& box ) ");
     ARIADNE_TESTING_NOTE("A box that intersects two out of three enabled cells of theSetOne");
     box = make_box("[0.3,1.7]x[0.6,1.2]");
     ARIADNE_TESTING_NOTE("theSetOne: " << theSetOne);
@@ -2585,7 +2585,7 @@ Void test_subset_intersects_box() {
     ARIADNE_TESTING_EXPECT_EQUAL( theSetOne.intersects( box ), true );
 
     // !!!
-    ARIADNE_TESTING_NOTE("Testing ValidatedKleenean GridTreeSubpaving::intersects( const ExactBoxType& box ) ");
+    ARIADNE_TESTING_NOTE("Testing ValidatedKleenean BinaryTreeSubpaving::intersects( const ExactBoxType& box ) ");
     ARIADNE_TESTING_NOTE("A box that is located within the bounding box of theSetOne but does not intersect any enabled cells");
     box = make_box("[-0.6,-0.3]x[1.5,3.0]");
     ARIADNE_TESTING_NOTE("theSetOne: " << theSetOne);
@@ -2593,7 +2593,7 @@ Void test_subset_intersects_box() {
     ARIADNE_TESTING_EXPECT_EQUAL( theSetOne.intersects( box ), false );
 
     // !!!
-    ARIADNE_TESTING_NOTE("Testing ValidatedKleenean GridTreeSubpaving::intersects( const ExactBoxType& box ) ");
+    ARIADNE_TESTING_NOTE("Testing ValidatedKleenean BinaryTreeSubpaving::intersects( const ExactBoxType& box ) ");
     ARIADNE_TESTING_NOTE("A box that shares a border with some of the enabled cells of theSetOne");
     box = make_box("[-1.0,1.0]x[1.0,3.0]");
     ARIADNE_TESTING_NOTE("theSetOne: " << theSetOne);
@@ -2612,10 +2612,10 @@ Void test_subset_subset_box(){
 
     //Create the set rooted to the primary node of extentTwo
     //theSetOne = [-1,0]x[-1,0] U [0,1]x[0,1] U [1,3]x[1,3]
-    GridTreePaving theSetOne( theTrivialGrid, extentTwo, new BinaryTreeNode( make_binary_word("1111001000100"), make_binary_word("1001001") ) );
+    BinaryTreePaving theSetOne( theTrivialGrid, extentTwo, new BinaryTreeNode( make_binary_word("1111001000100"), make_binary_word("1001001") ) );
 
     // !!!
-    ARIADNE_TESTING_NOTE("Testing ValidatedKleenean GridTreeSubpaving::subset( const ExactBoxType& box ) ");
+    ARIADNE_TESTING_NOTE("Testing ValidatedKleenean BinaryTreeSubpaving::subset( const ExactBoxType& box ) ");
     ARIADNE_TESTING_NOTE("A box that does not intersect with theSetOne");
     ExactBoxType box = make_box("[-2.0,-1.5]x[10,20]");
     ARIADNE_TESTING_NOTE("theSetOne: " << theSetOne);
@@ -2623,7 +2623,7 @@ Void test_subset_subset_box(){
     ARIADNE_TESTING_EXPECT_EQUAL( theSetOne.subset( box ), false );
 
     // !!!
-    ARIADNE_TESTING_NOTE("Testing ValidatedKleenean GridTreeSubpaving::subset( const ExactBoxType& box ) ");
+    ARIADNE_TESTING_NOTE("Testing ValidatedKleenean BinaryTreeSubpaving::subset( const ExactBoxType& box ) ");
     ARIADNE_TESTING_NOTE("A box that encloses theSetOne as a strict subset");
     box = make_box("[-2.0,4.0]x[-2.0,4.0]");
     ARIADNE_TESTING_NOTE("theSetOne: " << theSetOne);
@@ -2631,7 +2631,7 @@ Void test_subset_subset_box(){
     ARIADNE_TESTING_EXPECT_EQUAL( theSetOne.subset( box ), true );
 
     // !!!
-    ARIADNE_TESTING_NOTE("Testing ValidatedKleenean GridTreeSubpaving::subset( const ExactBoxType& box ) ");
+    ARIADNE_TESTING_NOTE("Testing ValidatedKleenean BinaryTreeSubpaving::subset( const ExactBoxType& box ) ");
     ARIADNE_TESTING_NOTE("A box that coincides with one cell of theSetOne");
     box = make_box("[-1.0,0.0]x[-1.0,0.0]");
     ARIADNE_TESTING_NOTE("theSetOne: " << theSetOne);
@@ -2639,7 +2639,7 @@ Void test_subset_subset_box(){
     ARIADNE_TESTING_EXPECT_EQUAL( theSetOne.subset( box ), false );
 
     // !!!
-    ARIADNE_TESTING_NOTE("Testing ValidatedKleenean GridTreeSubpaving::subset( const ExactBoxType& box ) ");
+    ARIADNE_TESTING_NOTE("Testing ValidatedKleenean BinaryTreeSubpaving::subset( const ExactBoxType& box ) ");
     ARIADNE_TESTING_NOTE("A box that is a subset of one cell of theSetOne");
     box = make_box("[1.5,2.5]x[1.5,2.5]");
     ARIADNE_TESTING_NOTE("theSetOne: " << theSetOne);
@@ -2647,7 +2647,7 @@ Void test_subset_subset_box(){
     ARIADNE_TESTING_EXPECT_EQUAL( theSetOne.subset( box ), false );
 
     // !!!
-    ARIADNE_TESTING_NOTE("Testing ValidatedKleenean GridTreeSubpaving::subset( const ExactBoxType& box ) ");
+    ARIADNE_TESTING_NOTE("Testing ValidatedKleenean BinaryTreeSubpaving::subset( const ExactBoxType& box ) ");
     ARIADNE_TESTING_NOTE("A box that intersects two out of three enabled cells of theSetOne");
     box = make_box("[0.3,1.7]x[0.6,1.2]");
     ARIADNE_TESTING_NOTE("theSetOne: " << theSetOne);
@@ -2655,7 +2655,7 @@ Void test_subset_subset_box(){
     ARIADNE_TESTING_EXPECT_EQUAL( theSetOne.subset( box ), false );
 
     // !!!
-    ARIADNE_TESTING_NOTE("Testing ValidatedKleenean GridTreeSubpaving::subset( const ExactBoxType& box ) ");
+    ARIADNE_TESTING_NOTE("Testing ValidatedKleenean BinaryTreeSubpaving::subset( const ExactBoxType& box ) ");
     ARIADNE_TESTING_NOTE("A box that is located within the bounding box of theSetOne but does not intersect any enabled cells");
     box = make_box("[-0.6,-0.3]x[1.5,3.0]");
     ARIADNE_TESTING_NOTE("theSetOne: " << theSetOne);
@@ -2663,7 +2663,7 @@ Void test_subset_subset_box(){
     ARIADNE_TESTING_EXPECT_EQUAL( theSetOne.subset( box ), false );
 
     // !!!
-    ARIADNE_TESTING_NOTE("Testing ValidatedKleenean GridTreeSubpaving::subset( const ExactBoxType& box ) ");
+    ARIADNE_TESTING_NOTE("Testing ValidatedKleenean BinaryTreeSubpaving::subset( const ExactBoxType& box ) ");
     ARIADNE_TESTING_NOTE("A box that shares a border with some of the enabled cells of theSetOne");
     box = make_box("[-1.0,1.0]x[1.0,3.0]");
     ARIADNE_TESTING_NOTE("theSetOne: " << theSetOne);
@@ -2671,27 +2671,27 @@ Void test_subset_subset_box(){
     ARIADNE_TESTING_EXPECT_EQUAL( theSetOne.subset( box ), false );
 
     // !!!
-    ARIADNE_TESTING_NOTE("Testing ValidatedKleenean GridTreeSubpaving::subset( const ExactBoxType& box ) ");
+    ARIADNE_TESTING_NOTE("Testing ValidatedKleenean BinaryTreeSubpaving::subset( const ExactBoxType& box ) ");
     ARIADNE_TESTING_NOTE("A box that is contains the set but is located strictly subset the bounding cell of the set");
     //theSetTwo = [0,1]x[0,1]
-    GridTreePaving theSetTwo( theTrivialGrid, extentTwo, new BinaryTreeNode( make_binary_word("1111001000100"), make_binary_word("0001000") ) );
+    BinaryTreePaving theSetTwo( theTrivialGrid, extentTwo, new BinaryTreeNode( make_binary_word("1111001000100"), make_binary_word("0001000") ) );
     box = make_box("[-0.5,1.5]x[-0.5, 1.5]");
     ARIADNE_TESTING_NOTE("theSetTwo: " << theSetTwo);
     ARIADNE_TESTING_NOTE("ExactBoxType: " << box);
     ARIADNE_TESTING_EXPECT_EQUAL( theSetTwo.subset( box ), true );
 
     // !!!
-    ARIADNE_TESTING_NOTE("Testing ValidatedKleenean GridTreeSubpaving::subset( const ExactBoxType& box ) ");
+    ARIADNE_TESTING_NOTE("Testing ValidatedKleenean BinaryTreeSubpaving::subset( const ExactBoxType& box ) ");
     ARIADNE_TESTING_NOTE("A box that contains the set but is located subset the bounding cell of the set, sharing a border with it");
     //theSetThree = [-1,0]x[-1,0] U [0,1]x[0,1]
-    GridTreePaving theSetThree( theTrivialGrid, extentTwo, new BinaryTreeNode( make_binary_word("1111001000100"), make_binary_word("1001000") ) );
+    BinaryTreePaving theSetThree( theTrivialGrid, extentTwo, new BinaryTreeNode( make_binary_word("1111001000100"), make_binary_word("1001000") ) );
     box = make_box("[-1.0,1.0]x[-1.0, 1.0]");
     ARIADNE_TESTING_NOTE("theSetThree: " << theSetThree);
     ARIADNE_TESTING_NOTE("ExactBoxType: " << box);
     ARIADNE_TESTING_EXPECT_EQUAL( theSetThree.subset( box ), true );
 
     // !!!
-    ARIADNE_TESTING_NOTE("Testing ValidatedKleenean GridTreeSubpaving::subset( const ExactBoxType& box ) ");
+    ARIADNE_TESTING_NOTE("Testing ValidatedKleenean BinaryTreeSubpaving::subset( const ExactBoxType& box ) ");
     ARIADNE_TESTING_NOTE("A box that contains the set and is partially located subset the bounding cell of the set, sharing a border with it");
     box = make_box("[-1.0,1.5]x[-1.0, 4.0]");
     ARIADNE_TESTING_NOTE("theSetThree: " << theSetThree);
@@ -2699,17 +2699,17 @@ Void test_subset_subset_box(){
     ARIADNE_TESTING_EXPECT_EQUAL( theSetThree.subset( box ), true );
 
     // !!!
-    ARIADNE_TESTING_NOTE("Testing ValidatedKleenean GridTreeSubpaving::subset( const ExactBoxType& box ) ");
+    ARIADNE_TESTING_NOTE("Testing ValidatedKleenean BinaryTreeSubpaving::subset( const ExactBoxType& box ) ");
     ARIADNE_TESTING_NOTE("A box that contains the set and is partially located subset the bounding cell of the set");
     //theSetFour = [0,1]x[0,1]
-    GridTreePaving theSetFour( theTrivialGrid, extentTwo, new BinaryTreeNode( make_binary_word("1111001000100"), make_binary_word("0001000") ) );
+    BinaryTreePaving theSetFour( theTrivialGrid, extentTwo, new BinaryTreeNode( make_binary_word("1111001000100"), make_binary_word("0001000") ) );
     box = make_box("[-0.5,1.5]x[-0.5, 4.0]");
     ARIADNE_TESTING_NOTE("theSetFour: " << theSetFour);
     ARIADNE_TESTING_NOTE("ExactBoxType: " << box);
     ARIADNE_TESTING_EXPECT_EQUAL( theSetFour.subset( box ), true );
 
     // !!!
-    ARIADNE_TESTING_NOTE("Testing ValidatedKleenean GridTreeSubpaving::subset( const ExactBoxType& box ) ");
+    ARIADNE_TESTING_NOTE("Testing ValidatedKleenean BinaryTreeSubpaving::subset( const ExactBoxType& box ) ");
     ARIADNE_TESTING_NOTE("A box that coincides with the set");
     box = make_box("[0.0,1.0]x[0.0,1.0]");
     ARIADNE_TESTING_NOTE("theSetFour: " << theSetFour);
@@ -2727,10 +2727,10 @@ Void test_subset_superset_box(){
 
     //Create the set and the subset of this set, they are both rooted to the same primary node of extentTwo
     //theSetOne = [-1,0]x[-1,0] U [0,1]x[0,1] U [1,2]x[1,2] U [1,2]x[2,3] U [2,3]x[1,2] U [2,3]x[2,3]
-    GridTreePaving theSetOne( theTrivialGrid, extentTwo, new BinaryTreeNode( make_binary_word("1111001000101100100"), make_binary_word("1001001111") ) );
+    BinaryTreePaving theSetOne( theTrivialGrid, extentTwo, new BinaryTreeNode( make_binary_word("1111001000101100100"), make_binary_word("1001001111") ) );
 
     // !!!
-    ARIADNE_TESTING_NOTE("Testing ValidatedKleenean GridTreeSubpaving::superset( const ExactBoxType& box ) ");
+    ARIADNE_TESTING_NOTE("Testing ValidatedKleenean BinaryTreeSubpaving::superset( const ExactBoxType& box ) ");
     ARIADNE_TESTING_NOTE("A box that is disjoint from the set and is placed outside the set's box");
     ExactBoxType box = make_box("[5.0,6.0]x[7.0,8.0]");
     ARIADNE_TESTING_NOTE("theSetOne: " << theSetOne);
@@ -2738,7 +2738,7 @@ Void test_subset_superset_box(){
     ARIADNE_TESTING_EXPECT_EQUAL( theSetOne.superset( box ), false );
 
     // !!!
-    ARIADNE_TESTING_NOTE("Testing ValidatedKleenean GridTreeSubpaving::superset( const ExactBoxType& box ) ");
+    ARIADNE_TESTING_NOTE("Testing ValidatedKleenean BinaryTreeSubpaving::superset( const ExactBoxType& box ) ");
     ARIADNE_TESTING_NOTE("A box that is disjoint from the set and is placed within the set's box");
     box = make_box("[-0.5,0.5]x[1.5,2.5]");
     ARIADNE_TESTING_NOTE("theSetOne: " << theSetOne);
@@ -2746,7 +2746,7 @@ Void test_subset_superset_box(){
     ARIADNE_TESTING_EXPECT_EQUAL( theSetOne.superset( box ), false );
 
     // !!!
-    ARIADNE_TESTING_NOTE("Testing ValidatedKleenean GridTreeSubpaving::superset( const ExactBoxType& box ) ");
+    ARIADNE_TESTING_NOTE("Testing ValidatedKleenean BinaryTreeSubpaving::superset( const ExactBoxType& box ) ");
     ARIADNE_TESTING_NOTE("A box that is disjoint from the set but shares a borders with the set's box");
     box = make_box("[-2.0,-1.0]x[-1.0,2.0]");
     ARIADNE_TESTING_NOTE("theSetOne: " << theSetOne);
@@ -2754,7 +2754,7 @@ Void test_subset_superset_box(){
     ARIADNE_TESTING_EXPECT_EQUAL( theSetOne.superset( box ), false );
 
     // !!!
-    ARIADNE_TESTING_NOTE("Testing ValidatedKleenean GridTreeSubpaving::superset( const ExactBoxType& box ) ");
+    ARIADNE_TESTING_NOTE("Testing ValidatedKleenean BinaryTreeSubpaving::superset( const ExactBoxType& box ) ");
     ARIADNE_TESTING_NOTE("A box that only intersects the set and is partially covered by it's cells");
     box = make_box("[1.5,2.5]x[1.5,3.5]");
     ARIADNE_TESTING_NOTE("theSetOne: " << theSetOne);
@@ -2762,7 +2762,7 @@ Void test_subset_superset_box(){
     ARIADNE_TESTING_EXPECT_EQUAL( theSetOne.superset( box ), false );
 
     // !!!
-    ARIADNE_TESTING_NOTE("Testing ValidatedKleenean GridTreeSubpaving::superset( const ExactBoxType& box ) ");
+    ARIADNE_TESTING_NOTE("Testing ValidatedKleenean BinaryTreeSubpaving::superset( const ExactBoxType& box ) ");
     ARIADNE_TESTING_NOTE("A box that coincides with a cell of the set");
     box = make_box("[-1.0,-1.0]x[0.0,0.0]");
     ARIADNE_TESTING_NOTE("theSetOne: " << theSetOne);
@@ -2770,7 +2770,7 @@ Void test_subset_superset_box(){
     ARIADNE_TESTING_EXPECT_EQUAL( theSetOne.superset( box ), true );
 
     // !!!
-    ARIADNE_TESTING_NOTE("Testing ValidatedKleenean GridTreeSubpaving::superset( const ExactBoxType& box ) ");
+    ARIADNE_TESTING_NOTE("Testing ValidatedKleenean BinaryTreeSubpaving::superset( const ExactBoxType& box ) ");
     ARIADNE_TESTING_NOTE("A box that is within the set and shares a border with an enabled cell");
     box = make_box("[-1.0,1.0]x[1.0,2.0]");
     ARIADNE_TESTING_NOTE("theSetOne: " << theSetOne);
@@ -2778,7 +2778,7 @@ Void test_subset_superset_box(){
     ARIADNE_TESTING_EXPECT_EQUAL( theSetOne.superset( box ), false );
 
     // !!!
-    ARIADNE_TESTING_NOTE("Testing ValidatedKleenean GridTreeSubpaving::superset( const ExactBoxType& box ) ");
+    ARIADNE_TESTING_NOTE("Testing ValidatedKleenean BinaryTreeSubpaving::superset( const ExactBoxType& box ) ");
     ARIADNE_TESTING_NOTE("A box that is partially covered by two enabled cells of the set");
     box = make_box("[-0.5,0.5]x[-0.5,0.5]");
     ARIADNE_TESTING_NOTE("theSetOne: " << theSetOne);
@@ -2786,7 +2786,7 @@ Void test_subset_superset_box(){
     ARIADNE_TESTING_EXPECT_EQUAL( theSetOne.superset( box ), false );
 
     // !!!
-    ARIADNE_TESTING_NOTE("Testing ValidatedKleenean GridTreeSubpaving::superset( const ExactBoxType& box ) ");
+    ARIADNE_TESTING_NOTE("Testing ValidatedKleenean BinaryTreeSubpaving::superset( const ExactBoxType& box ) ");
     ARIADNE_TESTING_NOTE("A box that is a subset of an enabled cell");
     box = make_box("[1.5,1.8]x[1.3,1.9]");
     ARIADNE_TESTING_NOTE("theSetOne: " << theSetOne);
@@ -2794,7 +2794,7 @@ Void test_subset_superset_box(){
     ARIADNE_TESTING_EXPECT_EQUAL( theSetOne.superset( box ), true );
 
     // !!!
-    ARIADNE_TESTING_NOTE("Testing ValidatedKleenean GridTreeSubpaving::superset( const ExactBoxType& box ) ");
+    ARIADNE_TESTING_NOTE("Testing ValidatedKleenean BinaryTreeSubpaving::superset( const ExactBoxType& box ) ");
     ARIADNE_TESTING_NOTE("A box that is covered by several enabled cells of the set");
     box = make_box("[1.5,2.5]x[1.5,2.5]");
     ARIADNE_TESTING_NOTE("theSetOne: " << theSetOne);
@@ -2817,14 +2817,14 @@ void test_products() {
     ARIADNE_TESTING_EXPECT_EQUAL(product(gc1,gc2),gc3);
 
 
-    GridTreePaving gtp1(g1);
+    BinaryTreePaving gtp1(g1);
     gtp1.adjoin(GridCell(g1,3,BinaryWord("0100110001")));
     gtp1.adjoin(GridCell(g1,3,BinaryWord("0100110011")));
 
-    GridTreePaving gtp2(g2);
+    BinaryTreePaving gtp2(g2);
     gtp2.adjoin(GridCell(g2,2,BinaryWord("1001")));
 
-    GridTreePaving gtp3(g3);
+    BinaryTreePaving gtp3(g3);
     gtp3.adjoin(GridCell(g3,3,BinaryWord("011001110000011")));
     gtp3.adjoin(GridCell(g3,3,BinaryWord("011001110000111")));
 
@@ -2835,19 +2835,19 @@ void test_products() {
 
     // outer_skew_product takes a const paving: refinement must not mutate
     // its input tree, even as an implementation detail.
-    GridTreePaving unchanged(gtp1);
-    GridTreePaving const& const_gtp1=gtp1;
+    BinaryTreePaving unchanged(gtp1);
+    BinaryTreePaving const& const_gtp1=gtp1;
     ARIADNE_TESTING_EXPECT_EQUAL(outer_skew_product(const_gtp1,g2,f).size(),11);
     ARIADNE_TESTING_PROVE(
-        static_cast<GridTreeSubpaving const&>(gtp1) ==
-        static_cast<GridTreeSubpaving const&>(unchanged));
+        static_cast<BinaryTreeSubpaving const&>(gtp1) ==
+        static_cast<BinaryTreeSubpaving const&>(unchanged));
 
 
 }
 
     Void test_branch_from_uniform_leaf() {
         Grid grid(1u);
-        GridTreePaving enabled(grid,true);
+        BinaryTreePaving enabled(grid,true);
         GridCell root=enabled.root_cell();
         GridCell left=root.split(false);
         GridCell right=root.split(true);
@@ -2882,7 +2882,7 @@ void test_products() {
 
         // A disabled leaf also needs real children so it can be enabled
         // locally without changing its sibling.
-        GridTreePaving disabled(grid,false);
+        BinaryTreePaving disabled(grid,false);
         {
             SubPavingHandle right_view=
                 static_cast<SubPavingInterface const&>(disabled).branch(true);
@@ -2895,10 +2895,10 @@ void test_products() {
         ARIADNE_TESTING_PROVE(disabled.superset(right));
         ARIADNE_TESTING_PROVE(not disabled.superset(left));
 
-        // The concrete GridTreeSubpaving::branch() has the same contract.
-        GridTreePaving concrete(grid,true);
+        // The concrete BinaryTreeSubpaving::branch() has the same contract.
+        BinaryTreePaving concrete(grid,true);
         {
-            GridTreeSubpaving child=concrete.branch(false);
+            BinaryTreeSubpaving child=concrete.branch(false);
             ARIADNE_TESTING_PROVE(child.root_cell()==left);
             ARIADNE_TESTING_PROVE(child.superset(left));
             child.set_root_cell(false);
@@ -2914,14 +2914,14 @@ void test_products() {
     Void test_projection_levels() {
     Grid grid({1.0_x,-2.0_x},{2.0_x,4.0_x});
     GridCell cell(grid,0u,BinaryWord("0110"));
-    GridTreePaving source(cell);
+    BinaryTreePaving source(cell);
     auto projected=image(source,Projection(2u,{1u}));
     auto expected=ExactBoxType{cell.box()[1]};
     ARIADNE_TESTING_PROVE(same(cast_exact_box(projected.bounding_box()),expected));
     ARIADNE_TESTING_EXPECT_EQUAL(projected.grid().origin()[0],grid.origin()[1]);
     ARIADNE_TESTING_EXPECT_EQUAL(projected.grid().lengths()[0],grid.lengths()[1]);
     for(const auto& word: {String("0"),String("011"),String("01101"),String("011010")}) {
-        GridTreePaving partial(GridCell(grid,1u,BinaryWord(word)));
+        BinaryTreePaving partial(GridCell(grid,1u,BinaryWord(word)));
         for(const auto& indices: {Array<SizeType>{0u},Array<SizeType>{1u},Array<SizeType>{1u,0u}}) {
             Projection projection(2u,indices);
             auto image_set=image(partial,projection);
@@ -2933,12 +2933,12 @@ void test_products() {
         }
     }
     ARIADNE_TESTING_PROVE(!image(source,Projection(2u,{})).is_empty());
-    ARIADNE_TESTING_PROVE(image(GridTreePaving(grid),Projection(2u,{})).is_empty());
+    ARIADNE_TESTING_PROVE(image(BinaryTreePaving(grid),Projection(2u,{})).is_empty());
     ARIADNE_TESTING_EXPECT_EXCEPTION(image(source,Projection(1u,{0u})));
 }
-GridTreePaving mask_paving(Nat mask,Nat extent) {
+BinaryTreePaving mask_paving(Nat mask,Nat extent) {
     Grid grid(1u);
-    GridTreePaving paving(grid,extent,new BinaryTreeNode(false));
+    BinaryTreePaving paving(grid,extent,new BinaryTreeNode(false));
     for(Nat i=0;i!=4u;++i) {
         if(mask&(1u<<i)) {
             BinaryWord word=GridCell::primary_cell_path(1u,extent,0u);
@@ -2971,17 +2971,17 @@ Void test_queries_cursors_and_constructors() {
     Grid grid(1u);
     ARIADNE_TESTING_PROVE(Grid(1u)!=Grid(2u));
     ARIADNE_TESTING_PROVE(Grid(2u)!=Grid(1u));
-    GridTreePaving default_paving;
+    BinaryTreePaving default_paving;
     ARIADNE_TESTING_PROVE(default_paving.is_empty());
-    GridTreePaving enabled(grid,true),disabled(1u,false);
+    BinaryTreePaving enabled(grid,true),disabled(1u,false);
     ARIADNE_TESTING_PROVE(disabled.is_empty());
-    GridTreePaving enclosing(grid,ExactBoxType{{-1.0_x,2.0_x}});
+    BinaryTreePaving enclosing(grid,ExactBoxType{{-1.0_x,2.0_x}});
     ARIADNE_TESTING_PROVE(enclosing.is_empty());
-    GridTreePaving encoded(grid,0u,BooleanArray{true,false,false},BooleanArray{true,false});
+    BinaryTreePaving encoded(grid,0u,BooleanArray{true,false,false},BooleanArray{true,false});
     ARIADNE_TESTING_EXPECT_EQUAL(encoded.size(),1u);
-    GridTreePaving copied(encoded);
+    BinaryTreePaving copied(encoded);
     ARIADNE_TESTING_PROVE(copied==encoded);
-    const GridTreePaving& alias=copied; copied=alias;
+    const BinaryTreePaving& alias=copied; copied=alias;
     ARIADNE_TESTING_PROVE(copied==encoded);
     const auto empty_bounds=disabled.bounding_box();
     ARIADNE_TESTING_PROVE(definitely(empty_bounds.is_empty()));
@@ -2990,7 +2990,7 @@ Void test_queries_cursors_and_constructors() {
     auto boxes=static_cast<ListSet<ExactBoxType>>(encoded);
     ARIADNE_TESTING_EXPECT_EQUAL(boxes.size(),1u);
     ARIADNE_TESTING_PROVE(static_cast<ListSet<ExactBoxType>>(disabled).empty());
-    GridTreeSubpaving view(encoded);
+    BinaryTreeSubpaving view(encoded);
     ARIADNE_TESTING_PROVE(view==encoded);
     auto full=mask_paving(15u,0u),half=mask_paving(3u,0u);
     for(auto* paving:{&full,&half,&disabled}) {
@@ -3009,28 +3009,28 @@ Void test_queries_cursors_and_constructors() {
     auto branch=enabled.branch(false);
     branch.mince_to_depth(0u);
     branch.subdivide(ApproximateDouble(0.125));
-    GridTreeCursor singular,other_singular;
+    BinaryTreePavingCursor singular,other_singular;
     ARIADNE_TESTING_PROVE(singular==other_singular);
-    GridTreeCursor cursor(&encoded);
+    BinaryTreePavingCursor cursor(&encoded);
     ARIADNE_TESTING_PROVE(!(singular==cursor));
     ARIADNE_TESTING_PROVE(!(cursor==singular));
-    GridTreeCursor assigned;assigned=cursor;
+    BinaryTreePavingCursor assigned;assigned=cursor;
     ARIADNE_TESTING_PROVE(assigned==cursor);
     ARIADNE_TESTING_PROVE(!cursor.is_right_child());
     const auto& const_cursor=cursor;
     ARIADNE_TESTING_PROVE((*const_cursor)==encoded);
     std::ostringstream text;text<<singular;
     ARIADNE_TESTING_PROVE(!text.str().empty());
-    GridTreeConstIterator invalid;
-    ARIADNE_TESTING_PROVE(invalid==GridTreeConstIterator());
+    BinaryTreePavingConstIterator invalid;
+    ARIADNE_TESTING_PROVE(invalid==BinaryTreePavingConstIterator());
     auto end=encoded.end();++end;
     ARIADNE_TESTING_PROVE(end==encoded.end());
-    GridTreeConstIterator last(&encoded,false),none(&encoded,indeterminate);
+    BinaryTreePavingConstIterator last(&encoded,false),none(&encoded,indeterminate);
     ARIADNE_TESTING_PROVE(last!=none);
     ARIADNE_TESTING_PROVE(none!=last);
     ARIADNE_TESTING_PROVE(last->box().subset(ExactBoxType{{0.0_x,0.5_x}}));
-    GridTreePaving only_right=mask_paving(8u,0u);
-    GridTreeConstIterator right_last(&only_right,false);
+    BinaryTreePaving only_right=mask_paving(8u,0u);
+    BinaryTreePavingConstIterator right_last(&only_right,false);
     ARIADNE_TESTING_PROVE(same(right_last->box(),ExactBoxType{{0.75_x,1.0_x}}));
     GridCell zero;GridOpenCell open_zero;
     ARIADNE_TESTING_EXPECT_EQUAL(zero.dimension(),0u);
@@ -3062,7 +3062,7 @@ Void test_approximation_apis() {
     CompactSet<EffectiveTag,RealVector> compact(box);
     OpenSet<EffectiveTag,RealVector> open(box);
     OvertSet<EffectiveTag,RealVector> overt(box);
-    GridTreePaving lower(grid),open_lower(grid),bounded_lower(grid);
+    BinaryTreePaving lower(grid),open_lower(grid),bounded_lower(grid);
     lower.adjoin_lower_approximation(overt.reference(),0u,3u);
     lower.adjoin_lower_approximation(overt.reference(),0u,3u);
     open_lower.adjoin_lower_approximation(shape,3u);
@@ -3079,7 +3079,7 @@ Void test_approximation_apis() {
     ARIADNE_TESTING_PROVE(inner_by_extent.subset(box));
     ARIADNE_TESTING_PROVE(inner_by_box.subset(box));
     ARIADNE_TESTING_PROVE(inner_regular.subset(box));
-    GridTreePaving inner_lower(grid);
+    BinaryTreePaving inner_lower(grid);
     inner_lower.adjoin_inner_approximation(LowerBoxType(box),3u);
     ARIADNE_TESTING_PROVE(inner_lower.subset(box));
     auto outer_box=outer_approximation(box,2u);
@@ -3090,15 +3090,15 @@ Void test_approximation_apis() {
     ARIADNE_TESTING_PROVE(outer_box.superset(box));
     ARIADNE_TESTING_PROVE(outer_compact.superset(box));
     ARIADNE_TESTING_PROVE(outer_validated.superset(box));
-    GridTreePaving over(grid);
+    BinaryTreePaving over(grid);
     over.adjoin_over_approximation(box,2u);
     ARIADNE_TESTING_PROVE(over.superset(box));
     ARIADNE_TESTING_EXPECT_EXCEPTION(over.adjoin_over_approximation(ExactBoxType{{0.0_x,0.0_x}},2u));
-    GridTreePaving compact_outer(grid);
+    BinaryTreePaving compact_outer(grid);
     compact_outer.adjoin_outer_approximation(compact.reference(),2u);
     compact_outer.adjoin_outer_approximation(shape,2u);
     ARIADNE_TESTING_PROVE(compact_outer.superset(box));
-    GridTreePaving full(grid,true);
+    BinaryTreePaving full(grid,true);
     full.adjoin_outer_approximation(shape,2u);
     full.adjoin_lower_approximation(overt.reference(),0u,2u);
     full.adjoin_inner_approximation(open.reference(),0u,2u);
@@ -3113,7 +3113,7 @@ Void test_approximation_apis() {
     ARIADNE_TESTING_EXPECT_EXCEPTION(over.separated(wrong));
     ARIADNE_TESTING_EXPECT_EXCEPTION(over.overlaps(wrong));
     ARIADNE_TESTING_EXPECT_EXCEPTION(over.smallest_enclosing_primary_cell(wrong));
-    GridTreePaving wrong_grid(Grid(2u));
+    BinaryTreePaving wrong_grid(Grid(2u));
     ARIADNE_TESTING_EXPECT_EXCEPTION(over.adjoin(wrong_grid.root_cell()));
     ARIADNE_TESTING_EXPECT_EXCEPTION(over.adjoin(wrong_grid));
     ARIADNE_TESTING_EXPECT_EXCEPTION(subset(over,wrong_grid));
@@ -3125,10 +3125,10 @@ Void test_approximation_apis() {
 
 Void test_products_and_drawing() {
     GridCell cell(Grid(1u),0u,BinaryWord("01"));
-    GridTreePaving set(cell);
+    BinaryTreePaving set(cell);
     auto product_set=product(cell,set);
     ARIADNE_TESTING_PROVE(same(cast_exact_box(product_set.bounding_box()),product(cell.box(),cell.box())));
-    ARIADNE_TESTING_PROVE(product(cell,GridTreePaving(Grid(1u))).is_empty());
+    ARIADNE_TESTING_PROVE(product(cell,BinaryTreePaving(Grid(1u))).is_empty());
 }
 
 class VectorCellIterator : public ForwardConstantIteratorInterface<GridCell> {
@@ -3148,10 +3148,10 @@ class VectorCellIterator : public ForwardConstantIteratorInterface<GridCell> {
 
 Void test_partial_tree_operations() {
     Grid grid(1u);
-    GridTreePaving owner(grid,true);
+    BinaryTreePaving owner(grid,true);
     owner.mince(2u);
     auto left=owner.branch(false),right=owner.branch(true);
-    GridTreeSubpaving assigned(left);assigned=right;
+    BinaryTreeSubpaving assigned(left);assigned=right;
     ARIADNE_TESTING_PROVE(assigned==right);
     ARIADNE_TESTING_PROVE(!(left==right));
     auto disabled=mask_paving(0u,0u);
@@ -3162,40 +3162,40 @@ Void test_partial_tree_operations() {
     ARIADNE_TESTING_PROVE(!subset(owner,left));
     auto quarter=left.branch(false);
     ARIADNE_TESTING_PROVE(!subset(owner,quarter));
-    GridTreePaving whole_cell(grid,true);
+    BinaryTreePaving whole_cell(grid,true);
     ARIADNE_TESTING_PROVE(subset(whole_cell,whole_cell));
     ARIADNE_TESTING_PROVE(subset(disabled,left));
     ARIADNE_TESTING_PROVE(!subset(left,disabled));
-    GridTreeSubpaving whole(owner);
-    std::unique_ptr<GridTreeSubpaving> cloned(whole.clone());
+    BinaryTreeSubpaving whole(owner);
+    std::unique_ptr<BinaryTreeSubpaving> cloned(whole.clone());
     ARIADNE_TESTING_PROVE(cloned->superset(owner.root_cell()));
-    GridTreePaving larger(grid,2u,new BinaryTreeNode(true));
+    BinaryTreePaving larger(grid,2u,new BinaryTreeNode(true));
     ARIADNE_TESTING_PROVE(!subset(larger,left));
     auto first_half=mask_paving(3u,0u);
     ARIADNE_TESTING_PROVE(subset(first_half,left));
     auto last_half=mask_paving(12u,0u);
     ARIADNE_TESTING_PROVE(subset(last_half,right));
-    GridTreePaving empty(grid);
+    BinaryTreePaving empty(grid);
     ARIADNE_TESTING_PROVE(subset(empty,left));
-    GridTreeCursor root_cursor(&owner);
+    BinaryTreePavingCursor root_cursor(&owner);
     ARIADNE_TESTING_PROVE(!root_cursor.is_right_child());
     root_cursor.move_left();
     ARIADNE_TESTING_PROVE(!root_cursor.is_right_child());
-    GridTreeConstIterator grid_iterator(&owner,true);
+    BinaryTreePavingConstIterator grid_iterator(&owner,true);
     VectorCellIterator vector_iterator(std::vector<GridCell>{*grid_iterator});
     ForwardConstantIteratorHandle<GridCell> grid_handle(grid_iterator),vector_handle(vector_iterator);
     ARIADNE_TESTING_PROVE(grid_handle!=vector_handle);
-    GridTreePaving false_tree(grid,false);
-    GridTreeConstIterator last_disabled(&false_tree,false);
+    BinaryTreePaving false_tree(grid,false);
+    BinaryTreePavingConstIterator last_disabled(&false_tree,false);
     ARIADNE_TESTING_PROVE(last_disabled==false_tree.end());
-    GridTreePaving left_only=mask_paving(1u,0u);
-    GridTreeConstIterator last_left(&left_only,false);
+    BinaryTreePaving left_only=mask_paving(1u,0u);
+    BinaryTreePavingConstIterator last_left(&left_only,false);
     ARIADNE_TESTING_PROVE(same(last_left->box(),ExactBoxType{{0.0_x,0.25_x}}));
     auto small=GridCell(grid,0u,BinaryWord("01")).interior();
     auto large=GridCell(grid,0u,BinaryWord()).interior();
     ARIADNE_TESTING_PROVE(!GridOpenCell::intersection(small,large).empty());
     Grid skew({0.0_x,0.0_x},{8.0_x,1.0_x});
-    GridTreePaving skew_set(GridCell(skew,0u,BinaryWord("00")));
+    BinaryTreePaving skew_set(GridCell(skew,0u,BinaryWord("00")));
     auto skew_branch=skew_set.branch(false).branch(false);
     skew_branch.subdivide(ApproximateDouble(0.125));
     ARIADNE_TESTING_EXPECT_EQUAL(skew_branch.tree_depth(),9u);
@@ -3203,7 +3203,7 @@ Void test_partial_tree_operations() {
         ARIADNE_TESTING_PROVE(cell.box()[0].width().upper_raw()<=FloatDP(0.125_x,dp));
         ARIADNE_TESTING_PROVE(cell.box()[1].width().upper_raw()<=FloatDP(0.125_x,dp));
     }
-    GridTreePaving another(Grid(2u),true);
+    BinaryTreePaving another(Grid(2u),true);
     another.subdivide(ApproximateDouble(0.5));
     ARIADNE_TESTING_EXPECT_EQUAL(another.tree_depth(),2u);
 }
@@ -3217,9 +3217,9 @@ Void test_ancestor_early_stops() {
     OpenSet<EffectiveTag,RealVector> open(box);
     OvertSet<EffectiveTag,RealVector> overt(box);
     ValidatedConstrainedImageSet validated(box);
-    GridTreePaving full(grid,2u,new BinaryTreeNode(true));
+    BinaryTreePaving full(grid,2u,new BinaryTreeNode(true));
     full.adjoin(cell);
-    full.adjoin(GridTreePaving(cell));
+    full.adjoin(BinaryTreePaving(cell));
     full.adjoin_outer_approximation(compact.reference(),2u);
     full.adjoin_outer_approximation(validated,2u);
     full.adjoin_lower_approximation(overt.reference(),0u,2u);
@@ -3227,31 +3227,31 @@ Void test_ancestor_early_stops() {
     ARIADNE_TESTING_PROVE(full.superset(GridCell(grid,2u,BinaryWord())));
     full.remove(cell);
     ARIADNE_TESTING_PROVE(!full.superset(cell));
-    GridTreePaving empty(grid,2u,new BinaryTreeNode(false));
+    BinaryTreePaving empty(grid,2u,new BinaryTreeNode(false));
     empty.remove(cell);
     ARIADNE_TESTING_PROVE(empty.is_empty());
     auto previous_lower=mask_paving(1u,0u);
     previous_lower.adjoin_lower_approximation(shape,0u);
     ARIADNE_TESTING_PROVE(previous_lower.superset(GridCell(grid,0u,BinaryWord("00"))));
-    GridTreePaving deep_removal(grid,true);
+    BinaryTreePaving deep_removal(grid,true);
     deep_removal.remove(GridCell(grid,0u,BinaryWord("000")));
     ARIADNE_TESTING_PROVE(!deep_removal.superset(GridCell(grid,0u,BinaryWord("000"))));
-    GridTreePaving small(grid,true);
+    BinaryTreePaving small(grid,true);
     small.mince(2u);
     small.remove(GridCell(grid,0u,BinaryWord("01")));
     ARIADNE_TESTING_PROVE(!small.superset(GridCell(grid,0u,BinaryWord("01"))));
     auto partial=mask_paving(1u,0u);
     auto rhs=partial.branch(false);
-    GridTreePaving root_enabled(grid,true);
+    BinaryTreePaving root_enabled(grid,true);
     root_enabled.restrict(rhs);
     ARIADNE_TESTING_PROVE(root_enabled==partial);
-    GridTreePaving root_empty(grid,false);
+    BinaryTreePaving root_empty(grid,false);
     root_empty.restrict(rhs);root_empty.remove(rhs);
     ARIADNE_TESTING_PROVE(root_empty.is_empty());
-    GridTreePaving root_full(grid,true);
+    BinaryTreePaving root_full(grid,true);
     root_full.remove(rhs);
     ARIADNE_TESTING_PROVE(!root_full.intersects(ExactBoxType{{0.0_x,0.25_x}}));
-    GridTreePaving restricted(grid,2u,new BinaryTreeNode(true));
+    BinaryTreePaving restricted(grid,2u,new BinaryTreeNode(true));
     restricted.restrict_to_extent(0u);
     ARIADNE_TESTING_PROVE(restricted.superset(cell));
     auto effective=mask_paving(1u,0u);
@@ -3262,10 +3262,10 @@ Void test_ancestor_early_stops() {
     validated_paving.adjoin_outer_approximation(validated_regular.reference(),0u);
     ARIADNE_TESTING_PROVE(validated_paving.superset(box));
     validated_paving.adjoin_outer_approximation(validated_regular.reference(),2u);
-    GridTreePaving validated_fresh(grid);
+    BinaryTreePaving validated_fresh(grid);
     validated_fresh.adjoin_outer_approximation(validated_regular.reference(),3u);
     ARIADNE_TESTING_PROVE(validated_fresh.superset(box));
-    GridTreePaving validated_full(grid,true);
+    BinaryTreePaving validated_full(grid,true);
     validated_full.adjoin_outer_approximation(validated,2u);
     ARIADNE_TESTING_PROVE(validated_full.superset(cell));
 }
@@ -3287,7 +3287,7 @@ Void test_cell_range_contracts() {
     GridCell cell(grid,0u,BinaryWord()),other(wrong,0u,BinaryWord());
     ARIADNE_TESTING_EXPECT_EXCEPTION(static_cast<Void>(cell==other));
     ARIADNE_TESTING_EXPECT_EXCEPTION(subset(cell,other,nullptr,nullptr,nullptr));
-    GridTreePaving paving(grid),wrong_paving(wrong);
+    BinaryTreePaving paving(grid),wrong_paving(wrong);
     ARIADNE_TESTING_EXPECT_EXCEPTION(subset(cell,wrong_paving));
     ARIADNE_TESTING_EXPECT_EXCEPTION(intersect(cell,wrong_paving));
     ARIADNE_TESTING_EXPECT_EXCEPTION(paving.remove(other));
