@@ -618,9 +618,15 @@ class GridTreePaving
     //! \brief Adjoin (make inplace union with) another grid paving set.
     Void adjoin( const GridTreeSubpaving& theOtherSubPaving );
 
+    //! \brief Restrict atomically against concurrent mutations of this owner.
+    //! \details Owning GridTreePaving sources are locked jointly. Borrowed
+    //! GridTreeSubpaving views must remain stable for the whole operation.
     //! \brief Restrict to (make inplace intersection with) another grid paving set.
     Void restrict( const GridTreeSubpaving& theOtherSubPaving );
 
+    //! \brief Remove atomically against concurrent mutations of this owner.
+    //! \details Owning GridTreePaving sources are locked jointly; borrowed
+    //! views must remain stable and are not made lifetime-safe by this lock.
     //! \brief Remove cells in another grid paving set.
     Void remove( const GridTreeSubpaving& theOtherSubPaving );
 
@@ -744,6 +750,9 @@ class GridTreePaving
     explicit GridTreePaving(CopyState state);
     Void _adjoin_unlocked(GridCell const& cell);
     Void _adjoin_unlocked(GridTreeSubpaving const& source);
+    // Source is stable for the duration; owning sources are locked as well.
+    Void _restrict_unlocked(GridTreeSubpaving const& source);
+    Void _remove_unlocked(GridTreeSubpaving const& source);
     mutable std::mutex _adjoin_mutex;
 };
 

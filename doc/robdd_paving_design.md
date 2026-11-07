@@ -1664,3 +1664,30 @@ A concurrent regression overlaps these mutations and insertion with
 snapshot copies and `size` and `root_cell` readers. This incremental
 contract does NOT cover inherited mutable views, iterators, arbitrary
 cross-paving operations, or other unsynchronized mutation paths.
+
+
+## 2026-11-07 - Atomic restrict/remove against concurrent adjoin
+
+The two owning paving backends now serialize `restrict` and `remove` with
+concurrent destination mutations. The explicit-tree backend acquires both
+owner mutexes through `std::scoped_lock` when the source is another owning
+`GridTreePaving`, with self-intersection and self-difference handled
+separately. The helpers use qualified base accessors while the owner is
+already locked, preventing recursive mutex acquisition. Removing an
+individual tree cell and restricting by root extent also acquire the
+owner mutex. Borrowed `GridTreeSubpaving` source views still require
+external stability; they are not made safe against invalidation.
+
+The ROBDD backend copies a stable source before acquiring the destination
+mutex, then computes the entire intersection/difference and publishes its
+root, depth and geometric metadata under that single destination lock.
+This follows the existing source-snapshot policy of `adjoin`: the source
+snapshot and destination publication are not one globally atomic operation
+across independently changing owners. Both backend paths handle self-
+intersection (identity) and self-difference (empty result) explicitly,
+including calls through `SubPavingInterface`.
+
+Two stress cases mix polymorphic remove/restrict, concurrent insertion and
+snapshot reads; they also check both self-operations. This phase does not
+claim thread-safety for non-owning live views, iterators, inherited
+`GridTreeSubpaving` APIs, or all geometric approximation operations.

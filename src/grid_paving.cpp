@@ -2411,7 +2411,7 @@ Void GridTreePaving::restrict_to_lower( const GridTreeSubpaving& theOtherSubPavi
 
     //The primary cell of this paving is higher then the one of the other paving.
     //1. We locate the path to the primary cell node common with the other paving
-    BinaryWord rootNodePath = GridCell::primary_cell_path( this->root_cell().grid().dimension(), this->root_cell().root_extent(), theOtherSubPaving.root_cell().root_extent() );
+    BinaryWord rootNodePath = GridCell::primary_cell_path( this->GridTreeSubpaving::root_cell().grid().dimension(), this->GridTreeSubpaving::root_cell().root_extent(), theOtherSubPaving.root_cell().root_extent() );
 
     //2. Add the suffix path from the primary cell to the root node of
     //theOtherSubPaving. This is needed in order to be able to reach this root.
@@ -2478,7 +2478,7 @@ Void GridTreePaving::remove_from_lower( const GridTreeSubpaving& theOtherSubPavi
 
     //The primary cell of this paving is higher then the one of the other paving.
     //1. We locate the path to the primary cell node common with the other paving
-    BinaryWord rootNodePath = GridCell::primary_cell_path( this->root_cell().grid().dimension(), this->root_cell().root_extent(), theOtherSubPaving.root_cell().root_extent() );
+    BinaryWord rootNodePath = GridCell::primary_cell_path( this->GridTreeSubpaving::root_cell().grid().dimension(), this->GridTreeSubpaving::root_cell().root_extent(), theOtherSubPaving.root_cell().root_extent() );
 
     //2. Add the suffix path from the primary cell to the root node of
     //theOtherSubPaving. This is needed in order to be able to reach this root.
@@ -2527,8 +2527,27 @@ Void GridTreePaving::clear(  ) {
 
 
 Void GridTreePaving::restrict( const GridTreeSubpaving& theOtherSubPaving ) {
-    const Nat thisPavingPCellExtent = this->root_cell().root_extent();
-    const Nat otherPavingPCellExtent = theOtherSubPaving.root_cell().root_extent();
+    if(auto const* owner=dynamic_cast<GridTreePaving const*>(&theOtherSubPaving)) {
+        if(owner==this) {
+            // A paving intersected with itself is unchanged.
+            std::lock_guard<std::mutex> lock(_adjoin_mutex);
+            return;
+        }
+        // Never observe a source owner while it is being modified. This
+        // acquisition also avoids deadlocks in reciprocal set operations.
+        std::scoped_lock lock(_adjoin_mutex,owner->_adjoin_mutex);
+        _restrict_unlocked(theOtherSubPaving);
+        return;
+    }
+    // A borrowed GridTreeSubpaving view has no lifetime/synchronization
+    // ownership: the caller must keep it stable throughout this call.
+    std::lock_guard<std::mutex> lock(_adjoin_mutex);
+    _restrict_unlocked(theOtherSubPaving);
+}
+
+Void GridTreePaving::_restrict_unlocked( const GridTreeSubpaving& theOtherSubPaving ) {
+    const Nat thisPavingPCellExtent = this->GridTreeSubpaving::root_cell().root_extent();
+    const Nat otherPavingPCellExtent = theOtherSubPaving.GridTreeSubpaving::root_cell().root_extent();
 
     ARIADNE_PRECONDITION( this->grid() == theOtherSubPaving.grid() );
 
@@ -2544,6 +2563,7 @@ Void GridTreePaving::restrict( const GridTreeSubpaving& theOtherSubPaving ) {
 }
 
 Void GridTreePaving::remove( const GridCell& theCell ) {
+    std::lock_guard<std::mutex> lock(_adjoin_mutex);
     ARIADNE_PRECONDITION( this->grid() == theCell.grid() );
 
     //If needed, extend the tree of this paving and then find it's the
@@ -2592,8 +2612,26 @@ Void GridTreePaving::remove( const GridCell& theCell ) {
 }
 
 Void GridTreePaving::remove( const GridTreeSubpaving& theOtherSubPaving ) {
-    const Nat thisPavingPCellExtent = this->root_cell().root_extent();
-    const Nat otherPavingPCellExtent = theOtherSubPaving.root_cell().root_extent();
+    if(auto const* owner=dynamic_cast<GridTreePaving const*>(&theOtherSubPaving)) {
+        if(owner==this) {
+            std::lock_guard<std::mutex> lock(_adjoin_mutex);
+            // Removing an entire paving from itself produces the empty set,
+            // retaining the existing geometric root.
+            GridTreeSubpaving::set_root_cell(false);
+            return;
+        }
+        std::scoped_lock lock(_adjoin_mutex,owner->_adjoin_mutex);
+        _remove_unlocked(theOtherSubPaving);
+        return;
+    }
+    // Borrowed source views must remain stable during the operation.
+    std::lock_guard<std::mutex> lock(_adjoin_mutex);
+    _remove_unlocked(theOtherSubPaving);
+}
+
+Void GridTreePaving::_remove_unlocked( const GridTreeSubpaving& theOtherSubPaving ) {
+    const Nat thisPavingPCellExtent = this->GridTreeSubpaving::root_cell().root_extent();
+    const Nat otherPavingPCellExtent = theOtherSubPaving.GridTreeSubpaving::root_cell().root_extent();
 
     ARIADNE_PRECONDITION( this->grid() == theOtherSubPaving.grid() );
 
@@ -2609,10 +2647,11 @@ Void GridTreePaving::remove( const GridTreeSubpaving& theOtherSubPaving ) {
 }
 
 Void GridTreePaving::restrict_to_extent( const Nat theExtent ) {
-    const Nat thisPavingPCellExtent = this->root_cell().root_extent();
+    std::lock_guard<std::mutex> lock(_adjoin_mutex);
+    const Nat thisPavingPCellExtent = this->GridTreeSubpaving::root_cell().root_extent();
 
     if( thisPavingPCellExtent > theExtent){
-        // ARIADNE_WARN("restricting GridTreeSet of extent " << this->root_cell().root_extent() << " to extent " << theExtent << ".");
+        // ARIADNE_WARN("restricting GridTreeSet of extent " << this->GridTreeSubpaving::root_cell().root_extent() << " to extent " << theExtent << ".");
 
         BinaryWord pathToPCell = GridCell::primary_cell_path( this->dimension(), thisPavingPCellExtent, theExtent );
 

@@ -625,22 +625,48 @@ Void RobddPaving::adjoin(SubPavingInterface const& other) {
 }
 
 Void RobddPaving::restrict(RobddPaving const& other) {
-    *this = intersection(other);
+    if(this==&other) {
+        std::lock_guard<std::mutex> lock(_adjoin_mutex);
+        return;
+    }
+    // Match adjoin's snapshot-source policy. The manager handles shared
+    // canonical nodes, while this lock protects the whole paving state.
+    RobddPaving source(other);
+    std::lock_guard<std::mutex> lock(_adjoin_mutex);
+    RobddPaving result=intersection(source);
+    _root_cell=std::move(result._root_cell);
+    _root=result._root;
+    _depth=result._depth;
 }
 
 Void RobddPaving::restrict(SubPavingInterface const& other) {
-    ARIADNE_PRECONDITION_MSG(grid() == other.grid(),
-        "Cannot restrict a paving with a subpaving on another grid");
+    if(auto const* owner=dynamic_cast<RobddPaving const*>(&other)) {
+        restrict(*owner);
+        return;
+    }
     restrict(robdd_operand(other));
 }
 
 Void RobddPaving::remove(RobddPaving const& other) {
-    *this = difference(other);
+    if(this==&other) {
+        std::lock_guard<std::mutex> lock(_adjoin_mutex);
+        _root=_manager->constant(false);
+        // A set difference keeps the geometric root and logical depth.
+        return;
+    }
+    RobddPaving source(other);
+    std::lock_guard<std::mutex> lock(_adjoin_mutex);
+    RobddPaving result=difference(source);
+    _root_cell=std::move(result._root_cell);
+    _root=result._root;
+    _depth=result._depth;
 }
 
 Void RobddPaving::remove(SubPavingInterface const& other) {
-    ARIADNE_PRECONDITION_MSG(grid() == other.grid(),
-        "Cannot remove a subpaving on another grid");
+    if(auto const* owner=dynamic_cast<RobddPaving const*>(&other)) {
+        remove(*owner);
+        return;
+    }
     remove(robdd_operand(other));
 }
 

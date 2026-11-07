@@ -181,6 +181,82 @@ class TestPavingConcurrentAdjoin : public Ariadne::Testing::ContextFixture {
             GridCell(grid,0u,make_binary_word("0")));
     }
 
+
+    template<class Paving,class MakePaving>
+    Void check_concurrent_set_mutations(Paving& destination,
+            GridCell const& retained,GridCell const& discarded,
+            MakePaving make_paving) {
+        Paving keeper=make_paving(retained);
+        Paving removal=make_paving(discarded);
+        destination.adjoin(retained);
+        std::atomic<bool> start{false};
+        std::atomic<bool> finished{false};
+        std::atomic<bool> coherent{true};
+
+        std::thread writer([&] {
+            while(!start.load(std::memory_order_acquire)) {
+                std::this_thread::yield();
+            }
+            for(unsigned i=0u;i<96u;++i) {
+                destination.adjoin(retained);
+                destination.adjoin(discarded);
+            }
+            finished.store(true,std::memory_order_release);
+        });
+        std::thread algebra([&] {
+            start.store(true,std::memory_order_release);
+            for(unsigned i=0u;i<96u;++i) {
+                // Exercise the virtual PavingInterface dispatch as well as
+                // the backend-native overload with stable source owners.
+                destination.remove(static_cast<SubPavingInterface const&>(removal));
+                destination.restrict(static_cast<SubPavingInterface const&>(keeper));
+            }
+        });
+        std::thread reader([&] {
+            while(!finished.load(std::memory_order_acquire)) {
+                Paving snapshot(destination);
+                if(!snapshot.superset(retained)
+                        || snapshot.root_cell().grid()!=retained.grid()) {
+                    coherent.store(false,std::memory_order_relaxed);
+                }
+                (void)destination.size();
+            }
+        });
+        writer.join();
+        algebra.join();
+        reader.join();
+        ARIADNE_TESTING_PROVE(coherent.load(std::memory_order_acquire));
+        ARIADNE_TESTING_PROVE(destination.superset(retained));
+
+        // Self-operations are algebraic identities, not recursive locks.
+        destination.restrict(static_cast<SubPavingInterface const&>(destination));
+        ARIADNE_TESTING_PROVE(destination.superset(retained));
+        destination.remove(static_cast<SubPavingInterface const&>(destination));
+        ARIADNE_TESTING_PROVE(!destination.superset(retained));
+    }
+
+    Void test_tree_concurrent_set_mutations() {
+        Grid grid(1u);
+        GridCell retained(grid,0u,make_binary_word("0"));
+        GridCell discarded(grid,0u,make_binary_word("1"));
+        GridTreePaving destination(grid,false);
+        check_concurrent_set_mutations(destination,retained,discarded,
+            [&](GridCell const& cell) { return GridTreePaving(cell); });
+    }
+
+    Void test_robdd_concurrent_set_mutations() {
+        RobddManager manager;
+        Grid grid(1u);
+        GridCell root(grid,0u,BinaryWord{});
+        GridCell retained(grid,0u,make_binary_word("0"));
+        GridCell discarded(grid,0u,make_binary_word("1"));
+        RobddPaving destination(manager,root,manager.constant(false),0u);
+        check_concurrent_set_mutations(destination,retained,discarded,
+            [&](GridCell const& cell) {
+                return RobddPaving(manager,cell,manager.constant(true),0u);
+            });
+    }
+
     Void test_grid_tree_concurrent_adjoin() {
         Grid grid(1u);
         auto cells=make_cells(grid);
@@ -233,6 +309,8 @@ int main(int argc, char** argv) {
     ARIADNE_TESTING_ADD_TEST(TestPavingConcurrentAdjoin,test_robdd_concurrent_adjoin);
     ARIADNE_TESTING_ADD_TEST(TestPavingConcurrentAdjoin,test_tree_reader_writer_adjoin);
     ARIADNE_TESTING_ADD_TEST(TestPavingConcurrentAdjoin,test_tree_concurrent_root_mutations);
+    ARIADNE_TESTING_ADD_TEST(TestPavingConcurrentAdjoin,test_tree_concurrent_set_mutations);
+    ARIADNE_TESTING_ADD_TEST(TestPavingConcurrentAdjoin,test_robdd_concurrent_set_mutations);
     ARIADNE_TESTING_ADD_TEST(TestPavingConcurrentAdjoin,test_robdd_concurrent_root_mutations);
     ARIADNE_TESTING_ADD_TEST(TestPavingConcurrentAdjoin,test_robdd_reader_writer_adjoin);
     return ARIADNE_TESTING_RUN_TESTS_WITH_ARGS(argc,argv);
