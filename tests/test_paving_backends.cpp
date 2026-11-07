@@ -14,6 +14,7 @@
  */
 
 #include <algorithm>
+#include <sstream>
 #include <type_traits>
 #include <vector>
 
@@ -31,6 +32,75 @@ static_assert(std::is_base_of_v<PavingInterface,BinaryTreePaving>);
 class TestPavingBackends : public Ariadne::Testing::ContextFixture {
   public:
     using ContextFixture::ContextFixture;
+
+    Void test_cell_view_snapshot_comparisons_and_queries() {
+        RobddManager manager;
+        Grid grid(2u);
+        GridCell root(grid,0u,BinaryWord{});
+        RobddPaving owner=RobddPaving::from_cells(manager,root,{
+            root.split(false).split(true),root.split(true).split(false)});
+        auto view=paving_cell_view(owner,root);
+        auto first=view.begin(), second=view.begin(), end=view.end();
+        ++second;
+        ARIADNE_TESTING_PROVE(first!=second);
+        ARIADNE_TESTING_PROVE(first!=end);
+        ARIADNE_TESTING_PROVE(end!=first);
+        ARIADNE_TESTING_PROVE(end==view.end());
+        ARIADNE_TESTING_PROVE(first!=owner.begin());
+        RobddPaving other(owner);
+        ARIADNE_TESTING_PROVE(first!=paving_cell_view(other,root).begin());
+        ARIADNE_TESTING_PROVE(first!=view.branch(false).begin());
+        auto saved=first;
+        owner.remove(*first);
+        ARIADNE_TESTING_PROVE(saved!=view.begin());
+        owner.adjoin(*saved);
+        ARIADNE_TESTING_PROVE(same(cast_exact_box(view.bounding_box()),root.box()));
+
+        PavingCellViewAdapter<RobddPaving> adapter(owner,root);
+        ARIADNE_TESTING_PROVE(adapter.intersects(owner));
+        RobddPaving empty(manager,root,manager.constant(false),0u);
+        ARIADNE_TESTING_PROVE(!adapter.intersects(empty));
+        ARIADNE_TESTING_PROVE(same(cast_exact_box(adapter.bounding_box()),root.box()));
+        ExactBoxType outside{{2.0_x,3.0_x},{2.0_x,3.0_x}};
+        ExactBoxType surrounding{{-1.0_x,2.0_x},{-1.0_x,2.0_x}};
+        ARIADNE_TESTING_PROVE(definitely(adapter.inside(surrounding)));
+        ARIADNE_TESTING_PROVE(!definitely(adapter.inside(outside)));
+        ARIADNE_TESTING_PROVE(definitely(adapter.separated(outside)));
+        ARIADNE_TESTING_PROVE(!definitely(adapter.separated(surrounding)));
+        ARIADNE_TESTING_PROVE(definitely(adapter.overlaps(surrounding)));
+        ARIADNE_TESTING_PROVE(!definitely(adapter.overlaps(outside)));
+        ExactBoxType wrong_dimension{{0.0_x,1.0_x}};
+        ARIADNE_TESTING_EXPECT_EXCEPTION(adapter.inside(wrong_dimension));
+        ARIADNE_TESTING_EXPECT_EXCEPTION(adapter.separated(wrong_dimension));
+        ARIADNE_TESTING_EXPECT_EXCEPTION(adapter.overlaps(wrong_dimension));
+        std::ostringstream display;
+        display<<adapter<<' '<<*saved<<' '<<saved<<' '<<end;
+        ARIADNE_TESTING_PROVE(display.str().find("PavingCellViewAdapter(")!=std::string::npos);
+        ARIADNE_TESTING_PROVE(display.str().find("PavingCellViewIterator(end)")!=std::string::npos);
+        ARIADNE_TESTING_EXPECT_EXCEPTION(*end);
+        ARIADNE_TESTING_EXPECT_EXCEPTION(++end);
+    }
+
+    Void test_default_batch_dispatch_and_zero_dimensional_enumeration() {
+        Grid grid(1u);
+        GridCell root(grid,0u,BinaryWord{});
+        BinaryTreePaving tree(grid);
+        tree.PavingInterface::adjoin(std::vector<GridCell>{});
+        ARIADNE_TESTING_PROVE(tree.is_empty());
+        tree.PavingInterface::adjoin(std::vector<GridCell>{root.split(false),root.split(true)});
+        ARIADNE_TESTING_PROVE(tree.superset(root));
+
+        RobddManager manager;
+        GridCell point(Grid(0u),0u,BinaryWord{});
+        RobddPaving zero(manager,point,manager.constant(true),0u);
+        std::vector<GridCell> cells;
+        auto visit=[&](GridCell const& cell) { cells.push_back(cell); };
+        for_each_enabled_cell_at_fineness(zero,3u,visit);
+        zero.for_each_enabled_cell_at_exact_fineness(3u,visit);
+        ARIADNE_TESTING_EXPECT_EQUAL(cells.size(),2u);
+        ARIADNE_TESTING_PROVE(cells[0]==point);
+        ARIADNE_TESTING_PROVE(cells[1]==point);
+    }
 
     Void test_import_and_explicit_tree_oracle() {
         RobddManager manager;
@@ -2622,6 +2692,8 @@ class TestPavingBackends : public Ariadne::Testing::ContextFixture {
 
 int main(int argc, char** argv) {
     ARIADNE_TESTING_SUITE("test_paving_backends");
+    ARIADNE_TESTING_ADD_TEST(TestPavingBackends, test_cell_view_snapshot_comparisons_and_queries);
+    ARIADNE_TESTING_ADD_TEST(TestPavingBackends, test_default_batch_dispatch_and_zero_dimensional_enumeration);
     ARIADNE_TESTING_ADD_TEST(TestPavingBackends, test_import_and_explicit_tree_oracle);
     ARIADNE_TESTING_ADD_TEST(TestPavingBackends, test_compact_leaves_exhaustive_truth_tables);
     ARIADNE_TESTING_ADD_TEST(TestPavingBackends, test_superset_direct_no_manager_allocations);
