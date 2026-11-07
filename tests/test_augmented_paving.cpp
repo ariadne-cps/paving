@@ -49,7 +49,6 @@ class TestAugmentedPaving : public Ariadne::Testing::ContextFixture {
         Mapping mapping=Mapping::identity(1u);
         ExactBoxType box{{0.125_x,0.875_x}};
         ExactBoxSetType regular(box);
-        OpenSet<EffectiveTag,RealVector> open(box);
         OvertSet<EffectiveTag,RealVector> overt(box);
         CompactSet<EffectiveTag,RealVector> compact(box);
         ValidatedConstrainedImageSet validated(box);
