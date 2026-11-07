@@ -216,6 +216,59 @@ class TestBinaryTreePaving : public Ariadne::Testing::ContextFixture {
     ARIADNE_TESTING_EXPECT_THROWS(NotALeafNodeException, theGPCursor.set_disabled());
 }
 
+
+Void test_cursor_lazy_cell_materialization() {
+    Grid grid(2u);
+    BinaryTreeNode root(true);
+    root.mince(3u);
+    // Non-primary subview: its root already has a nonempty binary path.
+    BinaryTreeSubpaving view(grid,1u,make_binary_word("01"),&root);
+    BinaryTreePavingCursor cursor(&view);
+    cursor.move_right();
+    cursor.move_left();
+    cursor.move_up();
+    cursor.move_right();
+    GridCell expected(grid,1u,make_binary_word("0111"));
+    ARIADNE_TESTING_EXPECT_EQUAL(cursor.cell().word(),expected.word());
+    ARIADNE_TESTING_EXPECT_EQUAL(cursor.cell().box(),expected.box());
+    ARIADNE_TESTING_EXPECT_EQUAL((*cursor).root_cell().box(),expected.box());
+
+    // Copy and assign a cursor while its cached geometry is stale.
+    cursor.move_up();
+    BinaryTreePavingCursor copied(cursor);
+    BinaryTreePavingCursor assigned;
+    assigned=cursor;
+    cursor.move_left();
+    GridCell parent(grid,1u,make_binary_word("011"));
+    GridCell left(grid,1u,make_binary_word("0110"));
+    ARIADNE_TESTING_EXPECT_EQUAL(copied.cell().box(),parent.box());
+    ARIADNE_TESTING_EXPECT_EQUAL(assigned.cell().box(),parent.box());
+    ARIADNE_TESTING_EXPECT_EQUAL(cursor.cell().box(),left.box());
+    ARIADNE_TESTING_EXPECT_EQUAL(cursor.cell().box(),left.box());
+    cursor.move_up();
+    ARIADNE_TESTING_EXPECT_EQUAL(cursor.cell().box(),parent.box());
+    cursor.move_up();
+    ARIADNE_TESTING_EXPECT_EQUAL(cursor.cell().box(),
+        GridCell(grid,1u,make_binary_word("01")).box());
+
+    // Both iterator modes must return the same geometrically valid cells.
+    BinaryTreePaving owning(grid,1u,new BinaryTreeNode(root));
+    BinaryTreeSubpaving const& borrowed=owning;
+    auto bi=borrowed.begin(),be=borrowed.end();
+    auto oi=owning.begin(),oe=owning.end();
+    SizeType count=0u;
+    for(;bi!=be && oi!=oe;++bi,++oi) {
+        ARIADNE_TESTING_EXPECT_EQUAL(bi->word(),oi->word());
+        ARIADNE_TESTING_EXPECT_EQUAL(bi->box(),oi->box());
+        GridCell canonical(grid,1u,bi->word());
+        ARIADNE_TESTING_EXPECT_EQUAL(bi->box(),canonical.box());
+        ++count;
+    }
+    ARIADNE_TESTING_EXPECT_EQUAL(bi==be,true);
+    ARIADNE_TESTING_EXPECT_EQUAL(oi==oe,true);
+    ARIADNE_TESTING_EXPECT_EQUAL(count,8u);
+}
+
 Void test_grid_paving_const_iterator(){
     std::vector< GridCell *> expected_result( 8 );
 
@@ -3318,6 +3371,7 @@ Void test_cell_range_contracts() {
 int main(int argc, char** argv) {
     ARIADNE_TESTING_SUITE("test_binary_tree_paving");
     ARIADNE_TESTING_ADD_TEST(TestBinaryTreePaving, test_grid_paving_cursor);
+    ARIADNE_TESTING_ADD_TEST(TestBinaryTreePaving, test_cursor_lazy_cell_materialization);
     ARIADNE_TESTING_ADD_TEST(TestBinaryTreePaving, test_grid_paving_const_iterator);
     ARIADNE_TESTING_ADD_TEST(TestBinaryTreePaving, test_grid_cell);
     ARIADNE_TESTING_ADD_TEST(TestBinaryTreePaving, test_grid_open_cell_one);

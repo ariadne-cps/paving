@@ -2024,3 +2024,28 @@ diagnostic search variants to estimate the overhead of eager geometry.
 Before optimizing the cursor, obtain measurements from compiled Release
 executables and preserve the owning snapshot semantics and borrowed
 view lifetime limitations. There are no performance pass/fail thresholds.
+
+
+## 2026-11-07 - Lazy GridCell materialization in BinaryTreePavingCursor
+
+The dedicated prebuilt-tree benchmark isolated eager `GridCell` rebuilding
+as the dominant cost of traversal (geometry/search ratios 131x..245x on
+511..131071-node full trees, 2D and 4D). In the production cursor,
+`move()` now changes the binary path and marks the cached geometric box
+dirty instead of rebuilding it on every left/right/up step. `cell() const`
+reconstructs the complete cell only on first demand after a movement;
+the cursor stream operator also goes through this accessor. The existing
+enabled-leaf search order and physical tree representation are unchanged.
+
+The cache state is copied with the cursor so copies and assignments from
+dirty cursors remain correct. The returned `cell()` reference is valid only
+until the next movement, as with references into an advancing iterator.
+Independent cursor objects are not shared between threads; concurrent
+access to one iterator object requires external synchronization. Owning
+iterators retain their existing detached snapshot semantics.
+
+The regression covers dirty copies, assignments, non-primary subviews,
+up/down moves, materialized boxes, and matching full cells between borrowed
+and owning iterators. Run `benchmark_binary_tree_cursor` again to measure
+the actual improvement against the supplied eager-production baseline;
+diagnostic Geometry remains deliberately eager as a stable reference.

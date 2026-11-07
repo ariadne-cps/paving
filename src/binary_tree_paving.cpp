@@ -655,7 +655,9 @@ BinaryTreePavingCursor::BinaryTreePavingCursor( ) :
 
 BinaryTreePavingCursor::BinaryTreePavingCursor(const BinaryTreePavingCursor & otherCursor) :
     _currentStackIndex(otherCursor._currentStackIndex), _theStack(otherCursor._theStack),
-    _pSubPaving(otherCursor._pSubPaving), _theCurrentGridCell(otherCursor._theCurrentGridCell){
+    _pSubPaving(otherCursor._pSubPaving),
+    _theCurrentGridCell(otherCursor._theCurrentGridCell),
+    _cell_geometry_dirty(otherCursor._cell_geometry_dirty) {
 }
 
 BinaryTreePavingCursor& BinaryTreePavingCursor::operator=(const BinaryTreePavingCursor & otherCursor) {
@@ -663,6 +665,7 @@ BinaryTreePavingCursor& BinaryTreePavingCursor::operator=(const BinaryTreePaving
     _theStack = otherCursor._theStack;
     _pSubPaving = otherCursor._pSubPaving;
     _theCurrentGridCell = otherCursor._theCurrentGridCell;
+    _cell_geometry_dirty = otherCursor._cell_geometry_dirty;
 
     return *this;
 }
@@ -766,7 +769,8 @@ inline Void BinaryTreePavingCursor::updateTheCurrentGridCell( BinaryTreeDirectio
         //Here up_or_left_or_right is either LEFT or RIGHT, so true defines moving to the right branch
         _theCurrentGridCell._theWord.push_back( up_or_left_or_right==BinaryTreeDirection::RIGHT );
     }
-    _theCurrentGridCell = GridCell( _theCurrentGridCell._theGrid, _theCurrentGridCell._theExtent, _theCurrentGridCell._theWord );
+    // Only the path is needed for navigation and enabled-leaf search.
+    _cell_geometry_dirty=true;
 }
 
 inline BinaryTreePavingCursor& BinaryTreePavingCursor::move(BinaryTreeDirection up_or_left_or_right) {
@@ -792,7 +796,7 @@ inline BinaryTreePavingCursor& BinaryTreePavingCursor::move(BinaryTreeDirection 
         push(pNextNode);
     }
 
-    //Recompute the PavingGridCell
+    // Update the path; materialize geometry only on a later cell() read.
     updateTheCurrentGridCell( up_or_left_or_right );
     //Return the object back
     return ( * this);
@@ -830,7 +834,7 @@ OutputStream& operator<<(OutputStream& os, const BinaryTreePavingCursor& theBina
     for(Int i = 0; i <= curr_stack_idx; i++){
         os << theBinaryTreePavingCursor._theStack[static_cast<SizeType>(i)]->node_to_string() << ( ( i < curr_stack_idx ) ? "" : ", ");
     }
-    return os<<" ], " << theBinaryTreePavingCursor._theCurrentGridCell << " )";
+    return os<<" ], " << theBinaryTreePavingCursor.cell() << " )";
 }
 
 //***************************************BinaryTreePavingConstIterator************************************/

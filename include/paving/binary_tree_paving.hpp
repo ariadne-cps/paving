@@ -848,7 +848,11 @@ class BinaryTreePavingCursor {
     // The subpaving to cursor on
     const BinaryTreeSubpaving * _pSubPaving;
 
-    GridCell _theCurrentGridCell;
+    // The path in _theCurrentGridCell is always current; the geometric box
+    // is recomputed only when cell() is requested. A reference from cell()
+    // must not be retained across cursor movement.
+    mutable GridCell _theCurrentGridCell;
+    mutable Bool _cell_geometry_dirty=false;
 
     //! \brief Push the node into the atack
     Void push( BinaryTreeNode* pLatestNode );
@@ -928,7 +932,10 @@ class BinaryTreePavingCursor {
     //! and we try to move to a child, or if the current node is the root and we try to move up.
     BinaryTreePavingCursor& move(BinaryTreeDirection up_or_left_or_right);
 
-    //! \brief Convert to a GridCell.
+    //! \brief Materialize and return the current geometric cell on demand.
+    //! \details Moves update its binary word but defer computing its box.
+    //! The returned reference is invalidated by the next cursor move.
+    //! Simultaneous use of one cursor instance requires synchronization.
     const GridCell& cell() const;
 
     //! \brief Allows to test if the two cursors are equal, this is determined by
@@ -1051,6 +1058,15 @@ class BinaryTreePavingConstIterator
 //***************************************BinaryTreePavingCursor**********************************************/
 
 inline const GridCell& BinaryTreePavingCursor::cell() const {
+    if(_cell_geometry_dirty) {
+        // Construct before assigning so a failed computation leaves dirty
+        // state set instead of exposing a half-updated geometric box.
+        GridCell updated(_theCurrentGridCell._theGrid,
+                         _theCurrentGridCell._theExtent,
+                         _theCurrentGridCell._theWord);
+        _theCurrentGridCell=updated;
+        _cell_geometry_dirty=false;
+    }
     return _theCurrentGridCell;
 }
 
