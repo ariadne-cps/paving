@@ -3223,6 +3223,11 @@ Void test_snapshot_iterator_identity_and_borrowed_union() {
     ARIADNE_TESTING_EXPECT_EXCEPTION(owner.adjoin(foreign));
     ARIADNE_TESTING_PROVE(owner.superset(owner.root_cell()));
 
+    BinaryTreePaving batch_target(grid);
+    ARIADNE_TESTING_EXPECT_EXCEPTION(batch_target.adjoin(
+        std::vector<GridCell>{owner.root_cell(),foreign.root_cell()}));
+    ARIADNE_TESTING_PROVE(batch_target.is_empty());
+
     // Union accepts a stable, borrowed subtree as well as an owning tree.
     auto left=owner.branch(false);
     BinaryTreePaving destination(grid);
