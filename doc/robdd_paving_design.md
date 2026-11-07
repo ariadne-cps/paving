@@ -2135,3 +2135,46 @@ without new evidence. Benchmark experiments belong on the local
 machine and results in this design journal. Do not use the official
 README as a running experimental notebook or add GitHub Actions
 performance workflows for this interactive investigation.
+
+
+## 2026-11-07 - Opt-in outer-approximation phase profiling
+
+The local five-shape 4D/fineness-3 measurements put the tree and ROBDD
+at approximate parity for leaf iteration and for minimum-fineness
+enumeration, while both backends still take 0.5-0.8 s for
+`outer_warm`/ `outer_cold`. The dedicated `replay_bulk` timings
+are roughly three orders of magnitude smaller, suggesting a common
+classification cost; this is a strong hypothesis, not a proven
+cycle-level attribution.
+
+Added an opt-in `--outer-phases` switch to the existing
+`benchmark_paving_backends` executable. The diagnostic enumerates
+the same enclosing root and conservative separated/covers decisions
+used by the empty ROBDD construction path. It checks the resulting
+cell set for semantic equivalence with both production backends
+before timing. Three independently calibrated workloads are logged
+as `OUTER_PHASES`: complete geometric candidate selection; replay
+of exactly the recorded set predicates over precomputed boxes; and
+traversal plus GridCell creation of the same recorded branch topology
+without predicate evaluation. Counts of visited cells, separation
+calls, cover calls, subdivisions, and selected cells are also emitted.
+
+The timing columns **overlap** and must not be summed or subtracted
+to claim exact attribution. The diagnostic explores cells through
+`GridCell::split` as the ROBDD path does; it does not reproduce
+the explicit tree's path/structural update implementation. All
+profiling is opt-in and outside CTest, with no production changes
+and no new workflows or README modifications.
+
+Local Release invocation (start with one bounded geometric case):
+
+```bash
+cmake --build build-release --target benchmark_paving_backends
+./build-release/benchmarks/benchmark_paving_backends \
+  --dimensions 4 --finenesses 3 --shapes aligned-box \
+  --max-depth-bits 28 --no-retention --outer-phases \
+  --samples 7 --min-sample-ms 12 --concurrency 0
+```
+
+Once this runs correctly, pass the five comma-separated shape names
+to obtain the full comparison on the user's machine.

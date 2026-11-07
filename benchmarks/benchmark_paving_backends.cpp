@@ -55,6 +55,7 @@ struct Selection {
     bool summary_only=false;
     bool run_retention=true;
     bool tree_iterator_cost=false;
+    bool outer_phases=false;
 };
 
 std::vector<std::string> parse_shapes(String const& value) {
@@ -176,6 +177,9 @@ List<ArgumentParser> parsers(Selection& selection) {
     result.append(make_unvalued_argument_parser(
         "","tree-iterator-cost","Time safe owner snapshots versus borrowed stable-tree iteration",
         [&selection] { selection.tree_iterator_cost=true; }));
+    result.append(make_unvalued_argument_parser(
+        "","outer-phases","Profile geometric outer classification versus predicate calls and cell traversal",
+        [&selection] { selection.outer_phases=true; }));
     return result;
 }
 
@@ -710,6 +714,197 @@ void validate_geometry(
     }
 }
 
+
+// Opt-in comparison for the *common* cost of approximating the same set.
+// The empty ROBDD backend enumerates candidate cells using these exact
+// separated/covers/stop decisions, then encodes them in its manager.
+// No production logic or performance-critical code is instrumented.
+struct OuterTraceEntry {
+    ExactBoxType box;
+    BinaryWord path;
+    Bool check_covers;
+    Bool separated;
+    Bool covered;
+    Bool subdivide;
+};
+
+struct OuterSelection {
+    GridCell enclosing_cell;
+    std::vector<GridCell> selected;
+    std::vector<OuterTraceEntry> trace;
+    SizeType visited=0u;
+    SizeType separated_calls=0u;
+    SizeType covers_calls=0u;
+    SizeType subdivisions=0u;
+};
+
+OuterSelection select_outer_cells(
+        EffectiveEuclideanCompactSetInterface const& set,
+        Grid const& grid,unsigned fineness,Bool keep_trace) {
+    Nat extent=GridCell::smallest_enclosing_primary_cell_extent(
+        set.bounding_box(),grid);
+    Nat dimensions=static_cast<Nat>(grid.dimension());
+    constexpr Nat nat_limit=std::numeric_limits<Nat>::max();
+    constexpr SizeType size_limit=std::numeric_limits<SizeType>::max();
+    if(dimensions==0u or extent>nat_limit-dimensions
+       or extent+dimensions>nat_limit-fineness) {
+        throw std::overflow_error("invalid outer diagnostic extent");
+    }
+    Nat root_extent=extent+dimensions;
+    SizeType levels=static_cast<SizeType>(root_extent)+fineness;
+    if(levels>size_limit/dimensions) {
+        throw std::overflow_error("outer diagnostic depth exceeds SizeType");
+    }
+    SizeType target_depth=levels*dimensions;
+    GridCell root(grid,root_extent,BinaryWord{});
+    OuterSelection result{root};
+    auto const* open_set=dynamic_cast<
+        EffectiveEuclideanOpenSetInterface const*>(
+            static_cast<EuclideanSetInterfaceBase const*>(&set));
+
+    std::function<void(GridCell const&,SizeType)> visit=
+        [&](GridCell const& cell,SizeType depth) {
+            ++result.visited;
+            ++result.separated_calls;
+            Bool separated=definitely(set.separated(cell.box()));
+            Bool check_cover=not separated and open_set!=nullptr;
+            Bool covered=false;
+            if(check_cover) {
+                ++result.covers_calls;
+                covered=definitely(open_set->covers(cell.box()));
+            }
+            Bool subdivide=not separated and not covered and depth<target_depth;
+            if(keep_trace) {
+                result.trace.push_back({
+                    cell.box(),cell.word(),check_cover,separated,covered,subdivide});
+            }
+            if(separated) { return; }
+            if(not subdivide) {
+                result.selected.push_back(cell);
+                return;
+            }
+            ++result.subdivisions;
+            visit(cell.split(false),depth+1u);
+            visit(cell.split(true),depth+1u);
+        };
+    visit(root,0u);
+    return result;
+}
+
+// Re-run exactly those geometric predicates whose results determined the
+// recorded topology; boxes are precomputed, so no GridCell split occurs.
+SizeType replay_outer_predicates(
+        EffectiveEuclideanCompactSetInterface const& set,
+        std::vector<OuterTraceEntry> const& trace) {
+    auto const* open_set=dynamic_cast<
+        EffectiveEuclideanOpenSetInterface const*>(
+            static_cast<EuclideanSetInterfaceBase const*>(&set));
+    SizeType checksum=0u;
+    for(OuterTraceEntry const& entry:trace) {
+        Bool separated=definitely(set.separated(entry.box));
+        checksum+=static_cast<SizeType>(separated);
+        if(entry.check_covers) {
+            if(open_set==nullptr) throw std::logic_error(
+                "outer predicate trace expects a missing open set");
+            checksum+=static_cast<SizeType>(
+                definitely(open_set->covers(entry.box)));
+        }
+    }
+    return checksum;
+}
+
+// Replay the identical recorded branch topology without predicates.
+// This still constructs all GridCells and calculates their exact boxes.
+SizeType replay_outer_geometry(OuterSelection const& reference,
+                               Bool check_paths) {
+    SizeType index=0u;
+    SizeType checksum=0u;
+    std::function<void(GridCell const&)> visit=
+        [&](GridCell const& cell) {
+            if(index>=reference.trace.size())
+                throw std::logic_error("outer traversal trace exhausted");
+            OuterTraceEntry const& entry=reference.trace[index++];
+            if(check_paths and cell.word()!=entry.path)
+                throw std::logic_error("outer traversal path mismatch");
+            checksum+=cell.word().size()+cell.box().dimension()+1u;
+            if(entry.subdivide) {
+                visit(cell.split(false));
+                visit(cell.split(true));
+            }
+        };
+    visit(reference.enclosing_cell);
+    if(index!=reference.trace.size())
+        throw std::logic_error("outer traversal trace not fully consumed");
+    return checksum;
+}
+
+void profile_outer_phases(
+        Selection const& selection,std::string const& shape,
+        unsigned dimension,unsigned fineness,
+        EffectiveEuclideanCompactSetInterface const& set,Grid const& grid,
+        BinaryTreePaving const& tree,RobddPaving const& robdd) {
+    OuterSelection recorded=select_outer_cells(set,grid,fineness,true);
+    if(recorded.visited!=recorded.trace.size()
+       or recorded.separated_calls!=recorded.visited
+       or recorded.selected.empty()) {
+        throw std::logic_error("inconsistent outer selection counters");
+    }
+    // Check the candidate set against *both* production backends before
+    // attributing time to this diagnostic traversal.
+    BinaryTreePaving oracle(grid);
+    for(GridCell const& cell:recorded.selected) oracle.adjoin(cell);
+    oracle.recombine();
+    validate_geometry(tree,oracle);
+    validate_geometry(robdd,oracle);
+
+    SizeType expected_predicates=0u;
+    for(OuterTraceEntry const& entry:recorded.trace) {
+        expected_predicates+=static_cast<SizeType>(entry.separated)
+                            +static_cast<SizeType>(entry.covered);
+    }
+    if(replay_outer_predicates(set,recorded.trace)!=expected_predicates) {
+        throw std::logic_error("geometric predicates changed on replay");
+    }
+    SizeType geometry_checksum=replay_outer_geometry(recorded,true);
+
+    Timing selection_time=median_ms(
+        [&](unsigned) {
+            OuterSelection result=select_outer_cells(set,grid,fineness,false);
+            if(result.visited!=recorded.visited
+               or result.selected.size()!=recorded.selected.size()) {
+                throw std::logic_error("unstable outer candidate selection");
+            }
+            keep_alive(result);
+            return result.visited+result.selected.size();
+        },selection.iterations,selection.samples,
+        selection.min_sample_ms,selection.max_iterations);
+    Timing predicate_time=median_ms(
+        [&](unsigned) { return replay_outer_predicates(set,recorded.trace); },
+        selection.iterations,selection.samples,
+        selection.min_sample_ms,selection.max_iterations);
+    Timing geometry_time=median_ms(
+        [&](unsigned) { return replay_outer_geometry(recorded,false); },
+        selection.iterations,selection.samples,
+        selection.min_sample_ms,selection.max_iterations);
+
+    LOGGING_PRINTLN("OUTER_PHASES shape="<<shape
+        <<" d="<<dimension<<" f="<<fineness
+        <<" visited="<<recorded.visited
+        <<" selected="<<recorded.selected.size()
+        <<" separated_calls="<<recorded.separated_calls
+        <<" covers_calls="<<recorded.covers_calls
+        <<" subdivisions="<<recorded.subdivisions
+        <<" candidate_checksum="<<geometry_checksum
+        <<" selection_ms="<<std::setprecision(9)<<selection_time.milliseconds
+        <<" predicates_ms="<<predicate_time.milliseconds
+        <<" geometry_walk_ms="<<geometry_time.milliseconds
+        <<" predicate_over_selection="
+        <<predicate_time.milliseconds/selection_time.milliseconds)
+    LOGGING_PRINTLN("OUTER_PHASES are independently timed overlapping workloads,"
+        <<" not an additive cost decomposition; the selected cells were"
+        <<" semantically checked against tree and ROBDD before timing.")
+}
+
 void append_case(std::vector<Datum>& data,std::vector<MemoryDatum>& memory,
                  Selection const& selection,std::string const& shape,
                  unsigned dimension,unsigned fineness) {
@@ -752,6 +947,10 @@ void append_case(std::vector<Datum>& data,std::vector<MemoryDatum>& memory,
             <<" < min-leaves="<<selection.min_leaves)
         memory.pop_back();
         return;
+    }
+    if(selection.outer_phases) {
+        profile_outer_phases(selection,shape,dimension,fineness,set,grid,
+                             tree,robdd);
     }
     auto probes=make_probes(grid,dimension,fineness);
 
