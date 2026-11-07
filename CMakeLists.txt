@@ -7,9 +7,12 @@ option(BUILD_PYTHON_BINDINGS "Build Python bindings" ON)
 
 if(NOT TARGET ariadne-build)
     find_package(Git REQUIRED)
-    execute_process(COMMAND "${GIT_EXECUTABLE}" -C "${CMAKE_CURRENT_SOURCE_DIR}"
-                    submodule update --init -- ss/bui
-                    RESULT_VARIABLE _result)
+    # Keep initial Build checkout output in English.
+    execute_process(
+        COMMAND "${CMAKE_COMMAND}" -E env "LC_ALL=C"
+                "${GIT_EXECUTABLE}" -C "${CMAKE_CURRENT_SOURCE_DIR}"
+                submodule update --init -- ss/bui
+        RESULT_VARIABLE _result)
     if(_result)
         message(FATAL_ERROR "Cannot initialize build submodule")
     endif()
@@ -17,42 +20,21 @@ if(NOT TARGET ariadne-build)
 endif()
 
 if(EXISTS "${PROJECT_SOURCE_DIR}/.git")
-    require_same_dependency_commit(Build
-        CHAINS
-            "build"
-            "set|build"
-            "set|linear-programming|build"
-            "set|constraint-solving|build"
-            "bdd|build"
-            "bdd|threading|build"
-            "testing|build"
-            "set|testing|build"
-            "bdd|testing|build"
-    )
-    require_same_dependency_commit(Foundation
-        CHAINS
-            "tree|foundation"
-            "set|linear-programming|algebra|interval|numeric|foundation"
-    )
-    require_same_dependency_commit(Logging
-        CHAINS
-            "set|linear-programming|algebra|interval|numeric|logging"
-            "bdd|threading|logging"
-    )
-    require_same_dependency_commit(PythonCommon
-        CHAINS
-            "set|linear-programming|algebra|interval|numeric|foundation|python-common"
-            "bdd|python-common"
-    )
-    require_same_dependency_commit(Testing
-        CHAINS
-            "testing"
-            "set|testing"
-            "bdd|testing"
-            "set|linear-programming|testing"
-            "set|constraint-solving|testing"
-            "bdd|threading|testing"
-    )
+    # Child commits guarantee their own internal consistency.
+    # Keep cross-branch comparisons where the same dependency is shared.
+    require_same_dependency_commit(Build CHAINS
+        "build" "set|build" "bdd|build" "testing|build")
+    require_same_dependency_commit(Foundation CHAINS
+        "tree|foundation"
+        "set|linear-programming|algebra|interval|numeric|foundation")
+    require_same_dependency_commit(Logging CHAINS
+        "set|linear-programming|algebra|interval|numeric|logging"
+        "bdd|threading|logging")
+    require_same_dependency_commit(PythonCommon CHAINS
+        "set|linear-programming|algebra|interval|numeric|foundation|python-common"
+        "bdd|python-common")
+    require_same_dependency_commit(Testing CHAINS
+        "testing" "set|testing" "bdd|testing")
 endif()
 
 setup_project()
