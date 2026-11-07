@@ -54,6 +54,7 @@ struct Selection {
         "rotated-ellipsoid","ball"};
     bool summary_only=false;
     bool run_retention=true;
+    bool tree_iterator_cost=false;
 };
 
 std::vector<std::string> parse_shapes(String const& value) {
@@ -172,6 +173,9 @@ List<ArgumentParser> parsers(Selection& selection) {
     result.append(make_unvalued_argument_parser(
         "","no-retention","Skip shared-manager post-root-destruction experiment",
         [&selection] { selection.run_retention=false; }));
+    result.append(make_unvalued_argument_parser(
+        "","tree-iterator-cost","Time safe owner snapshots versus borrowed stable-tree iteration",
+        [&selection] { selection.tree_iterator_cost=true; }));
     return result;
 }
 
@@ -348,6 +352,17 @@ SizeType count_tree_nodes(BinaryTreeNode const& node) {
 SizeType visit_leaves(SubPavingInterface const& paving) {
     SizeType checksum=0u;
     for (auto it=paving.begin(),end=paving.end();it!=end;++it) {
+        checksum+=it->word().size()+1u;
+    }
+    return checksum;
+}
+
+// This is a deliberately borrowed traversal, valid ONLY while the owning
+// tree is stable. It is not a substitute for concurrent-safe owner iterators.
+SizeType visit_borrowed_tree_leaves(GridTreeSubpaving const& paving) {
+    SizeType checksum=0u;
+    for(auto it=paving.GridTreeSubpaving::begin(),
+             end=paving.GridTreeSubpaving::end();it!=end;++it) {
         checksum+=it->word().size()+1u;
     }
     return checksum;
@@ -848,6 +863,48 @@ void append_case(std::vector<Datum>& data,std::vector<MemoryDatum>& memory,
     record("iterate_min",
         [&](unsigned) { return visit_minimum(tree,fineness); },
         [&](unsigned) { return visit_minimum(robdd,fineness); });
+
+    if(selection.tree_iterator_cost) {
+        // Compare only representations of the same immutable tree. Ordinary
+        // GridTreePaving iterators own a deep copy; borrowed base iterators
+        // are valid here because this scenario has no concurrent writers.
+        GridTreeSubpaving const& stable_tree=tree;
+        SizeType safe_checksum=visit_leaves(tree);
+        SizeType borrowed_checksum=visit_borrowed_tree_leaves(stable_tree);
+        if(safe_checksum!=borrowed_checksum) {
+            throw std::runtime_error(
+                "stable borrowed-tree traversal disagrees with owner snapshot");
+        }
+
+        Timing owner_begin=median_ms(
+            [&](unsigned) { return tree.begin(); },
+            selection.iterations,selection.samples,
+            selection.min_sample_ms,selection.max_iterations);
+        Timing borrowed_begin=median_ms(
+            [&](unsigned) { return stable_tree.GridTreeSubpaving::begin(); },
+            selection.iterations,selection.samples,
+            selection.min_sample_ms,selection.max_iterations);
+        Timing owner_visit=median_ms(
+            [&](unsigned) { return visit_leaves(tree); },
+            selection.iterations,selection.samples,
+            selection.min_sample_ms,selection.max_iterations);
+        Timing borrowed_visit=median_ms(
+            [&](unsigned) { return visit_borrowed_tree_leaves(stable_tree); },
+            selection.iterations,selection.samples,
+            selection.min_sample_ms,selection.max_iterations);
+
+        LOGGING_PRINTLN("TREE_ITERATOR_COST shape="<<shape
+            <<" d="<<dimension<<" f="<<fineness
+            <<" leaves="<<tree_leaves<<" nodes="<<tree_nodes
+            <<" owner_begin_ms="<<std::setprecision(9)<<owner_begin.milliseconds
+            <<" borrowed_begin_ms="<<borrowed_begin.milliseconds
+            <<" owner_visit_ms="<<owner_visit.milliseconds
+            <<" borrowed_visit_ms="<<borrowed_visit.milliseconds
+            <<" begin_ratio_owner_over_borrowed="
+            <<owner_begin.milliseconds/borrowed_begin.milliseconds
+            <<" visit_ratio_owner_over_borrowed="
+            <<owner_visit.milliseconds/borrowed_visit.milliseconds);
+    }
 
     record("superset_16",
         [&](unsigned) { return probe_coverage(tree,probes); },

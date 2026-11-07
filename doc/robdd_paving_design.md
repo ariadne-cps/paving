@@ -1977,3 +1977,30 @@ that projection is either empty or the correct single projected cell.
 This does not protect legacy free operations on directly borrowed
 `GridTreeSubpaving` views: their owner must remain stable for the entire
 operation, or the caller must use an independent owner snapshot.
+
+
+## 2026-11-07 - Opt-in measurements of tree snapshot iterator costs
+
+The existing `benchmark_paving_backends` reports `copy` and
+`iterate_leaves`, but does not isolate the cost of acquiring the
+iterator's deep snapshot from the cost of traversing enabled leaves.
+The new optional `--tree-iterator-cost` flag adds per-shape/dimension/
+fineness diagnostics on the exact same immutable tree:
+
+- creation of an owning `GridTreePaving::begin()` iterator, including its
+  thread-safe deep snapshot;
+- creation of a borrowed `GridTreeSubpaving::begin()` iterator, which is
+  legal only while the owner remains unmodified;
+- full owning traversal, including snapshot construction;
+- full borrowed traversal, excluding snapshot construction.
+
+Both traversal variants must yield the same checksum before timing.
+Each sample uses the benchmark's existing independently calibrated
+median timing routine; results include tree node/leaf counts, four
+per-operation milliseconds and safe/borrowed ratios. These extra
+measurements run only when explicitly requested and do not enter the
+paired tree/ROBDD aggregate speed ratios. There are deliberately no
+performance pass/fail thresholds, and no claim that a borrowed iterator
+is safe during owner mutation. Actual timing results must be obtained
+from a built benchmark on the target platform before choosing a
+performance optimization.
