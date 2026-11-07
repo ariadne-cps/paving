@@ -1787,3 +1787,30 @@ protected geometry directly rather than calling any virtual accessor.
 A dedicated, time-bounded sequential regression exercises both the no-op
 and mutating restriction paths in one, two, and four dimensions.
 The previous `is_empty()` correction remains unchanged.
+
+
+## 2026-11-07 - Scoped mutable subpaving access
+
+The owning `GridTreePaving` now exposes `with_locked_subpaving(callback)`
+and `with_locked_branch(right,callback)` for operations on live borrowed
+subtrees that must be synchronized with concurrent owner updates. Both
+helpers acquire the same non-recursive owner mutex used by `adjoin`,
+`remove`, `restrict`, `mince`, `recombine` and snapshot copying, and
+hold it until the callback returns. A callback receives a
+`GridTreeSubpaving&` and must return `void`. The root callback creates
+a temporary borrowed base view; the branch callback also performs the
+necessary semantics-preserving split while holding the lock.
+
+The callback must not call another operation of the owning
+`GridTreePaving` that attempts to acquire its mutex (non-recursive).
+It also must not retain/capture the view, an iterator, or a node pointer
+past the scope: although the void return constraint prevents accidentally
+returning the view, C++ cannot prevent clients from storing borrowed
+references elsewhere. The existing `GridTreeSubpaving::branch()` and
+`SubPavingInterface::branch()` remain live, non-owning APIs with no
+cross-call lifetime guarantee. Changing them to snapshots would silently
+break mutability semantics and is deliberately avoided.
+
+Regressions cover scoped mutation of root/child views and a concurrent
+owner update overlapping a locked child callback. Snapshot iterators
+remain the recommended interface for independent read-only traversal.

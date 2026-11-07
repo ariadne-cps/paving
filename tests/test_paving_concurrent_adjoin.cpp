@@ -363,6 +363,63 @@ class TestPavingConcurrentAdjoin : public Ariadne::Testing::ContextFixture {
         ARIADNE_TESTING_PROVE(destination.intersects(destination));
     }
 
+    Void test_tree_scoped_borrowed_mutations() {
+        Grid grid(1u);
+        GridCell left(grid,0u,make_binary_word("0"));
+        GridCell right(grid,0u,make_binary_word("1"));
+        GridTreePaving paving(grid,true);
+
+        paving.with_locked_branch(false,[&](GridTreeSubpaving& child) {
+            ARIADNE_TESTING_PROVE(child.root_cell()==left);
+            child.set_root_cell(false);
+        });
+        ARIADNE_TESTING_PROVE(!paving.superset(left));
+        ARIADNE_TESTING_PROVE(paving.superset(right));
+
+        paving.with_locked_subpaving([&](GridTreeSubpaving& root) {
+            // All borrowed descendants remain valid while the root is locked.
+            GridTreeSubpaving right_child=root.branch(true);
+            ARIADNE_TESTING_PROVE(right_child.root_cell()==right);
+            right_child.set_root_cell(false);
+        });
+        ARIADNE_TESTING_PROVE(paving.is_empty());
+        paving.recombine();
+        ARIADNE_TESTING_PROVE(paving.is_empty());
+    }
+
+    Void test_tree_scoped_branch_with_concurrent_adjoin() {
+        Grid grid(1u);
+        GridCell left(grid,0u,make_binary_word("0"));
+        GridCell right(grid,0u,make_binary_word("1"));
+        GridTreePaving paving(grid,true);
+        std::atomic<bool> entered{false};
+        std::atomic<bool> release{false};
+
+        std::thread scoped([&] {
+            paving.with_locked_branch(false,[&](GridTreeSubpaving& child) {
+                entered.store(true,std::memory_order_release);
+                while(!release.load(std::memory_order_acquire)) {
+                    std::this_thread::yield();
+                }
+                child.set_root_cell(false);
+            });
+        });
+        while(!entered.load(std::memory_order_acquire)) {
+            std::this_thread::yield();
+        }
+        std::thread writer([&] {
+            // Must not reallocate the borrowed nodes during the callback.
+            paving.adjoin(right);
+            paving.recombine();
+        });
+        release.store(true,std::memory_order_release);
+        scoped.join();
+        writer.join();
+
+        ARIADNE_TESTING_PROVE(!paving.superset(left));
+        ARIADNE_TESTING_PROVE(paving.superset(right));
+    }
+
     Void test_grid_tree_concurrent_adjoin() {
         Grid grid(1u);
         auto cells=make_cells(grid);
@@ -418,6 +475,8 @@ int main(int argc, char** argv) {
     ARIADNE_TESTING_ADD_TEST(TestPavingConcurrentAdjoin,test_tree_concurrent_set_mutations);
     ARIADNE_TESTING_ADD_TEST(TestPavingConcurrentAdjoin,test_tree_snapshot_iterators_survive_concurrent_mutations);
     ARIADNE_TESTING_ADD_TEST(TestPavingConcurrentAdjoin,test_tree_concurrent_geometric_queries);
+    ARIADNE_TESTING_ADD_TEST(TestPavingConcurrentAdjoin,test_tree_scoped_borrowed_mutations);
+    ARIADNE_TESTING_ADD_TEST(TestPavingConcurrentAdjoin,test_tree_scoped_branch_with_concurrent_adjoin);
     ARIADNE_TESTING_ADD_TEST(TestPavingConcurrentAdjoin,test_robdd_concurrent_set_mutations);
     ARIADNE_TESTING_ADD_TEST(TestPavingConcurrentAdjoin,test_robdd_concurrent_root_mutations);
     ARIADNE_TESTING_ADD_TEST(TestPavingConcurrentAdjoin,test_robdd_reader_writer_adjoin);

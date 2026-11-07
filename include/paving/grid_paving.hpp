@@ -33,8 +33,11 @@
 #include <iomanip>
 #include <string>
 
+#include <functional>
 #include <memory>
 #include <mutex>
+#include <type_traits>
+#include <utility>
 
 #include "foundation/logical.hpp"
 #include "utility/array.hpp"
@@ -570,6 +573,37 @@ class GridTreePaving
     using GridTreeSubpaving::subset;
     using GridTreeSubpaving::superset;
     using GridTreeSubpaving::intersects;
+
+    //! \brief Execute a mutation of a borrowed root view while locking its owner.
+    //! \details The callback receives a non-owning GridTreeSubpaving& and must
+    //! return void. The lock covers the entire callback, not just view creation.
+    //! \warning Never retain the view, an iterator, or a child-node pointer
+    //! after the callback returns. Do not call locking GridTreePaving methods
+    //! from inside the callback: the owner mutex is non-recursive.
+    template<class Callback>
+    Void with_locked_subpaving(Callback&& callback) {
+        static_assert(std::is_void_v<std::invoke_result_t<Callback&&, GridTreeSubpaving&>>,
+            "A scoped subpaving callback must return void");
+        std::lock_guard<std::mutex> lock(_adjoin_mutex);
+        GridTreeSubpaving view(_theGridCell.grid(),_theGridCell.root_extent(),
+                               _theGridCell.word(),_pRootTreeNode);
+        std::invoke(std::forward<Callback>(callback),view);
+    }
+
+    //! \brief Modify a child view while holding the parent paving's mutex.
+    //! \details Splits the selected child if necessary, preserving geometric
+    //! membership. Unlike branch(), this scope protects the borrowed nodes
+    //! for the whole callback. The callback must return void.
+    //! \warning Do not retain any reference to the child beyond the callback
+    //! or re-enter owner-locking methods from the callback.
+    template<class Callback>
+    Void with_locked_branch(Bool right, Callback&& callback) {
+        static_assert(std::is_void_v<std::invoke_result_t<Callback&&, GridTreeSubpaving&>>,
+            "A scoped branch callback must return void");
+        std::lock_guard<std::mutex> lock(_adjoin_mutex);
+        GridTreeSubpaving view=GridTreeSubpaving::branch(right);
+        std::invoke(std::forward<Callback>(callback),view);
+    }
 
     //! Explicit overrides resolve the shared SubPavingInterface virtual base.
     //! \brief Coherent owning-tree value queries.
