@@ -1814,3 +1814,33 @@ break mutability semantics and is deliberately avoided.
 Regressions cover scoped mutation of root/child views and a concurrent
 owner update overlapping a locked child callback. Snapshot iterators
 remain the recommended interface for independent read-only traversal.
+
+
+## 2026-11-07 - Atomic explicit-tree geometric approximations and clear
+
+An audit of the direct tree mutators identified four public geometric
+approximation entry points that traversed and modified owner nodes without
+holding `_adjoin_mutex`: the effective/validated compact outer algorithms,
+the overt-set lower approximation by extent, and the open-set inner
+approximation by extent. Each now acquires the owner mutex for its entire
+direct mutation, including tree alignment and recursive updates. Delegating
+box/located/regular overloads retain their existing call graph and enter
+one of these guarded terminal algorithms, avoiding nested acquisition of
+the non-recursive mutex. Owner `root_cell()` access inside the four locked
+functions is now explicitly qualified to the base `GridTreeSubpaving`
+accessor, avoiding the previous virtual-dispatch deadlock pattern.
+
+`GridTreePaving::clear()` now performs both its root-geometry reset to
+extent zero and the disabling of the binary-tree root under a single owner
+mutex. Previously, clear constructed a replacement using an unprotected
+reference to the owner's grid before a separately synchronized assignment.
+The new implementation preserves the existing default-root semantics.
+
+A concurrent stress regression exercises compact outer, overt lower and
+open inner approximations alternating with clear while another thread
+snapshots and iterates the owner; it also verifies root extent and
+membership after clear. A caller must not make an approximation's set
+predicate callback re-enter a locking method of the same owner while the
+mutex is held. Approximation operations remain potentially expensive and
+hold the owner lock for their entire calculation. The existing borrowed
+view lifetime restrictions remain unchanged.

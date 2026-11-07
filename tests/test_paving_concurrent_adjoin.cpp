@@ -14,6 +14,7 @@
 
 #include "ariadne-testing.hpp"
 #include "paving/grid_paving.hpp"
+#include "geometry/set_wrapper.hpp"
 #include "paving/robdd_paving.hpp"
 
 using namespace Ariadne;
@@ -420,6 +421,69 @@ class TestPavingConcurrentAdjoin : public Ariadne::Testing::ContextFixture {
         ARIADNE_TESTING_PROVE(paving.superset(right));
     }
 
+
+    Void test_tree_atomic_clear_and_geometric_approximations() {
+        Grid grid(1u);
+        GridCell sentinel(grid,0u,make_binary_word("0"));
+        ExactBoxType box{{0.125_x,0.875_x}};
+        CompactSet<EffectiveTag,RealVector> compact(box);
+        OpenSet<EffectiveTag,RealVector> open(box);
+        OvertSet<EffectiveTag,RealVector> overt(box);
+        GridTreePaving destination(grid,false);
+
+        std::atomic<bool> started{false};
+        std::atomic<bool> finished{false};
+        std::atomic<bool> coherent{true};
+        std::thread reader([&] {
+            started.store(true,std::memory_order_release);
+            while(!finished.load(std::memory_order_acquire)) {
+                GridTreePaving snapshot(destination);
+                if(snapshot.root_cell().grid()!=grid
+                        || snapshot.dimension()!=grid.dimension()) {
+                    coherent.store(false,std::memory_order_relaxed);
+                }
+                (void)snapshot.size();
+                (void)snapshot.bounding_box();
+                for(auto it=snapshot.begin(),last=snapshot.end();it!=last;++it) {
+                    if(it->grid()!=grid) {
+                        coherent.store(false,std::memory_order_relaxed);
+                    }
+                }
+                (void)destination.is_empty();
+                (void)destination.size();
+            }
+        });
+        std::thread writer([&] {
+            while(!started.load(std::memory_order_acquire)) {
+                std::this_thread::yield();
+            }
+            for(unsigned n=0u;n<12u;++n) {
+                // Exercise all four direct tree approximation algorithms
+                // and the wrapper paths, against owner snapshot readers.
+                destination.adjoin_outer_approximation(compact.reference(),2u);
+                destination.adjoin_lower_approximation(overt.reference(),0u,2u);
+                destination.adjoin_inner_approximation(open.reference(),0u,2u);
+                destination.clear();
+            }
+            destination.adjoin(sentinel);
+            finished.store(true,std::memory_order_release);
+        });
+        writer.join();
+        reader.join();
+        ARIADNE_TESTING_PROVE(coherent.load(std::memory_order_acquire));
+        ARIADNE_TESTING_PROVE(destination.superset(sentinel));
+
+        // Clear must restore the default primary extent, even when the
+        // previous owner geometry has a larger enclosing root.
+        destination.adjoin(GridCell(grid,2u,BinaryWord{}));
+        ARIADNE_TESTING_PROVE(destination.root_cell().root_extent()==2u);
+        destination.clear();
+        ARIADNE_TESTING_PROVE(destination.is_empty());
+        ARIADNE_TESTING_PROVE(destination.size()==0u);
+        ARIADNE_TESTING_PROVE(destination.root_cell().root_extent()==0u);
+        ARIADNE_TESTING_PROVE(destination.root_cell().grid()==grid);
+    }
+
     Void test_grid_tree_concurrent_adjoin() {
         Grid grid(1u);
         auto cells=make_cells(grid);
@@ -477,6 +541,7 @@ int main(int argc, char** argv) {
     ARIADNE_TESTING_ADD_TEST(TestPavingConcurrentAdjoin,test_tree_concurrent_geometric_queries);
     ARIADNE_TESTING_ADD_TEST(TestPavingConcurrentAdjoin,test_tree_scoped_borrowed_mutations);
     ARIADNE_TESTING_ADD_TEST(TestPavingConcurrentAdjoin,test_tree_scoped_branch_with_concurrent_adjoin);
+    ARIADNE_TESTING_ADD_TEST(TestPavingConcurrentAdjoin,test_tree_atomic_clear_and_geometric_approximations);
     ARIADNE_TESTING_ADD_TEST(TestPavingConcurrentAdjoin,test_robdd_concurrent_set_mutations);
     ARIADNE_TESTING_ADD_TEST(TestPavingConcurrentAdjoin,test_robdd_concurrent_root_mutations);
     ARIADNE_TESTING_ADD_TEST(TestPavingConcurrentAdjoin,test_robdd_reader_writer_adjoin);

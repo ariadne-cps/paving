@@ -2312,8 +2312,11 @@ Void GridTreePaving::adjoin_outer_approximation( const UpperBoxType& theBoxType,
 }
 
 Void GridTreePaving::adjoin_outer_approximation( const EffectiveEuclideanCompactSetInterface& theSet, const Nat numSubdivInDim ) {
-    Grid theGrid( this->root_cell().grid() );
-    ARIADNE_PRECONDITION( theSet.dimension() == this->root_cell().dimension() );
+    // Serialize direct node mutation with the same owner lock as adjoin.
+    // Do not call virtual owner accessors inside this critical section.
+    std::lock_guard<std::mutex> lock(_adjoin_mutex);
+    Grid theGrid( this->GridTreeSubpaving::root_cell().grid() );
+    ARIADNE_PRECONDITION( theSet.dimension() == this->GridTreeSubpaving::root_cell().dimension() );
 
     //1. Compute the smallest GridCell (corresponding to the primary cell)
     //   that encloses the theSet (after it is mapped onto theGrid).
@@ -2344,8 +2347,11 @@ Void GridTreePaving::adjoin_outer_approximation( const EffectiveEuclideanCompact
 }
 
 Void GridTreePaving::adjoin_outer_approximation( const ValidatedEuclideanCompactSetInterface& theSet, const Nat numSubdivInDim ) {
-    Grid theGrid( this->root_cell().grid() );
-    ARIADNE_PRECONDITION( theSet.dimension() == this->root_cell().dimension() );
+    // Serialize direct node mutation with the same owner lock as adjoin.
+    // Do not call virtual owner accessors inside this critical section.
+    std::lock_guard<std::mutex> lock(_adjoin_mutex);
+    Grid theGrid( this->GridTreeSubpaving::root_cell().grid() );
+    ARIADNE_PRECONDITION( theSet.dimension() == this->GridTreeSubpaving::root_cell().dimension() );
 
     //1. Compute the smallest GridCell (corresponding to the primary cell)
     //   that encloses the theSet (after it is mapped onto theGrid).
@@ -2382,8 +2388,11 @@ Void GridTreePaving::adjoin_lower_approximation( const EffectiveEuclideanLocated
 }
 
 Void GridTreePaving::adjoin_lower_approximation( const EffectiveEuclideanOvertSetInterface& theSet, const Nat heightInDim, const Nat numSubdivInDim ) {
-    Grid theGrid( this->root_cell().grid() );
-    ARIADNE_PRECONDITION( theSet.dimension() == this->root_cell().dimension() );
+    // Serialize direct node mutation with the same owner lock as adjoin.
+    // Do not call virtual owner accessors inside this critical section.
+    std::lock_guard<std::mutex> lock(_adjoin_mutex);
+    Grid theGrid( this->GridTreeSubpaving::root_cell().grid() );
+    ARIADNE_PRECONDITION( theSet.dimension() == this->GridTreeSubpaving::root_cell().dimension() );
 
     //Align this paving and paving at the given extent
     Bool has_stopped = false;
@@ -2475,8 +2484,11 @@ Void GridTreePaving::_adjoin_inner_approximation( const Grid & theGrid, BinaryTr
 }
 
 Void GridTreePaving::adjoin_inner_approximation( const EffectiveEuclideanOpenSetInterface& theSet, const Nat extent, const Nat numSubdivInDim ) {
-    Grid theGrid( this->root_cell().grid() );
-    ARIADNE_PRECONDITION( theSet.dimension() == this->root_cell().dimension() );
+    // Serialize direct node mutation with the same owner lock as adjoin.
+    // Do not call virtual owner accessors inside this critical section.
+    std::lock_guard<std::mutex> lock(_adjoin_mutex);
+    Grid theGrid( this->GridTreeSubpaving::root_cell().grid() );
+    ARIADNE_PRECONDITION( theSet.dimension() == this->GridTreeSubpaving::root_cell().dimension() );
 
     //Align this paving and paving at the given extent
     Bool has_stopped = false;
@@ -2641,9 +2653,12 @@ Void GridTreePaving::remove_from_lower( const GridTreeSubpaving& theOtherSubPavi
 }
 
 Void GridTreePaving::clear(  ) {
-    // TODO: Pieter: This implementation may not be optimal. Please could you
-    // check this, Ivan.
-    *this=GridTreePaving(this->grid());
+    std::lock_guard<std::mutex> lock(_adjoin_mutex);
+    // Reset geometry and tree in one critical section. Building a temporary
+    // owner and assigning it read the current grid before acquiring the lock.
+    GridCell emptyRoot(_theGridCell.grid(),0u,BinaryWord());
+    _pRootTreeNode->make_leaf(false);
+    _theGridCell=std::move(emptyRoot);
 }
 
 
