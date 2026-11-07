@@ -2258,3 +2258,60 @@ separation/conservativeness must remain unchanged.
 No paving production algorithm or official README change is
 warranted by this result. Performance benchmark runs remain local;
 experimental findings belong in this design journal.
+
+
+## 2026-11-07 - ConstraintSolver phase benchmark: 32 fixed 4D queries
+
+The local Release benchmark in `ariadne-cps/constraint-solving`
+(commit `6b4c87d1de0851714a5b22fee978452d36a75f13`) compiled
+and passed `--verify-only` on all five geometries before timing.
+Its exact 4D formulas agree with the corresponding paving benchmark
+(`make_shape`), but it uses **32 fixed dyadic query boxes** per
+shape, rather than the adaptively visited boxes in paving. This is
+a solver microbenchmark, **not** a direct breakdown of paving's
+`separated()` end-to-end wall time.
+
+Measured median milliseconds per 32-query sweep; seven samples,
+minimum calibration 12 ms, concurrency 0:
+
+| Shape | `reduce_full` | `hull_vector_fresh` | `hull_scalar_fresh` | `hull_scalar_cached` | `box_sweep_post_hull` | Scalar fresh / cached |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| aligned-box | 3.72976 | 0.23933 | 1.16003 | 0.39596 | 1.66671 | 2.930x |
+| rotated-box | 6.33023 | 0.58877 | 1.50631 | 0.55969 | 3.28296 | 2.691x |
+| aligned-ellipsoid | 7.24679 | 0.38788 | 0.70123 | 0.33585 | 2.11379 | 2.088x |
+| rotated-ellipsoid | 6.85729 | 0.49853 | 0.84975 | 0.35596 | 2.68927 | 2.387x |
+| ball | 10.00283 | 0.38840 | 0.73911 | 0.33608 | 2.55528 | 2.199x |
+
+The geometric mean scalar fresh/cached ratio is **2.440x**.
+The geometric means of phase-to-full ratios (five shapes) are:
+`hull_vector_fresh` 0.062x; `hull_scalar_fresh` 0.146x;
+`hull_scalar_cached` 0.060x; and `box_sweep_post_hull`
+0.368x. These figures are for overlapping and *non-equivalent*
+units of work; they **must not be summed** to estimate full reduce
+CPU shares. In particular, comparing fresh/cached *scalar* hull
+passes is valid, whereas `hull_vector_fresh` is a different
+contractor path.
+
+The verification data (empty domains after full/hull/one-box-sweep)
+were respectively 16/16/16, 16/0/16, 20/0/20, 21/0/19 and
+14/0/14. Rotated ellipsoid confirms that full reduction can
+establish emptiness beyond the first post-hull box sweep; equality
+of the counts for other shapes does not establish equality of all
+contracted boxes.
+
+Caution: the mean full-reduction costs per synthetic query are
+116.6, 197.8, 226.5, 214.3 and 312.6 microseconds, respectively.
+The prior full paving predicate replay per adaptive query reported
+202.3, 265.0, 469.0, 768.6 and 440.8 microseconds. The markedly
+different shape ordering and costs indicate that input selection
+affects performance and that the fixed-box benchmark cannot rank
+the true paving bottlenecks. The paving replay additionally includes
+logical evaluation and set-side construction not represented by
+the prebuilt solver problem.
+
+Next useful diagnosis: gather actual solver call counts / rounds,
+hull vs box time, and optionally procedure-compilation costs on
+*the same adaptive query distribution*, without weakening certified
+separation. Avoid optimizing caching in the production solver
+solely from the observed scalar microbenchmark speedup.
+No official README, algorithm, or workflow change is implied.
