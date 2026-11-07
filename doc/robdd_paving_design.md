@@ -2089,28 +2089,3 @@ borrowed-lifetime and iterator equality contracts remain unchanged.
 
 The lazy-cursor commit `bcadd1345ce5eb5991f4da29ddfd66ab34235437`
 passed Ubuntu, macOS, Windows, Sanitizers and Coverage workflows.
-
-
-## 2026-11-07 - Bounded multi-geometry scalability experiment
-
-Added a *manually dispatched* Backend Scaling Matrix workflow and a
-version-controlled Python runner for the pre-existing
-`benchmark_paving_backends` executable. The experimental matrix has
-five exact-parameter geometries times six dimension/fineness pairs
-(30 cases). The baseline phase isolates 25 cases at depth-budget 26
-or lower; the expanded phase runs the five 4D/fineness-3 cases
-admitted by depth-budget 28. The benchmark computation is unchanged.
-
-Every case runs in its own process with an elapsed-time limit and
-virtual address-space budget. Result collection preserves raw output,
-metadata, a complete per-operation CSV, and a compact summary with
-explicit status for failed, timed-out or incomplete cases. Paired
-tree/ROBDD iteration rows must agree on enabled-leaf counts.
-The results are within-run medians; cross-commit comparisons require
-matching platform/build settings. The workflow is optional because
-high-dimensional geometric approximation may be expensive; no new
-performance threshold is imposed on ordinary CI.
-
-Use the expanded matrix to test whether lazy tree traversal remains
-competitive beyond the aligned-box case. Do not generalize a single
-shape's parity to all geometric workloads.

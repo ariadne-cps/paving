@@ -170,43 +170,6 @@ is required.
 These benchmarks are standalone executables, deliberately excluded from
 the `tests` target and CTest. Build and run them explicitly.
 
-## Reproducible backend scaling matrix
-
-The opt-in GitHub Actions workflow **Backend Scaling Matrix** builds the
-Release benchmark on an Ubuntu x86 runner. Select `baseline` for the
-previous 25 geometric cases (all five shapes, dimensions 2/3/4,
-finenesses 2/3, excluding 4/3), `expanded` for the five 4D/fineness-3
-cases, or `all` for the full 30-case matrix. Each case runs in a
-separate capped process; expensive or failing cases are recorded rather
-than silently discarded. Default limits are 180 seconds and 4096 MiB
-per case. The batch is a diagnostic experiment, not a CI performance gate.
-
-The workflow saves `metadata.json`, `summary.csv`,
-`operations.csv`, `summary.md`, and a full log for each case as
-downloadable workflow artifacts. Reported rows require paired tree and
-ROBDD iteration measurements with consistent enabled-leaf counts.
-A missing row or an incomplete diagnostic is explicitly marked.
-Timings are within-run medians on the workflow runner, not a
-cross-platform comparison or a claim of statistically significant
-backend dominance.
-
-To run locally using the same parser:
-
-```bash
-cmake --build build-release --target benchmark_paving_backends
-python3 -m unittest discover -s benchmarks -p test_scalability_runner.py
-python3 benchmarks/run_scalability_matrix.py \
-  --binary build-release/benchmarks/benchmark_paving_backends \
-  --output build-release/scaling-results --phase expanded \
-  --timeout-sec 180 --memory-mb 4096
-```
-
-Before interpreting speedups from earlier hand-run benchmarks, repeat
-the relevant cases on the same machine and build; compare paired
-operation timings, leaf counts and physical/reachable node counts.
-The existing `--max-depth-bits 28` filter is used only to admit
-4D/fineness-3; it does not bound execution time or memory.
-
 ## Isolated binary-tree cursor profiling
 
 The opt-in `benchmark_binary_tree_cursor` studies the traversal cost of
