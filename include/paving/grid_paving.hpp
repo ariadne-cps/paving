@@ -581,9 +581,9 @@ class GridTreePaving
     Bool subset(const SubPavingInterface& paving) const override { return GridTreeSubpaving::subset(paving); }
     Bool intersects(const SubPavingInterface& paving) const override { return GridTreeSubpaving::intersects(paving); }
     Bool superset(const GridCell& cell) const override;
-    Void set_root_cell(Bool enabled) override { GridTreeSubpaving::set_root_cell(enabled); }
-    Void mince(Nat fineness) override { GridTreeSubpaving::mince(fineness); }
-    Void recombine() override { GridTreeSubpaving::recombine(); }
+    Void set_root_cell(Bool enabled) override;
+    Void mince(Nat fineness) override;
+    Void recombine() override;
     ValidatedLowerKleenean inside(const ExactBoxType& box) const override { return GridTreeSubpaving::inside(box); }
     ValidatedLowerKleenean separated(const ExactBoxType& box) const override { return GridTreeSubpaving::separated(box); }
     ValidatedLowerKleenean overlaps(const ExactBoxType& box) const override { return GridTreeSubpaving::overlaps(box); }

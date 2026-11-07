@@ -1651,3 +1651,16 @@ The `benchmark_paving_backends_smoke` and `benchmark_paving_superset_smoke` CTes
 The eight additional grid/tree paving regression methods from `test_grid_paving_extensions.cpp` have been moved into the `TestBinaryTreePaving` fixture in `test_binary_tree_paving.cpp`, preserving their assertions and CTest coverage under that test executable. The separate source and target have been removed.
 
 The concurrent-read snapshot change accidentally wrote `box.snapshot.dimension()` in the preconditions for ROBDD `inside`, `separated`, and `overlaps`. These now compare `box.dimension()` to `snapshot.dimension()` as intended. This is a build fix, not an expansion of the currently supported concurrent-operation contract.
+
+
+## 2026-11-07 - Concurrent root mutations, bounded increment
+
+The owning GridTreePaving and RobddPaving now synchronize `set_root_cell`,
+`mince`, and `recombine` with the same mutex as `adjoin` and basic readers.
+ROBDD `mince` changes depth under one lock, avoiding nested acquisition
+of the nonrecursive mutex via `mince_to_depth`. Tree paving overrides
+invoke their inherited base implementations under the owner lock.
+A concurrent regression overlaps these mutations and insertion with
+snapshot copies and `size` and `root_cell` readers. This incremental
+contract does NOT cover inherited mutable views, iterators, arbitrary
+cross-paving operations, or other unsynchronized mutation paths.

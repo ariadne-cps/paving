@@ -513,6 +513,7 @@ Void RobddPaving::for_each_enabled_leaf(
 }
 
 Void RobddPaving::mince(Nat fineness) {
+    std::lock_guard<std::mutex> lock(_adjoin_mutex);
     // GridTreeSubpaving::mince uses this same geometric target, but
     // physically splits leaves. A ROBDD retains canonical shared nodes
     // and records the additional subdivisions only in its logical depth.
@@ -530,16 +531,20 @@ Void RobddPaving::mince(Nat fineness) {
     SizeType prefix_depth=_root_cell.word().size();
     SizeType desired=absolute_depth>prefix_depth
         ? absolute_depth-prefix_depth : 0u;
-    mince_to_depth(desired);
+    ARIADNE_PRECONDITION_MSG(desired < std::numeric_limits<SizeType>::max(),
+        "Requested subdivision depth exceeds the valid index range");
+    _depth=std::max(_depth,desired);
 }
 
 Void RobddPaving::mince_to_depth(SizeType new_depth) {
+    std::lock_guard<std::mutex> lock(_adjoin_mutex);
     ARIADNE_PRECONDITION_MSG(new_depth < std::numeric_limits<SizeType>::max(),
         "Requested subdivision depth exceeds the valid index range");
     _depth = std::max(_depth,new_depth);
 }
 
 Void RobddPaving::recombine() {
+    std::lock_guard<std::mutex> lock(_adjoin_mutex);
     auto variables = _manager->support(_root);
     _depth = variables.empty() ? 0u : variables.back().index()+1u;
 }
@@ -550,6 +555,7 @@ std::unique_ptr<BinaryTreeNode> RobddPaving::to_binary_tree() const {
 }
 
 Void RobddPaving::set_root_cell(Bool enabled) {
+    std::lock_guard<std::mutex> lock(_adjoin_mutex);
     _root = _manager->constant(enabled);
     _depth = 0u;
 }

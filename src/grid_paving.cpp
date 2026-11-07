@@ -1754,6 +1754,21 @@ OutputStream& operator<<(OutputStream& os, const GridTreeSubpaving& theGridTreeS
 
 //********************************************GridTreeSet*********************************************/
 
+Void GridTreePaving::set_root_cell(Bool enabled) {
+    std::lock_guard<std::mutex> lock(_adjoin_mutex);
+    GridTreeSubpaving::set_root_cell(enabled);
+}
+
+Void GridTreePaving::mince(Nat fineness) {
+    std::lock_guard<std::mutex> lock(_adjoin_mutex);
+    GridTreeSubpaving::mince(fineness);
+}
+
+Void GridTreePaving::recombine() {
+    std::lock_guard<std::mutex> lock(_adjoin_mutex);
+    GridTreeSubpaving::recombine();
+}
+
 SizeType GridTreePaving::size() const {
     std::lock_guard<std::mutex> lock(_adjoin_mutex);
     return GridTreeSubpaving::size();

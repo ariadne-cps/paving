@@ -136,6 +136,51 @@ class TestPavingConcurrentAdjoin : public Ariadne::Testing::ContextFixture {
             });
     }
 
+    template<class Paving>
+    Void check_concurrent_root_mutations(Paving& paving,GridCell const& cell) {
+        std::atomic<bool> complete{false};
+        std::atomic<bool> coherent{true};
+        std::thread reader([&] {
+            while(!complete.load(std::memory_order_acquire)) {
+                Paving snapshot(paving);
+                if(snapshot.root_cell().grid()!=cell.grid()) {
+                    coherent.store(false,std::memory_order_relaxed);
+                }
+                (void)paving.size();
+                (void)paving.root_cell();
+            }
+        });
+        std::thread writer([&] {
+            for(unsigned i=0;i<80u;++i) {
+                paving.set_root_cell(false);
+                paving.mince(1u);
+                paving.recombine();
+                paving.adjoin(cell);
+            }
+        });
+        writer.join();
+        complete.store(true,std::memory_order_release);
+        reader.join();
+        ARIADNE_TESTING_PROVE(coherent.load(std::memory_order_acquire));
+        ARIADNE_TESTING_PROVE(paving.superset(cell));
+    }
+
+    Void test_tree_concurrent_root_mutations() {
+        Grid grid(1u);
+        GridTreePaving paving(grid,false);
+        check_concurrent_root_mutations(paving,
+            GridCell(grid,0u,make_binary_word("0")));
+    }
+
+    Void test_robdd_concurrent_root_mutations() {
+        RobddManager manager;
+        Grid grid(1u);
+        GridCell root(grid,0u,BinaryWord{});
+        RobddPaving paving(manager,root,manager.constant(false),0u);
+        check_concurrent_root_mutations(paving,
+            GridCell(grid,0u,make_binary_word("0")));
+    }
+
     Void test_grid_tree_concurrent_adjoin() {
         Grid grid(1u);
         auto cells=make_cells(grid);
@@ -187,6 +232,8 @@ int main(int argc, char** argv) {
     ARIADNE_TESTING_ADD_TEST(TestPavingConcurrentAdjoin,test_grid_tree_concurrent_adjoin);
     ARIADNE_TESTING_ADD_TEST(TestPavingConcurrentAdjoin,test_robdd_concurrent_adjoin);
     ARIADNE_TESTING_ADD_TEST(TestPavingConcurrentAdjoin,test_tree_reader_writer_adjoin);
+    ARIADNE_TESTING_ADD_TEST(TestPavingConcurrentAdjoin,test_tree_concurrent_root_mutations);
+    ARIADNE_TESTING_ADD_TEST(TestPavingConcurrentAdjoin,test_robdd_concurrent_root_mutations);
     ARIADNE_TESTING_ADD_TEST(TestPavingConcurrentAdjoin,test_robdd_reader_writer_adjoin);
     return ARIADNE_TESTING_RUN_TESTS_WITH_ARGS(argc,argv);
 }
