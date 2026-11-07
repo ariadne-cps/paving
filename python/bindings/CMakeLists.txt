@@ -7,6 +7,7 @@ target_include_directories(pyariadne-paving-submodule-obj PRIVATE
     "${PYTHON_COMMON_SOURCE_DIR}/include"
     $<TARGET_PROPERTY:pyariadne-set,INTERFACE_INCLUDE_DIRECTORIES>
     $<TARGET_PROPERTY:pyariadne-bdd,INTERFACE_INCLUDE_DIRECTORIES>
+    $<TARGET_PROPERTY:pyariadne-tree,INTERFACE_INCLUDE_DIRECTORIES>
 )
 target_link_libraries(pyariadne-paving-submodule-obj PRIVATE
     pyariadne-python-common
@@ -24,6 +25,7 @@ target_include_directories(pyariadne-paving INTERFACE
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
     $<TARGET_PROPERTY:pyariadne-set,INTERFACE_INCLUDE_DIRECTORIES>
     $<TARGET_PROPERTY:pyariadne-bdd,INTERFACE_INCLUDE_DIRECTORIES>
+    $<TARGET_PROPERTY:pyariadne-tree,INTERFACE_INCLUDE_DIRECTORIES>
 )
-target_link_libraries(pyariadne-paving INTERFACE pyariadne-set pyariadne-bdd)
+target_link_libraries(pyariadne-paving INTERFACE pyariadne-set pyariadne-bdd pyariadne-tree)
 ariadne_add_python_module(NAME paving MODULE_IMPORT_NAME pyariadne_paving MODULE_SOURCE paving_module.cpp)

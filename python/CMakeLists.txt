@@ -9,8 +9,8 @@ option(PYTHON_ENFORCE_TESTS "Enforce Python tests" OFF)
 if(Python3_FOUND)
     report_python_configuration_once()
 
-    if(NOT TARGET pyariadne-set OR NOT TARGET pyariadne-bdd)
-        message(FATAL_ERROR "The Set and BDD Python binding targets are required to build pyariadne-paving.")
+    if(NOT TARGET pyariadne-set OR NOT TARGET pyariadne-bdd OR NOT TARGET pyariadne-tree)
+        message(FATAL_ERROR "The Set, BDD and Tree Python binding targets are required to build pyariadne-paving.")
     endif()
     add_subdirectory(bindings)
 
