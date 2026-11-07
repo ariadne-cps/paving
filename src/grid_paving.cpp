@@ -36,7 +36,7 @@
 #include "paving/grid_cell_alignment.hpp"
 #include "paving/paving_cell_operations.hpp"
 #include <limits>
-#include "paving/binary_tree.hpp"
+#include "tree/binary_tree.hpp"
 
 #include "geometry/set_interface.hpp"
 

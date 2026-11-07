@@ -36,7 +36,7 @@
 #include "foundation/logical.hpp"
 #include "numeric/numeric.hpp"
 
-#include "paving/binary_tree.hpp"
+#include "tree/binary_tree.hpp"
 #include "set/function_set.hpp"
 #include "paving/grid_paving.hpp"
 #include "geometry/set_interface.hpp"

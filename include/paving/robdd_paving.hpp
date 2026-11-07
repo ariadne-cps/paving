@@ -23,7 +23,7 @@
 #include <vector>
 
 #include "bdd/robdd.hpp"
-#include "paving/binary_tree.hpp"
+#include "tree/binary_tree.hpp"
 #include "paving/grid_cell.hpp"
 #include "paving/paving_interface.hpp"
 

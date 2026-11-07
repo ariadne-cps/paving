@@ -27,7 +27,7 @@
 
 #include "ariadne-set.hpp"
 #include "ariadne-bdd.hpp"
-#include "paving/binary_tree.hpp"
+#include "tree/binary_tree.hpp"
 #include "paving/grid.hpp"
 #include "paving/grid_cell.hpp"
 #include "paving/grid_cell_alignment.hpp"
