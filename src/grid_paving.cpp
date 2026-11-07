@@ -2411,11 +2411,11 @@ Void GridTreePaving::restrict_to_lower( const GridTreeSubpaving& theOtherSubPavi
 
     //The primary cell of this paving is higher then the one of the other paving.
     //1. We locate the path to the primary cell node common with the other paving
-    BinaryWord rootNodePath = GridCell::primary_cell_path( this->GridTreeSubpaving::root_cell().grid().dimension(), this->GridTreeSubpaving::root_cell().root_extent(), theOtherSubPaving.root_cell().root_extent() );
+    BinaryWord rootNodePath = GridCell::primary_cell_path( this->GridTreeSubpaving::root_cell().grid().dimension(), this->GridTreeSubpaving::root_cell().root_extent(), theOtherSubPaving.GridTreeSubpaving::root_cell().root_extent() );
 
     //2. Add the suffix path from the primary cell to the root node of
     //theOtherSubPaving. This is needed in order to be able to reach this root.
-    rootNodePath.append( theOtherSubPaving.root_cell().word() );
+    rootNodePath.append( theOtherSubPaving.GridTreeSubpaving::root_cell().word() );
 
     //3. Restrict this binary tree to the other one assuming the path prefix rootNodePath
     Nat position = 0;
@@ -2478,11 +2478,11 @@ Void GridTreePaving::remove_from_lower( const GridTreeSubpaving& theOtherSubPavi
 
     //The primary cell of this paving is higher then the one of the other paving.
     //1. We locate the path to the primary cell node common with the other paving
-    BinaryWord rootNodePath = GridCell::primary_cell_path( this->GridTreeSubpaving::root_cell().grid().dimension(), this->GridTreeSubpaving::root_cell().root_extent(), theOtherSubPaving.root_cell().root_extent() );
+    BinaryWord rootNodePath = GridCell::primary_cell_path( this->GridTreeSubpaving::root_cell().grid().dimension(), this->GridTreeSubpaving::root_cell().root_extent(), theOtherSubPaving.GridTreeSubpaving::root_cell().root_extent() );
 
     //2. Add the suffix path from the primary cell to the root node of
     //theOtherSubPaving. This is needed in order to be able to reach this root.
-    rootNodePath.append( theOtherSubPaving.root_cell().word() );
+    rootNodePath.append( theOtherSubPaving.GridTreeSubpaving::root_cell().word() );
 
     //3. Remove theOtherSubPaving from this binary tree assuming the path prefix rootNodePath
     Nat position = 0;

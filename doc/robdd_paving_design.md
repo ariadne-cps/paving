@@ -1691,3 +1691,21 @@ Two stress cases mix polymorphic remove/restrict, concurrent insertion and
 snapshot reads; they also check both self-operations. This phase does not
 claim thread-safety for non-owning live views, iterators, inherited
 `GridTreeSubpaving` APIs, or all geometric approximation operations.
+
+
+## 2026-11-07 - Eliminate nested source-owner locking in set algebra
+
+The first owner-locking implementation of `GridTreePaving::restrict` and
+`remove` acquired both owner mutexes through `std::scoped_lock`, then
+called `GridTreePaving::root_cell()` on the source indirectly via virtual
+dispatch inside `restrict_to_lower()` / `remove_from_lower()`. The
+non-recursive source mutex was therefore acquired twice by the same thread,
+deadlocking even a single-threaded set operation. All four calls now
+explicitly target `GridTreeSubpaving::root_cell()`, which accesses the
+already-protected geometry without re-entering the owner's mutex.
+
+A separate single-threaded regression executable verifies native and
+polymorphic restrict/remove with two distinct owners, as well as self-set
+operations. CTest limits that test to 20 seconds and the pre-existing
+concurrent-paving stress suite to 60 seconds to fail promptly on future
+lock-order regressions instead of indefinitely blocking CI.

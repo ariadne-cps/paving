@@ -6,6 +6,7 @@ set(UNIT_TESTS
     test_binary_tree_paving
     test_paving_backends
     test_paving_concurrent_adjoin
+    test_paving_lock_reentrancy
     test_robdd_paving
     test_paver
     test_paving
@@ -23,3 +24,8 @@ foreach(TEST IN LISTS UNIT_TESTS)
 endforeach()
 add_custom_target(tests)
 add_dependencies(tests ${UNIT_TESTS})
+
+# A deadlock in a standalone owner-to-owner operation must fail promptly
+# rather than consuming the entire CI job timeout.
+set_tests_properties(test_paving_lock_reentrancy PROPERTIES TIMEOUT 20)
+set_tests_properties(test_paving_concurrent_adjoin PROPERTIES TIMEOUT 60)
