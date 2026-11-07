@@ -1,0 +1,118 @@
+/***************************************************************************
+ *            paving/augmented_paving.hpp
+ *
+ *  Copyright  2011-20  Pieter Collins
+ *
+ ****************************************************************************/
+
+/*
+ *  This file is part of Ariadne.
+ *
+ *  Ariadne is free software: you can redistribute it and/or modify
+ *  it under the terms of the GNU General Public License as published by
+ *  the Free Software Foundation, either version 3 of the License, or
+ *  (at your option) any later version.
+ *
+ *  Ariadne is distributed in the hope that it will be useful,
+ *  but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ *  GNU General Public License for more details.
+ *
+ *  You should have received a copy of the GNU General Public License
+ *  along with Ariadne.  If not, see <https://www.gnu.org/licenses/>.
+ */
+
+/*! \file paving/augmented_paving.hpp
+ *  \brief Paved sets for continuous systems
+ */
+
+#ifndef ARIADNE_PAVING_AUGMENTED_PAVING_HPP
+#define ARIADNE_PAVING_AUGMENTED_PAVING_HPP
+
+#include <iosfwd>
+#include "function/function.hpp"
+#include "geometry/set_interface.hpp"
+#include "paving/paving_interface.hpp"
+#include "paving/grid_paving.hpp"
+
+namespace Ariadne {
+
+typedef EffectiveVectorMultivariateFunction Mapping;
+
+//! \ingroup DynamicsModule
+//! \brief A grid-tree paving of states equipped with a function defining auxiliary variables.
+class AugmentedPaving
+{
+    GridTreePaving _state_set;
+    EffectiveVectorMultivariateFunction _auxiliary_mapping;
+  public:
+    virtual ~AugmentedPaving() = default;
+
+    typedef Grid GridType;
+    typedef GridTreePaving PavingType;
+//    AugmentedPaving(Grid const& g) : _state_set(g), _auxiliary_mapping(0,g.dimension()) { }
+//    AugmentedPaving(GridTreePaving const& gtp) : _state_set(gtp), _auxiliary_mapping(0,gtp.dimension()) { }
+    AugmentedPaving(Grid const& g, Mapping const& aux)
+        : _state_set(g), _auxiliary_mapping(aux) { }
+    AugmentedPaving(GridTreePaving const& gtp, Mapping const& aux)
+        : _state_set(gtp), _auxiliary_mapping(aux) { }
+
+    //! The state paving, without its auxiliary graph.
+    GridTreePaving& state_paving() { return this->_state_set; }
+    GridTreePaving const& state_paving() const { return this->_state_set; }
+    //! Legacy reachability terminology, retained for existing callers.
+    GridTreePaving& state_set() { return this->state_paving(); }
+    GridTreePaving const& state_set() const { return this->state_paving(); }
+    //! Outer paving of {(x,f(x)) : x is contained in the state paving}.
+    GridTreePaving state_auxiliary_paving() const {
+        Grid auxiliary_grid(this->_auxiliary_mapping.result_size());
+        return outer_skew_product(this->_state_set, auxiliary_grid, this->_auxiliary_mapping); }
+    GridTreePaving state_auxiliary_set() const { return this->state_auxiliary_paving(); }
+    Mapping const& auxiliary_mapping() const { return this->_auxiliary_mapping; }
+    Mapping const& auxiliary_function() const { return this->_auxiliary_mapping; }
+    Mapping const& auxiliary_data() const { return this->_auxiliary_mapping; }
+
+    Bool is_empty() const { return this->_state_set.is_empty(); }
+    SizeType size() const { return this->_state_set.size(); }
+    GridTreePaving::ConstIterator begin() const { return this->_state_set.begin(); }
+    GridTreePaving::ConstIterator end() const { return this->_state_set.end(); }
+
+    Grid grid() const { return this->_state_set.grid(); }
+
+    Void clear() { this->_state_set.clear(); }
+    Void adjoin(AugmentedPaving const& other) { return this->_state_set.adjoin(other._state_set); }
+    Void restrict(AugmentedPaving const& other) { return this->_state_set.restrict(other._state_set); }
+    Void remove(AugmentedPaving const& other) { return this->_state_set.remove(other._state_set); }
+
+    Void adjoin_inner_approximation(EffectiveEuclideanSetInterface const& set, Nat fineness) {
+        this->_state_set.adjoin_inner_approximation(set,fineness); }
+    Void adjoin_lower_approximation(EffectiveEuclideanOvertSetInterface const& set, Nat extent, Nat fineness) {
+        this->_state_set.adjoin_lower_approximation(set,extent,fineness); }
+    Void adjoin_outer_approximation(EffectiveEuclideanCompactSetInterface const& set, Nat fineness) {
+        this->_state_set.adjoin_outer_approximation(set,fineness); }
+    Void adjoin_outer_approximation(ValidatedEuclideanCompactSetInterface const& set, Nat fineness) {
+        this->_state_set.adjoin_outer_approximation(set,fineness); }
+    Void adjoin_outer_approximation(ExactBoxType const& bx, Nat fineness) {
+        this->_state_set.adjoin_outer_approximation(bx,fineness); }
+
+    Void restrict_to_extent(Nat level) { this->_state_set.restrict_to_extent(level); }
+    Void mince(Nat fineness) { this->_state_set.mince(fineness); }
+    Void recombine() { this->_state_set.recombine(); }
+
+    friend Bool subset(AugmentedPaving const& set1, AugmentedPaving const& set2) {
+        //ARIADNE_PRECONDITION(same(set1._auxiliary_mapping,set2._auxiliary_mapping));
+        return subset(set1._state_set,set2._state_set); }
+    friend Bool intersect(AugmentedPaving const& set1, AugmentedPaving const& set2) {
+        return intersect(set1._state_set,set2._state_set); }
+
+    virtual AugmentedPaving* clone() const { return new AugmentedPaving(*this); }
+    DimensionType dimension() const { return this->_state_set.dimension(); }
+
+    friend OutputStream& operator<<(OutputStream& os, AugmentedPaving const& set) {
+        return os << "AugmentedPaving(" << set._state_set << "," << set._auxiliary_mapping << ")"; }
+};
+
+
+} // namespace Ariadne
+
+#endif // ARIADNE_PAVING_AUGMENTED_PAVING_HPP
