@@ -1643,3 +1643,11 @@ The common test_paving_concurrent_adjoin runs 8 std::thread workers on the same 
 Second incremental milestone: GridTreePaving protects superset(GridCell), size and root_cell with the same mutex used by adjoin. Tree cell superset evaluates through a borrowed base view under the lock (no expensive deep copy and no recursive lock). Private tree alignment and union bypass the synchronized public root_cell accessor under the owning lock. RobddPaving protects superset, root_cell, depth, emptiness, root-handle access and count/membership, and creates compact iterators and enumerations from coherent snapshots. Its robdd() accessor returns a canonical handle *by value*, replacing an unsafe reference to a mutable field. Geometric queries and detached subpaving creation take an initial snapshot; visitors do not hold the origin mutex. The regression suite now overlaps eight concurrent writers with repeated read/count/root/copy probes for both backends.
 
 **Explicitly incomplete:** tree iterators, live child views, cross-paving operations and references returned by grid(), plus remove/restrict/mince/recombine and other non-adjoin mutations, remain outside the supported concurrency contract. No internal BDD or binary-tree parallelism is introduced in this change.
+
+## 2026-11-07 - Separate benchmarks from tests and consolidate tree regressions
+
+The `benchmark_paving_backends_smoke` and `benchmark_paving_superset_smoke` CTest registrations and the benchmark dependencies of the `tests` target have been removed. Both benchmark executables remain available through the dedicated `benchmarks` target for explicit performance runs; neither is part of the unit-test suite.
+
+The eight additional grid/tree paving regression methods from `test_grid_paving_extensions.cpp` have been moved into the `TestBinaryTreePaving` fixture in `test_binary_tree_paving.cpp`, preserving their assertions and CTest coverage under that test executable. The separate source and target have been removed.
+
+The concurrent-read snapshot change accidentally wrote `box.snapshot.dimension()` in the preconditions for ROBDD `inside`, `separated`, and `overlaps`. These now compare `box.dimension()` to `snapshot.dimension()` as intended. This is a build fix, not an expansion of the currently supported concurrent-operation contract.

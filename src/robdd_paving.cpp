@@ -423,7 +423,7 @@ UpperBoxType RobddPaving::bounding_box() const {
 ValidatedLowerKleenean RobddPaving::inside(
         ExactBoxType const& box) const {
     RobddPaving snapshot(*this);
-    ARIADNE_PRECONDITION_MSG(box.snapshot.dimension() == snapshot.dimension(),
+    ARIADNE_PRECONDITION_MSG(box.dimension() == snapshot.dimension(),
         "Paving and query-box dimensions must agree");
     ExactBoxType narrowed=cast_exact_box(narrow(box));
     for (auto cell=snapshot.begin(), last=snapshot.end(); cell!=last; ++cell) {
@@ -435,7 +435,7 @@ ValidatedLowerKleenean RobddPaving::inside(
 ValidatedLowerKleenean RobddPaving::separated(
         ExactBoxType const& box) const {
     RobddPaving snapshot(*this);
-    ARIADNE_PRECONDITION_MSG(box.snapshot.dimension() == snapshot.dimension(),
+    ARIADNE_PRECONDITION_MSG(box.dimension() == snapshot.dimension(),
         "Paving and query-box dimensions must agree");
     ExactBoxType widened=cast_exact_box(widen(box));
     for (auto cell=snapshot.begin(), last=snapshot.end(); cell!=last; ++cell) {
@@ -447,7 +447,7 @@ ValidatedLowerKleenean RobddPaving::separated(
 ValidatedLowerKleenean RobddPaving::overlaps(
         ExactBoxType const& box) const {
     RobddPaving snapshot(*this);
-    ARIADNE_PRECONDITION_MSG(box.snapshot.dimension() == snapshot.dimension(),
+    ARIADNE_PRECONDITION_MSG(box.dimension() == snapshot.dimension(),
         "Paving and query-box dimensions must agree");
     ExactBoxType narrowed=cast_exact_box(narrow(box));
     for (auto cell=snapshot.begin(), last=snapshot.end(); cell!=last; ++cell) {

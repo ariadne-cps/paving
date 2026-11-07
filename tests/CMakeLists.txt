@@ -7,7 +7,6 @@ set(UNIT_TESTS
     test_binary_tree_paving
     test_paving_backends
     test_paving_concurrent_adjoin
-    test_grid_paving_extensions
     test_robdd_paving
     test_paver
     test_paving

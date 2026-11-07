@@ -152,8 +152,8 @@ before correctness verification or benchmark timings. The public BDD
 cofactor API is used for node counting, so no BDD library modification
 is required.
 
-A small CTest smoke exercise checks build/invocation without being used
-as a performance result.
+These benchmarks are standalone executables, deliberately excluded from
+the `tests` target and CTest. Build and run them explicitly.
 
 ## Build
 
@@ -378,8 +378,8 @@ cmake --build build-release --target benchmark_paving_superset
 Use --dimension (1..6), --probes-per-class (4..1024),
 --iterations, --samples, --min-sample-ms and --max-iterations to
 control the workload. Times are medians in nanoseconds per query,
-calibrated separately by category/implementation. CTest also runs
-a small functional smoke scenario on all CI platforms.
+calibrated separately by category/implementation. This benchmark is not
+registered with CTest; invoke it explicitly when needed.
 
 ### Concurrent adjoin (initial correctness milestone)
 
