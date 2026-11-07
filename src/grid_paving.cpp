@@ -1823,7 +1823,10 @@ SubPavingInterface* GridTreePaving::_branch(Bool right) const {
 
 Bool GridTreePaving::is_empty() const {
     std::lock_guard<std::mutex> lock(_adjoin_mutex);
-    return GridTreeSubpaving::is_empty();
+    // GridTreeSubpaving::is_empty() dispatches virtually to size(),
+    // re-entering this non-recursive owner mutex. Call the base count
+    // directly while the owning tree is locked.
+    return GridTreeSubpaving::size() == 0u;
 }
 
 FloatDPApproximation GridTreePaving::measure() const {

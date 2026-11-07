@@ -68,6 +68,35 @@ class TestPavingLockReentrancy : public Ariadne::Testing::ContextFixture {
         ARIADNE_TESTING_PROVE(!through_interface.superset(right));
     }
 
+    Void test_nonrecursive_is_empty_queries() {
+        Grid grid(1u);
+        GridCell cell(grid,0u,make_binary_word("0"));
+        GridTreePaving paving(grid,false);
+        // A single-threaded query previously deadlocked because the locked
+        // owner called the base is_empty(), whose virtual size() tried to
+        // acquire the same mutex for a second time.
+        ARIADNE_TESTING_PROVE(paving.is_empty());
+        ARIADNE_TESTING_PROVE(paving.size()==0u);
+
+        paving.adjoin(cell);
+        ARIADNE_TESTING_PROVE(!paving.is_empty());
+        ARIADNE_TESTING_PROVE(paving.size()!=0u);
+
+        // The base view dispatches to the owner's locked size() exactly once.
+        GridTreeSubpaving const& base=paving;
+        ARIADNE_TESTING_PROVE(!base.is_empty());
+
+        paving.set_root_cell(false);
+        ARIADNE_TESTING_PROVE(paving.is_empty());
+        ARIADNE_TESTING_PROVE(base.is_empty());
+
+        // Also exercise the empty/nonempty branch of the geometric query
+        // that checks emptiness through a separate owned snapshot.
+        (void)paving.bounding_box();
+        paving.adjoin(cell);
+        (void)paving.bounding_box();
+    }
+
     Void test_self_set_operations() {
         Grid grid(1u);
         GridCell cell(grid,0u,make_binary_word("0"));
@@ -85,5 +114,6 @@ int main(int argc, char** argv) {
     ARIADNE_TESTING_ADD_TEST(TestPavingLockReentrancy,test_distinct_owner_restrict);
     ARIADNE_TESTING_ADD_TEST(TestPavingLockReentrancy,test_distinct_owner_remove);
     ARIADNE_TESTING_ADD_TEST(TestPavingLockReentrancy,test_self_set_operations);
+    ARIADNE_TESTING_ADD_TEST(TestPavingLockReentrancy,test_nonrecursive_is_empty_queries);
     return ARIADNE_TESTING_RUN_TESTS_WITH_ARGS(argc,argv);
 }

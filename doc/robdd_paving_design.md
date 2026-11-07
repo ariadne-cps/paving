@@ -1754,3 +1754,21 @@ reference-returning `grid()` accessor nor raw binary-tree pointers or
 borrowed `GridTreeSubpaving` views gain lifetime guarantees from this
 change. Those remain outside the concurrent contract and must not race
 with mutations or owner assignment.
+
+
+## 2026-11-07 - Fix reentrant emptiness query after geometric snapshot rollout
+
+The first owner-side `GridTreePaving::is_empty()` implementation acquired
+`_adjoin_mutex` and then called `GridTreeSubpaving::is_empty()`. The
+base implementation tests `this->size()`, whose virtual dispatch reaches
+`GridTreePaving::size()` and attempts to acquire the same non-recursive
+mutex again. This caused `std::system_error` (resource deadlock would
+occur) on MSVC and hung CTest on some other platforms. The owning query
+now calls qualified `GridTreeSubpaving::size()` directly while holding
+the mutex, avoiding the second lock acquisition without weakening the
+snapshot and data-race guarantees.
+
+The `test_paving_lock_reentrancy` executable now tests owning and base
+emptiness queries on empty, populated and cleared trees, plus snapshot
+bounding boxes. Its 20-second CTest timeout provides an explicit regression
+signal if a recursive lock is reintroduced.
