@@ -2315,3 +2315,78 @@ hull vs box time, and optionally procedure-compilation costs on
 separation. Avoid optimizing caching in the production solver
 solely from the observed scalar microbenchmark speedup.
 No official README, algorithm, or workflow change is implied.
+
+
+## 2026-11-07 - Adaptive paving candidate trace: reducer hull/box breakdown
+
+The operator ran the optional \`--outer-trace-prefix\` export in
+\`ariadne-cps/paving\` (commit \`dd93ecae4345b823e55de6fc1cb7978be29d331a\`)
+at dimension 4 and fineness 3 and replayed all five traces with
+\`ariadne-cps/constraint-solving\` (commit
+\`cfcbeb0b01e9866dd4060dc8aeee2c05207d980b\`).
+Every query reproduced the original separation bit from paving.
+On each query, the diagnostic \`traced_reduce\` produced exactly the
+same final contracted upper domain as the unmodified production
+\`ConstraintSolver::reduce\`; no mismatches were reported.
+
+The traced routine mirrors the production reduction loop and times
+hull and box contractor calls in place, accumulating the measured
+durations over all adaptive input boxes. The duration is therefore
+**instrumented replay time**, not a seven-sample median and not the
+end-to-end time of \`paving::separated()\`. The paired replay wall clock
+includes a separate uninstrumented oracle call for each input; it
+must not be interpreted as pure solver overhead or added to the
+instrumented totals.
+
+| Shape | Adaptive queries | Empty proofs | Reducer rounds | Box calls | Hull (ms) | Box (ms) | Other (ms) | Instrumented (ms) | Box share | Rounds/query |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| aligned-box | 2927 | 600 | 5254 | 223392 | 45.1824 | 472.3325 | 10.4374 | 527.9523 | 89.5% | 1.80 |
+| rotated-box | 2591 | 576 | 4733 | 203174 | 91.6618 | 511.8064 | 9.0344 | 612.5027 | 83.6% | 1.83 |
+| aligned-ellipsoid | 1127 | 372 | 4679 | 92145 | 63.6710 | 429.5840 | 5.7011 | 498.9561 | 86.1% | 4.15 |
+| rotated-ellipsoid | 1055 | 296 | 5841 | 115414 | 103.8222 | 670.9843 | 6.9988 | 781.8052 | 85.8% | 5.54 |
+| ball | 1467 | 414 | 5795 | 114344 | 78.9988 | 528.5662 | 7.0099 | 614.5749 | 86.0% | 3.95 |
+
+Aggregated across the five separate runs: 9167 adaptive
+queries, 2258 proven empty, 26302 reducer rounds, and 748469
+\`box_reduce\` calls. The aggregate instrumented time is 3035.7912
+ms, of which box calls account for 2613.2734 ms (**86.1%**),
+hull calls for 383.3362 ms (**12.6%**) and the rest
+for approximately 39.18 ms (**1.3%**). These proportions
+describe the instrumented solver path, including timer overhead.
+
+Reasons for termination, respectively **empty after hull**,
+**empty after box**, **insufficient further shrink**:
+
+| Shape | Hull-empty | Box-empty | Threshold |
+| --- | ---: | ---: | ---: |
+| aligned-box | 600 | 0 | 2327 |
+| rotated-box | 420 | 156 | 2015 |
+| aligned-ellipsoid | 21 | 351 | 755 |
+| rotated-ellipsoid | 36 | 260 | 759 |
+| ball | 22 | 392 | 1053 |
+
+The quadratic geometries typically require substantially more
+reducer rounds per query than the axis-aligned boxes. Rotated
+ellipsoid is particularly expensive: ~109.4 box calls/query and
+~5.81 microseconds per box call, compared with ~76.3 box
+calls/query and ~2.11 microseconds per box call for aligned box.
+The pair of effects explains its unusually expensive replay.
+
+Inspection of the production \`ConstraintSolver::box_reduce\`
+implementation shows an initial singleton/zero-width check and
+otherwise *up to eight lower and up to seven upper* interval
+slice evaluations in each invocation (with early exits). The
+current statistics do not count actual slice/function evaluations,
+productive reductions, unchanged calls, per-constraint/function
+or variable contributions, and therefore cannot yet tell whether
+time is due to unnecessary box calls, repeated expression evaluation,
+or intrinsically expensive nonlinear evaluations. These should be
+the next diagnostic measurements. Never skip contractor work or
+alter its stopping rule to increase speed without separately
+proving and regression-testing the certified outcomes.
+
+These are direct measurements on the genuine adaptive paving
+candidate sequence, unlike the preceding fixed-32-query benchmark;
+the differing timing methodology and the omitted set-side
+assembly still preclude a literal subtractive interpretation of
+solver and paving time. No README/workflow changes are warranted.
