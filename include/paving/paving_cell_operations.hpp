@@ -73,18 +73,7 @@ Void for_each_enabled_cell_at_fineness(
     SizeType extent=static_cast<SizeType>(root.root_extent());
     SizeType requested=static_cast<SizeType>(fineness);
     SizeType dimensions=static_cast<SizeType>(paving.dimension());
-    constexpr SizeType limit=std::numeric_limits<SizeType>::max();
-    ARIADNE_PRECONDITION_MSG(extent <= limit-requested,
-        "Requested cell-enumeration fineness overflows the grid level");
-    SizeType levels=extent+requested;
-    ARIADNE_PRECONDITION_MSG(
-        dimensions == 0u or levels <= limit/dimensions,
-        "Requested cell-enumeration fineness overflows subdivision depth");
-    SizeType target=levels*dimensions;
-    SizeType max_word=static_cast<SizeType>(std::numeric_limits<Int>::max());
-    ARIADNE_PRECONDITION_MSG(
-        dimensions <= max_word and target <= max_word-dimensions,
-        "Requested cell-enumeration fineness exceeds valid GridCell depth");
+    SizeType target=PavingDetail::checked_cell_depth(extent,requested,dimensions);
 
     std::vector<GridCell> pending;
     for (auto it=paving.begin(), end=paving.end(); it!=end; ++it) {
@@ -249,10 +238,7 @@ class PavingCellView {
     SizeType size() const {
         SizeType count=0u;
         for_each_enabled_leaf([&](GridCell const&) {
-            ARIADNE_PRECONDITION_MSG(
-                count < std::numeric_limits<SizeType>::max(),
-                "Cell-view enabled-leaf count exceeds SizeType capacity");
-            ++count;
+            count=PavingDetail::checked_add(count,1u);
         });
         return count;
     }

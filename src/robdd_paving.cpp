@@ -92,11 +92,7 @@ std::unique_ptr<BinaryTreeNode> expand_tree(
     }
     if (root.is_true()) {
         auto node = std::make_unique<BinaryTreeNode>(true);
-        SizeType remaining = depth-level;
-        ARIADNE_PRECONDITION_MSG(
-            remaining <= static_cast<SizeType>(std::numeric_limits<Nat>::max()),
-            "Explicit binary-tree expansion depth exceeds Nat capacity");
-        node->mince(static_cast<Nat>(remaining));
+        node->mince(PavingDetail::checked_index<Nat>(depth-level));
         return node;
     }
 
@@ -354,9 +350,7 @@ RobddPaving::RobddPaving(
 RobddPaving::RobddPaving(
         RobddManager& manager, GridCell const& root_cell,
         Robdd const& root, SizeType depth)
-    : _manager(&manager), _root_cell(root_cell), _root(root), _depth(depth) {
-    ARIADNE_PRECONDITION_MSG(depth < std::numeric_limits<SizeType>::max(),
-        "ROBDD paving subdivision depth exceeds the valid index range");
+    : _manager(&manager), _root_cell(root_cell), _root(root), _depth(PavingDetail::checked_decision_depth(depth)) {
     auto variables = manager.support(root); // Validates manager identity.
     ARIADNE_PRECONDITION_MSG(
         variables.empty() or variables.back().index() < depth,
@@ -491,10 +485,7 @@ SizeType RobddPaving::enabled_leaf_count() const {
     BinaryWord path;
     visit_enabled_leaf_paths(*state.manager,state.root,0u,state.depth,path,
         [&](BinaryWord const&) {
-            ARIADNE_PRECONDITION_MSG(
-                count < std::numeric_limits<SizeType>::max(),
-                "Enabled-leaf count exceeds SizeType capacity");
-            ++count;
+            count=PavingDetail::checked_add(count,1u);
         });
     return count;
 }
@@ -527,31 +518,20 @@ Void RobddPaving::mince(Nat fineness) {
     // BinaryTreeSubpaving::mince uses this same geometric target, but
     // physically splits leaves. A ROBDD retains canonical shared nodes
     // and records the additional subdivisions only in its logical depth.
-    constexpr SizeType limit=std::numeric_limits<SizeType>::max();
     SizeType extent=static_cast<SizeType>(_root_cell.root_extent());
-    SizeType requested=static_cast<SizeType>(fineness);
     // Already holding the owner mutex: avoid a reentrant dimension().
-    SizeType dimensions=static_cast<SizeType>(_root_cell.grid().dimension());
-    ARIADNE_PRECONDITION_MSG(extent <= limit-requested,
-        "Requested paving fineness overflows the primary-cell level");
-    SizeType levels=extent+requested;
-    ARIADNE_PRECONDITION_MSG(
-        dimensions == 0u or levels <= limit/dimensions,
-        "Requested paving fineness overflows subdivision depth");
-    SizeType absolute_depth=levels*dimensions;
+    SizeType dimensions=_root_cell.grid().dimension();
+    SizeType absolute_depth=PavingDetail::checked_product(
+        PavingDetail::checked_add(extent,fineness),dimensions);
     SizeType prefix_depth=_root_cell.word().size();
     SizeType desired=absolute_depth>prefix_depth
         ? absolute_depth-prefix_depth : 0u;
-    ARIADNE_PRECONDITION_MSG(desired < std::numeric_limits<SizeType>::max(),
-        "Requested subdivision depth exceeds the valid index range");
-    _depth=std::max(_depth,desired);
+    _depth=std::max(_depth,PavingDetail::checked_decision_depth(desired));
 }
 
 Void RobddPaving::mince_to_depth(SizeType new_depth) {
     std::lock_guard<std::mutex> lock(_adjoin_mutex);
-    ARIADNE_PRECONDITION_MSG(new_depth < std::numeric_limits<SizeType>::max(),
-        "Requested subdivision depth exceeds the valid index range");
-    _depth = std::max(_depth,new_depth);
+    _depth = std::max(_depth,PavingDetail::checked_decision_depth(new_depth));
 }
 
 Void RobddPaving::recombine() {
@@ -690,20 +670,12 @@ Void RobddPaving::adjoin_outer_approximation(
         "Cannot approximate a set of another dimension");
     Nat extent=GridCell::smallest_enclosing_primary_cell_extent(
         set.bounding_box(),grid_value);
-    Nat dimensions=static_cast<Nat>(grid_value.dimension());
-    constexpr SizeType limit=std::numeric_limits<SizeType>::max();
-    constexpr Nat nat_limit=std::numeric_limits<Nat>::max();
-    ARIADNE_PRECONDITION_MSG(dimensions <= nat_limit and
-        extent <= nat_limit-dimensions,
-        "Outer approximation primary-cell extent overflows");
-    Nat enclosing_extent=extent+dimensions;
-    ARIADNE_PRECONDITION_MSG(enclosing_extent <= nat_limit-fineness,
-        "Outer approximation fineness overflows");
-    SizeType levels=static_cast<SizeType>(enclosing_extent)+fineness;
-    ARIADNE_PRECONDITION_MSG(
-        dimensions == 0u or levels <= limit/dimensions,
-        "Outer approximation subdivision depth overflows");
-    SizeType target_depth=levels*dimensions;
+    Nat dimensions=PavingDetail::checked_index<Nat>(grid_value.dimension());
+    Nat enclosing_extent=PavingDetail::checked_index<Nat>(
+        PavingDetail::checked_add(extent,dimensions));
+    SizeType levels=PavingDetail::checked_add(enclosing_extent,fineness,
+        std::numeric_limits<Nat>::max());
+    SizeType target_depth=PavingDetail::checked_product(levels,dimensions);
     GridCell enclosing_root(grid_value,enclosing_extent,BinaryWord{});
     auto const* open_set=dynamic_cast<
         EffectiveEuclideanOpenSetInterface const*>(
@@ -746,15 +718,9 @@ Void RobddPaving::adjoin_inner_approximation(
     Grid grid_value=geometric_root.grid();
     ARIADNE_PRECONDITION_MSG(set.dimension() == grid_value.dimension(),
         "Cannot approximate a set of another dimension");
-    constexpr SizeType limit=std::numeric_limits<SizeType>::max();
-    ARIADNE_PRECONDITION_MSG(extent <= limit-fineness,
-        "Inner approximation fineness overflows");
-    SizeType levels=static_cast<SizeType>(extent)+fineness;
-    SizeType dimensions=static_cast<SizeType>(grid_value.dimension());
-    ARIADNE_PRECONDITION_MSG(
-        dimensions == 0u or levels <= limit/dimensions,
-        "Inner approximation subdivision depth overflows");
-    SizeType target_depth=levels*dimensions;
+    SizeType levels=PavingDetail::checked_add(extent,fineness);
+    SizeType dimensions=grid_value.dimension();
+    SizeType target_depth=PavingDetail::checked_product(levels,dimensions);
     GridCell enclosing_root(grid_value,extent,BinaryWord{});
     auto const* closed_set=dynamic_cast<
         EffectiveEuclideanClosedSetInterface const*>(&set);
@@ -828,15 +794,10 @@ std::pair<Robdd,SizeType> RobddPaving::_lift_to(
         GridCell const& ancestor) const {
     BinaryWord path = relative_cell_path(ancestor,_root_cell);
     SizeType offset = path.size();
-    ARIADNE_PRECONDITION_MSG(
-        offset < std::numeric_limits<SizeType>::max() - _depth,
-        "Aligned paving depth exceeds the valid ROBDD variable range");
-    ARIADNE_PRECONDITION_MSG(
-        offset <= static_cast<SizeType>(std::numeric_limits<std::ptrdiff_t>::max()),
-        "Aligned paving prefix exceeds the BDD shift-offset range");
-
+    SizeType lifted_depth=PavingDetail::checked_decision_depth(
+        PavingDetail::checked_add(offset,_depth));
     Robdd lifted = _manager->shift(
-        _root,static_cast<std::ptrdiff_t>(offset));
+        _root,PavingDetail::checked_index<std::ptrdiff_t>(offset));
     Robdd disabled = _manager->constant(false);
     for (SizeType i=offset; i!=0u; ) {
         --i;
@@ -845,7 +806,7 @@ std::pair<Robdd,SizeType> RobddPaving::_lift_to(
             ? _manager->make_node(BddVariable(i),disabled,lifted)
             : _manager->make_node(BddVariable(i),lifted,disabled);
     }
-    return std::make_pair(lifted,offset+_depth);
+    return std::make_pair(lifted,lifted_depth);
 }
 
 RobddPaving RobddPaving::join(
