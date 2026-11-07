@@ -1733,3 +1733,24 @@ serializes initial splitting with other owner operations, but the
 returned live branch remains borrowed and is not safe to retain across
 concurrent mutations. Use a deep copy of the owning paving for
 independent traversal.
+
+
+## 2026-11-07 - Geometric reads of mutable owning tree pavings
+
+`GridTreePaving` now captures an independent, owner-locked snapshot for
+`bounding_box`, `inside`, `separated`, `overlaps`, `measure` and
+polymorphic `equals`, `subset` and `intersects` calls. The snapshot
+invokes the qualified `GridTreeSubpaving` implementation to avoid a
+recursive lock when the base algorithm reads root-cell geometry or
+traverses the binary tree. `is_empty` and `dimension` instead use the
+owner mutex directly. If the right operand is another owning tree paving,
+it is also copied; each copy is coherent individually, but the two
+copies are not an atomic cross-owner transaction. Borrowed subpaving
+views must remain stable during comparisons.
+
+Concurrent geometric-read regressions overlap these APIs, including
+polymorphic calls, with insertion and restriction. Neither the
+reference-returning `grid()` accessor nor raw binary-tree pointers or
+borrowed `GridTreeSubpaving` views gain lifetime guarantees from this
+change. Those remain outside the concurrent contract and must not race
+with mutations or owner assignment.

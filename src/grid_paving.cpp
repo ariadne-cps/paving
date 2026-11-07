@@ -1821,6 +1821,71 @@ SubPavingInterface* GridTreePaving::_branch(Bool right) const {
     return GridTreeSubpaving::_branch(right);
 }
 
+Bool GridTreePaving::is_empty() const {
+    std::lock_guard<std::mutex> lock(_adjoin_mutex);
+    return GridTreeSubpaving::is_empty();
+}
+
+FloatDPApproximation GridTreePaving::measure() const {
+    GridTreePaving snapshot(*this);
+    return snapshot.GridTreeSubpaving::measure();
+}
+
+DimensionType GridTreePaving::dimension() const {
+    std::lock_guard<std::mutex> lock(_adjoin_mutex);
+    return GridTreeSubpaving::dimension();
+}
+
+UpperBoxType GridTreePaving::bounding_box() const {
+    GridTreePaving snapshot(*this);
+    return snapshot.GridTreeSubpaving::bounding_box();
+}
+
+ValidatedLowerKleenean GridTreePaving::inside(const ExactBoxType& box) const {
+    GridTreePaving snapshot(*this);
+    return snapshot.GridTreeSubpaving::inside(box);
+}
+
+ValidatedLowerKleenean GridTreePaving::separated(const ExactBoxType& box) const {
+    GridTreePaving snapshot(*this);
+    return snapshot.GridTreeSubpaving::separated(box);
+}
+
+ValidatedLowerKleenean GridTreePaving::overlaps(const ExactBoxType& box) const {
+    GridTreePaving snapshot(*this);
+    return snapshot.GridTreeSubpaving::overlaps(box);
+}
+
+Bool GridTreePaving::equals(const SubPavingInterface& other) const {
+    if(this==&other) { return true; }
+    GridTreePaving lhs(*this);
+    if(auto const* owner=dynamic_cast<GridTreePaving const*>(&other)) {
+        GridTreePaving rhs(*owner);
+        return lhs.GridTreeSubpaving::equals(rhs);
+    }
+    return lhs.GridTreeSubpaving::equals(other);
+}
+
+Bool GridTreePaving::subset(const SubPavingInterface& other) const {
+    if(this==&other) { return true; }
+    GridTreePaving lhs(*this);
+    if(auto const* owner=dynamic_cast<GridTreePaving const*>(&other)) {
+        GridTreePaving rhs(*owner);
+        return lhs.GridTreeSubpaving::subset(rhs);
+    }
+    return lhs.GridTreeSubpaving::subset(other);
+}
+
+Bool GridTreePaving::intersects(const SubPavingInterface& other) const {
+    if(this==&other) { return !is_empty(); }
+    GridTreePaving lhs(*this);
+    if(auto const* owner=dynamic_cast<GridTreePaving const*>(&other)) {
+        GridTreePaving rhs(*owner);
+        return lhs.GridTreeSubpaving::intersects(rhs);
+    }
+    return lhs.GridTreeSubpaving::intersects(other);
+}
+
 SizeType GridTreePaving::size() const {
     std::lock_guard<std::mutex> lock(_adjoin_mutex);
     return GridTreeSubpaving::size();

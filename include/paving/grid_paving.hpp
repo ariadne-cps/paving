@@ -572,25 +572,32 @@ class GridTreePaving
     using GridTreeSubpaving::intersects;
 
     //! Explicit overrides resolve the shared SubPavingInterface virtual base.
+    //! \brief Coherent owning-tree value queries.
+    Bool is_empty() const;
+    FloatDPApproximation measure() const;
     SizeType size() const override;
-    DimensionType dimension() const override { return GridTreeSubpaving::dimension(); }
+    DimensionType dimension() const override;
     const Grid& grid() const override { return GridTreeSubpaving::grid(); }
     GridCell root_cell() const override;
     //! \brief Stable snapshot iterators; the owning tree may be mutated later.
     //! \details Borrowed GridTreeSubpaving iterators do not acquire ownership.
     ConstIterator begin() const;
     ConstIterator end() const;
-    UpperBoxType bounding_box() const override { return GridTreeSubpaving::bounding_box(); }
-    Bool equals(const SubPavingInterface& paving) const override { return GridTreeSubpaving::equals(paving); }
-    Bool subset(const SubPavingInterface& paving) const override { return GridTreeSubpaving::subset(paving); }
-    Bool intersects(const SubPavingInterface& paving) const override { return GridTreeSubpaving::intersects(paving); }
+    //! \brief Bounding geometry computed on a detached, coherent snapshot.
+    UpperBoxType bounding_box() const override;
+    //! \brief Compare stable snapshots of owning pavings, not live nodes.
+    //! \details Borrowed GridTreeSubpaving operands must remain stable.
+    Bool equals(const SubPavingInterface& paving) const override;
+    Bool subset(const SubPavingInterface& paving) const override;
+    Bool intersects(const SubPavingInterface& paving) const override;
     Bool superset(const GridCell& cell) const override;
     Void set_root_cell(Bool enabled) override;
     Void mince(Nat fineness) override;
     Void recombine() override;
-    ValidatedLowerKleenean inside(const ExactBoxType& box) const override { return GridTreeSubpaving::inside(box); }
-    ValidatedLowerKleenean separated(const ExactBoxType& box) const override { return GridTreeSubpaving::separated(box); }
-    ValidatedLowerKleenean overlaps(const ExactBoxType& box) const override { return GridTreeSubpaving::overlaps(box); }
+    //! \brief Geometric predicates evaluated on consistent tree snapshots.
+    ValidatedLowerKleenean inside(const ExactBoxType& box) const override;
+    ValidatedLowerKleenean separated(const ExactBoxType& box) const override;
+    ValidatedLowerKleenean overlaps(const ExactBoxType& box) const override;
 
   protected:
     OutputStream& _write(OutputStream& os) const override { return GridTreeSubpaving::_write(os); }

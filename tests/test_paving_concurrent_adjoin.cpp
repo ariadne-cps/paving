@@ -311,6 +311,58 @@ class TestPavingConcurrentAdjoin : public Ariadne::Testing::ContextFixture {
         ARIADNE_TESTING_PROVE(retained->grid()==grid);
     }
 
+    Void test_tree_concurrent_geometric_queries() {
+        Grid grid(1u);
+        GridCell left(grid,0u,make_binary_word("0"));
+        GridCell right(grid,0u,make_binary_word("1"));
+        GridTreePaving destination(left);
+        GridTreePaving left_only(left);
+        ExactBoxType query=left.box();
+        std::atomic<bool> finished{false};
+        std::atomic<bool> correct{true};
+
+        std::thread reader([&] {
+            while(!finished.load(std::memory_order_acquire)) {
+                (void)destination.bounding_box();
+                (void)destination.inside(query);
+                (void)destination.separated(query);
+                (void)destination.overlaps(query);
+                (void)destination.equals(left_only);
+                (void)destination.subset(left_only);
+                if(!destination.intersects(left_only)
+                        || destination.is_empty()
+                        || destination.dimension()!=grid.dimension()) {
+                    correct.store(false,std::memory_order_relaxed);
+                }
+                (void)destination.measure();
+                PavingInterface const& api=destination;
+                (void)api.bounding_box();
+                (void)api.inside(query);
+                (void)api.separated(query);
+                (void)api.overlaps(query);
+                (void)api.equals(left_only);
+                (void)api.subset(left_only);
+                (void)api.intersects(left_only);
+            }
+        });
+        std::thread writer([&] {
+            for(unsigned i=0u;i<48u;++i) {
+                destination.adjoin(right);
+                destination.restrict(left_only);
+            }
+            finished.store(true,std::memory_order_release);
+        });
+        writer.join();
+        reader.join();
+        ARIADNE_TESTING_PROVE(correct.load(std::memory_order_acquire));
+        ARIADNE_TESTING_PROVE(destination.equals(left_only));
+        ARIADNE_TESTING_PROVE(destination.subset(left_only));
+        ARIADNE_TESTING_PROVE(destination.intersects(left_only));
+        ARIADNE_TESTING_PROVE(destination.equals(destination));
+        ARIADNE_TESTING_PROVE(destination.subset(destination));
+        ARIADNE_TESTING_PROVE(destination.intersects(destination));
+    }
+
     Void test_grid_tree_concurrent_adjoin() {
         Grid grid(1u);
         auto cells=make_cells(grid);
@@ -365,6 +417,7 @@ int main(int argc, char** argv) {
     ARIADNE_TESTING_ADD_TEST(TestPavingConcurrentAdjoin,test_tree_concurrent_root_mutations);
     ARIADNE_TESTING_ADD_TEST(TestPavingConcurrentAdjoin,test_tree_concurrent_set_mutations);
     ARIADNE_TESTING_ADD_TEST(TestPavingConcurrentAdjoin,test_tree_snapshot_iterators_survive_concurrent_mutations);
+    ARIADNE_TESTING_ADD_TEST(TestPavingConcurrentAdjoin,test_tree_concurrent_geometric_queries);
     ARIADNE_TESTING_ADD_TEST(TestPavingConcurrentAdjoin,test_robdd_concurrent_set_mutations);
     ARIADNE_TESTING_ADD_TEST(TestPavingConcurrentAdjoin,test_robdd_concurrent_root_mutations);
     ARIADNE_TESTING_ADD_TEST(TestPavingConcurrentAdjoin,test_robdd_reader_writer_adjoin);
