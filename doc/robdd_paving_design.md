@@ -2732,3 +2732,48 @@ calibrate fast full-coverage cases without unnecessarily repeating
 already-slow empty/partial calls. No production algorithm changed.
 CI/compilation of this reporting improvement and any new measured
 timings remain pending.
+
+
+## 2026-11-08 - Recalibrated overlap measurements and deferred preparation
+
+**Measured baseline.** The operator repeated the five-shape 4D/f3
+Release overlap experiment with 7 samples, `--min-sample-ms 12` and
+`--max-iterations 2048`. Every one of the 15 scenario checks reported
+`geometry_matches=true`. All timing rows reported
+`tree_calibration_met=true` and `robdd_calibration_met=true`;
+the fast full scenario calibrated to 512 or 1024 iterations.
+
+| Shape | Tree empty ms | Tree partial ms | Tree saved | ROBDD empty ms | ROBDD partial ms | ROBDD saved | Full tree/ROBDD us | Full iterations |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| aligned-box | 33.905 | 25.192 | 25.7% | 35.128 | 26.670 | 24.1% | 23.6 / 23.8 | 512 |
+| rotated-box | 157.478 | 120.447 | 23.5% | 158.790 | 121.401 | 23.5% | 29.6 / 30.0 | 512 |
+| aligned-ellipsoid | 325.008 | 289.601 | 10.9% | 326.259 | 291.619 | 10.6% | 17.1 / 17.4 | 1024 |
+| rotated-ellipsoid | 541.792 | 504.762 | 6.8% | 546.222 | 503.565 | 7.8% | 20.8 / 20.9 | 1024 |
+| ball | 393.522 | 353.831 | 10.1% | 407.880 | 350.063 | 14.2% | 17.2 / 17.4 | 1024 |
+
+The reductions for partial coverage are 6.8%-25.7% for tree and
+7.8%-24.1% for ROBDD. Full coverage costs approximately 17-30 us.
+These are comparisons between **different preexisting paving states**,
+not measurements of the early-pruning optimization versus its previous
+version. Even with sufficiently long batches, backend differences near
+unity lack cross-run variance estimates.
+
+**New optimization hypothesis.** A fully covered search root still
+constructed `PreparedConstrainedImageSetSeparation`, despite never
+executing `separated()`. The exact-concrete-type effective outer path
+now avoids this unnecessary solver snapshot:
+
+- Tree checks `superset(enclosing_root)` through a borrowed base view
+  under the existing owning mutex, before preparing the contractor
+  and before mutating tree alignment. The preparation remains ahead
+  of alignment for uncovered regions. Derived virtual set overrides
+  and validated set paths are unchanged.
+- ROBDD allocates the prepared snapshot lazily, only upon encountering
+  the first non-covered candidate. The existing earlier read-only
+  `superset` short circuit remains authoritative. No global cache.
+
+An exact-constrained-set test now checks both fully covered backends
+retain their geometric roots, inclusion and ROBDD depth. These timing
+measurements are **pre-optimization baseline numbers**, not claimed
+speedups for deferred preparation. CI plus a new Release run are
+required to establish correctness and performance of this change.

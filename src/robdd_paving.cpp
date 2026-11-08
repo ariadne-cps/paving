@@ -654,13 +654,13 @@ Void RobddPaving::remove(SubPavingInterface const& other) {
 
 Void RobddPaving::adjoin_outer_approximation(
         EffectiveEuclideanCompactSetInterface const& set, Nat fineness) {
-    // A scoped prepared snapshot; generic virtual sets remain unchanged.
+    // The optional snapshot is built only when a candidate actually
+    // requires classification. A fully covered paving skips solver setup.
     std::optional<PreparedConstrainedImageSetSeparation> prepared;
-    // Avoid bypassing an overridden separated() in a derived set.
-    if(auto const* constrained=dynamic_cast<ConstrainedImageSet const*>(&set);
-       constrained and typeid(*constrained)==typeid(ConstrainedImageSet)
-       and constrained->dimension()!=0u)
-        prepared.emplace(constrained->prepare_separation());
+    auto const* constrained=dynamic_cast<ConstrainedImageSet const*>(&set);
+    bool const can_prepare=constrained
+        and typeid(*constrained)==typeid(ConstrainedImageSet)
+        and constrained->dimension()!=0u;
     // Geometric metadata is captured as a value, never as a borrowed grid.
     GridCell geometric_root=root_cell();
     Grid grid_value=geometric_root.grid();
@@ -689,6 +689,8 @@ Void RobddPaving::adjoin_outer_approximation(
             // Existing coverage makes this candidate redundant, so no
             // expensive geometric separation/covers query is needed.
             if (check_existing and superset(cell)) { return; }
+            if (can_prepare and not prepared)
+                prepared.emplace(constrained->prepare_separation());
             Bool const excluded=prepared
                 ? definitely(prepared->separated(cell.box()))
                 : definitely(set.separated(cell.box()));

@@ -124,6 +124,25 @@ class TestPavingBackends : public Ariadne::Testing::ContextFixture {
         for(auto cell=bdd.begin(),end=bdd.end();cell!=end;++cell)
             ARIADNE_TESTING_PROVE(tree.superset(*cell));
 
+        // Exercise fully covered search roots for the exact concrete type.
+        Nat extent=GridCell::smallest_enclosing_primary_cell_extent(
+            set.bounding_box(),grid);
+        GridCell enclosing(grid,extent+static_cast<Nat>(grid.dimension()),
+                           BinaryWord{});
+        BinaryTreePaving full_tree(grid);
+        full_tree.adjoin(enclosing);
+        RobddPaving full_bdd(manager,enclosing,manager.constant(true),0u);
+        GridCell tree_root_before=full_tree.root_cell();
+        GridCell bdd_root_before=full_bdd.root_cell();
+        SizeType const depth_before=full_bdd.depth();
+        full_tree.adjoin_outer_approximation(source,2u);
+        full_bdd.adjoin_outer_approximation(source,2u);
+        ARIADNE_TESTING_PROVE(full_tree.root_cell()==tree_root_before);
+        ARIADNE_TESTING_PROVE(full_bdd.root_cell()==bdd_root_before);
+        ARIADNE_TESTING_EXPECT_EQUAL(full_bdd.depth(),depth_before);
+        ARIADNE_TESTING_PROVE(full_tree.superset(enclosing));
+        ARIADNE_TESTING_PROVE(full_bdd.superset(enclosing));
+
         // Reference oracle must still use the original lazy predicate.
         auto const prepared=set.prepare_separation();
         for(ExactBoxType const& box:std::vector<ExactBoxType>({
