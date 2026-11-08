@@ -34,6 +34,12 @@
 #include <utility>
 #include <vector>
 
+// This existing set-module conversion is also declared by
+// paving/src/set_approximation.cpp; set/function_set.hpp does not expose it.
+namespace Ariadne {
+ExactBoxType over_approximation(const RealBox&);
+}
+
 using namespace Ariadne;
 namespace CLI = Ariadne::PavingBenchmarkCommandLine;
 
