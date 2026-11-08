@@ -35,39 +35,58 @@ namespace Ariadne {
 namespace {
 
 
-// Compact Boolean prefix trie: a covered node represents its entire region.
-// Insertion of a shallow cell subsumes all deeper descendants, while inserting
-// a descendant under an already-covered ancestor is a no-op. The trie is
-// local to bulk construction and is destroyed before returning.
+// Dense Boolean prefix trie with stable integer indices. This avoids
+// allocating a separate heap node for every path bit. Vector growth never
+// invalidates an index, including when inserting a late ancestor.
 struct CellPrefixTrie {
-    Bool covered=false;
-    std::unique_ptr<CellPrefixTrie> low;
-    std::unique_ptr<CellPrefixTrie> high;
+    static constexpr SizeType missing=std::numeric_limits<SizeType>::max();
+    struct Node {
+        Bool covered=false;
+        SizeType low=missing;
+        SizeType high=missing;
+    };
+
+    std::vector<Node> nodes{Node{}};
+
+    void insert(BinaryWord const& path) {
+        SizeType current=0u;
+        for(SizeType i=0u;i<path.size();++i) {
+            if(nodes[current].covered) { return; }
+            // Do not retain a Node reference across emplace_back(), which
+            // may reallocate the arena and invalidate all references.
+            Bool branch=path[i];
+            SizeType child=branch ? nodes[current].high : nodes[current].low;
+            if(child==missing) {
+                child=nodes.size();
+                nodes.emplace_back();
+                if(branch) { nodes[current].high=child; }
+                else { nodes[current].low=child; }
+            }
+            current=child;
+        }
+        // A late covering ancestor subsumes descendants. Orphaned arena
+        // nodes are ignored by the encoder and freed with this local trie.
+        nodes[current].covered=true;
+        nodes[current].low=missing;
+        nodes[current].high=missing;
+    }
 };
 
-void insert_cell_path(CellPrefixTrie& root,BinaryWord const& path) {
-    CellPrefixTrie* node=&root;
-    for(SizeType i=0u;i<path.size();++i) {
-        if(node->covered) { return; }
-        std::unique_ptr<CellPrefixTrie>& child=
-            path[i] ? node->high : node->low;
-        if(not child) { child=std::make_unique<CellPrefixTrie>(); }
-        node=child.get();
-    }
-    node->covered=true;
-    node->low.reset();
-    node->high.reset();
-}
-
 Robdd encode_cell_trie(
-        RobddManager& manager,CellPrefixTrie const* node,SizeType level) {
-    if(node==nullptr) { return manager.constant(false); }
-    if(node->covered) { return manager.constant(true); }
-    if(not node->low and not node->high) {
+        RobddManager& manager,CellPrefixTrie const& trie,
+        SizeType index,SizeType level) {
+    if(index==CellPrefixTrie::missing) { return manager.constant(false); }
+    auto const& node=trie.nodes[index];
+    if(node.covered) { return manager.constant(true); }
+    if(node.low==CellPrefixTrie::missing
+       and node.high==CellPrefixTrie::missing)
         return manager.constant(false);
-    }
-    Robdd low=encode_cell_trie(manager,node->low.get(),level+1u);
-    Robdd high=encode_cell_trie(manager,node->high.get(),level+1u);
+
+    Robdd low=encode_cell_trie(manager,trie,node.low,level+1u);
+    Robdd high=encode_cell_trie(manager,trie,node.high,level+1u);
+    // A canonical ROBDD removes nodes with equal children. Avoid a
+    // manager call (and its validation/interning work) in this case.
+    if(low==high) { return low; }
     return manager.make_node(BddVariable(level),low,high);
 }
 
@@ -356,11 +375,13 @@ RobddPaving::RobddPaving(
 RobddPaving RobddPaving::from_cells(
         RobddManager& manager,GridCell const& root_cell,
         std::vector<GridCell> const& cells) {
-    // Validate and normalize all relative paths before inserting any BDD
-    // nodes. A GridCell can have a different primary extent but still
+    // Normalize each cell and insert its relative path immediately,
+    // without retaining a second vector of allocated BinaryWords.
+    // Only local arena memory changes during this loop: the manager and
+    // destination paving remain untouched until ALL cells validate.
+    // A GridCell may have a different primary extent but still
     // represent a descendant of the supplied geometric root.
-    std::vector<BinaryWord> paths;
-    paths.reserve(cells.size());
+    CellPrefixTrie trie;
     SizeType maximum_depth=0u;
     for(GridCell const& cell:cells) {
         ARIADNE_PRECONDITION_MSG(root_cell.grid()==cell.grid(),
@@ -368,13 +389,9 @@ RobddPaving RobddPaving::from_cells(
         BinaryWord path=relative_cell_path(root_cell,cell);
         maximum_depth=std::max(maximum_depth,
             PavingDetail::checked_decision_depth(path.size()));
-        paths.push_back(std::move(path));
+        trie.insert(path);
     }
-    CellPrefixTrie trie;
-    for(BinaryWord const& path:paths) {
-        insert_cell_path(trie,path);
-    }
-    Robdd root=encode_cell_trie(manager,&trie,0u);
+    Robdd root=encode_cell_trie(manager,trie,0u,0u);
     return RobddPaving(manager,root_cell,root,maximum_depth);
 }
 

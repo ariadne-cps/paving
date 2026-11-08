@@ -609,6 +609,44 @@ class TestPavingBackends : public Ariadne::Testing::ContextFixture {
         ARIADNE_TESTING_PROVE(existing.subset(expected));
         ARIADNE_TESTING_PROVE(expected.subset(existing));
 
+        // Exercise an arena with many shared prefixes and reallocations,
+        // including a late covering ancestor and redundant descendants.
+        // A separate explicit tree is the independent geometric oracle.
+        {
+            Grid dense_grid(2u);
+            GridCell dense_root(dense_grid,0u,BinaryWord{});
+            std::vector<GridCell> dense_cells;
+            for(unsigned value=0u;value<256u;++value) {
+                if((value*13u)%17u>=8u) continue;
+                BinaryWord word;
+                for(unsigned bit=8u;bit>0u;--bit)
+                    word.push_back((value&(1u<<(bit-1u)))!=0u);
+                dense_cells.emplace_back(dense_grid,0u,word);
+            }
+            std::reverse(dense_cells.begin(),dense_cells.end());
+            dense_cells.push_back(dense_root.split(false));
+            dense_cells.push_back(dense_root.split(false).split(true));
+            dense_cells.push_back(dense_cells.front());
+            BinaryTreePaving oracle(dense_grid);
+            for(GridCell const& cell:dense_cells) oracle.adjoin(cell);
+            oracle.recombine();
+
+            RobddPaving dense_bulk=RobddPaving::from_cells(
+                manager,dense_root,dense_cells);
+            ARIADNE_TESTING_EXPECT_EQUAL(dense_bulk.depth(),8u);
+            for(auto it=oracle.begin(),end=oracle.end();it!=end;++it)
+                ARIADNE_TESTING_PROVE(dense_bulk.superset(*it));
+            for(auto it=dense_bulk.begin(),end=dense_bulk.end();it!=end;++it)
+                ARIADNE_TESTING_PROVE(oracle.superset(*it));
+
+            RobddPaving dense_adjoined(
+                manager,dense_root,manager.constant(false),0u);
+            dense_adjoined.adjoin(dense_cells);
+            dense_adjoined.recombine();
+            dense_bulk.recombine();
+            ARIADNE_TESTING_PROVE(dense_adjoined.robdd()==dense_bulk.robdd());
+        }
+
         Grid other_grid(2u);
         GridCell wrong(other_grid,0u,BinaryWord{});
         RobddPaving unchanged(existing);

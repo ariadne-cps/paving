@@ -2922,3 +2922,50 @@ Run an opt-in Release sweep over dimensions 2,3,4 at fineness 3
 with `--summary-only --no-retention --max-depth-bits 28`;
 then follow up on operations showing a material gap.
 The benchmark will not be executed as part of CI.
+
+
+## 2026-11-08 - Dense arena for ROBDD replay_bulk construction
+
+**Motivation:** the prior local five-shape 4D/f3 structural benchmark
+reported a geometric-mean ROBDD/tree ratio of 8.288 for
+`replay_bulk`. Unlike near-parity geometric construction and cursor
+iteration, this operation has a material representation-specific gap.
+The paired ratio includes the exact production insertion and
+recombination paths, so it does **not** isolate which subroutine
+accounts for the difference.
+
+**Optimization:** replace the previous one-allocation-per-prefix
+`CellPrefixTrie` (binary `unique_ptr` children) in
+`RobddPaving::from_cells` with a dense `std::vector` of small nodes
+addressed by stable integer indices. Normalize and insert each input
+cell's relative `BinaryWord` immediately instead of buffering a
+second `std::vector<BinaryWord>`. No `RobddManager` operation runs
+until every input cell has passed the same geometry and depth checks.
+Late ancestors still subsume already-inserted descendants. Their
+orphaned arena nodes are ignored during postorder encoding and
+released at the end of the operation.
+
+The postorder encoder also handles identical low/high canonical BDD
+children without calling `RobddManager::make_node`; that is the
+manager's existing equal-children reduction, performed earlier. The
+same manager performs canonical interning for all nontrivial nodes.
+The original maximum normalized input depth remains the declared
+logical depth even when subsumed descendants become unreachable.
+No public API, persistent allocator, manager semantics or CI workflow
+was changed.
+
+**Regressions:** retain the 256-mask exhaustive truth table,
+duplicate/overlapping/nested cells, cross-extent root, invalid input,
+and depth-preservation tests. Add a denser two-dimensional case with
+many interleaved eight-bit prefixes, duplicate cells and a covering
+ancestor inserted last. Compare the resulting dense ROBDD against an
+independently accumulated binary tree and against ordinary batch
+adjoin, before and after recombine.
+
+**Verification and next measurement:** this commit is a source-level
+optimization hypothesis; compilation/tests are pending and no speedup
+is claimed yet. Re-run the original manual Release structural
+benchmark with the same 4D/f3 five-shape settings (including
+`--no-retention --tree-iterator-cost` if matching the historic run)
+and compare `replay_bulk` values, memory diagnostics and the other
+operation timings. No benchmark execution is added to GitHub Actions.
