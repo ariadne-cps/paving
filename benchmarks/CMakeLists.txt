@@ -1,15 +1,10 @@
-# Match ariadne-cps/numeric: benchmarks are explicit executables and
-# are not included in the ordinary library build.
-if(NOT TARGET benchmarks)
-    add_custom_target(benchmarks)
-endif()
-
+# Benchmarking registers this directory in standalone builds. The production
+# Paving library already bundles Threading/Logging objects through BDD.
+# The framework is linked only by the dedicated benchmark executables.
 add_executable(benchmark_paving_backends benchmark_paving_backends.cpp)
-target_link_libraries(benchmark_paving_backends PRIVATE ariadne-paving paving)
-add_dependencies(benchmarks benchmark_paving_backends)
-
-# Dedicated read-only cell-containment microbenchmark. Its unit timings
-# exclude geometric classification and never change the manager on queries.
+target_link_libraries(benchmark_paving_backends PRIVATE
+    ariadne-paving paving ariadne-benchmarking)
 add_executable(benchmark_paving_superset benchmark_paving_superset.cpp)
-target_link_libraries(benchmark_paving_superset PRIVATE ariadne-paving paving)
-add_dependencies(benchmarks benchmark_paving_superset)
+target_link_libraries(benchmark_paving_superset PRIVATE
+    ariadne-paving paving ariadne-benchmarking)
+add_dependencies(benchmarks benchmark_paving_backends benchmark_paving_superset)

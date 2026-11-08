@@ -14,12 +14,10 @@
 #include "set/function_set.hpp"
 #include "function/functional.hpp"
 #include "logging/logging.hpp"
-#include "threading/threading_command_line_interface.hpp"
+#include "ariadne-benchmarking.hpp"
 #include "threading/thread_manager.hpp"
-#include "benchmark_command_line.hpp"
 
 #include <algorithm>
-#include <chrono>
 #include <cmath>
 #include <functional>
 #include <fstream>
@@ -41,13 +39,14 @@ ExactBoxType over_approximation(const RealBox&);
 }
 
 using namespace Ariadne;
-namespace CLI = Ariadne::PavingBenchmarkCommandLine;
+namespace Bench=Ariadne::Benchmarking;
 
 namespace {
 
 struct Selection {
     unsigned iterations=1u;
     unsigned samples=7u;
+    unsigned warmups=0u;
     unsigned min_sample_ms=12u;
     unsigned max_iterations=32768u;
     unsigned max_depth_bits=26u;
@@ -100,14 +99,14 @@ List<ArgumentParser> parsers(Selection& selection) {
     result.append(make_valued_argument_parser(
         "i","iterations","Positive repetitions per sample",
         [&selection](String const& value)->VoidFunction {
-            unsigned n=CLI::parse_unsigned<unsigned>(value);
+            unsigned n=Bench::parse_unsigned<unsigned>(value);
             if (n==0u) throw std::invalid_argument("iterations must be positive");
             return [&selection,n] { selection.iterations=n; };
         }));
     result.append(make_valued_argument_parser(
         "n","samples","Odd number of timing samples, at least three",
         [&selection](String const& value)->VoidFunction {
-            unsigned n=CLI::parse_unsigned<unsigned>(value);
+            unsigned n=Bench::parse_unsigned<unsigned>(value);
             if (n<3u or n%2u==0u)
                 throw std::invalid_argument("samples must be odd and >=3");
             return [&selection,n] { selection.samples=n; };
@@ -115,34 +114,34 @@ List<ArgumentParser> parsers(Selection& selection) {
     result.append(make_valued_argument_parser(
         "","min-sample-ms","Minimum calibration time per timed sample (ms, positive)",
         [&selection](String const& value)->VoidFunction {
-            unsigned n=CLI::parse_unsigned<unsigned>(value);
+            unsigned n=Bench::parse_unsigned<unsigned>(value);
             if(n==0u or n>10000u) throw std::invalid_argument("min-sample-ms out of range");
             return [&selection,n] { selection.min_sample_ms=n; };
         }));
     result.append(make_valued_argument_parser(
         "","max-iterations","Upper limit of calibrated repetitions per sample",
         [&selection](String const& value)->VoidFunction {
-            unsigned n=CLI::parse_unsigned<unsigned>(value);
+            unsigned n=Bench::parse_unsigned<unsigned>(value);
             if(n==0u) throw std::invalid_argument("max-iterations must be positive");
             return [&selection,n] { selection.max_iterations=n; };
         }));
     result.append(make_valued_argument_parser(
         "","min-leaves","Skip geometrically degenerate cases below this enabled leaf count",
         [&selection](String const& value)->VoidFunction {
-            unsigned n=CLI::parse_unsigned<unsigned>(value);
+            unsigned n=Bench::parse_unsigned<unsigned>(value);
             return [&selection,n] { selection.min_leaves=n; };
         }));
     result.append(make_valued_argument_parser(
         "d","dimensions","Comma-separated space dimensions (>=2)",
         [&selection](String const& value)->VoidFunction {
-            auto dims=CLI::parse_unique_unsigned_list(value,2u);
+            auto dims=Bench::parse_unique_unsigned_list(value,2u);
             return [&selection,dims] { selection.dimensions=dims; };
         }));
     result.append(make_valued_argument_parser(
         "f","finenesses","Comma-separated grid-relative fineness values",
         [&selection](String const& value)->VoidFunction {
             // zero is a meaningful coarsest approximation.
-            auto finenesses=CLI::parse_unique_unsigned_list(value,0u);
+            auto finenesses=Bench::parse_unique_unsigned_list(value,0u);
             return [&selection,finenesses] { selection.finenesses=finenesses; };
         }));
     result.append(make_valued_argument_parser(
@@ -154,28 +153,28 @@ List<ArgumentParser> parsers(Selection& selection) {
     result.append(make_valued_argument_parser(
         "m","max-depth-bits","Maximum conservative subdivision-bit budget (positive)",
         [&selection](String const& value)->VoidFunction {
-            unsigned n=CLI::parse_unsigned<unsigned>(value);
+            unsigned n=Bench::parse_unsigned<unsigned>(value);
             if(n==0u) throw std::invalid_argument("max-depth-bits must be positive");
             return [&selection,n] { selection.max_depth_bits=n; };
         }));
     result.append(make_valued_argument_parser(
         "","max-replay-cells","Maximum precomputed enabled cells to replay per scenario",
         [&selection](String const& value)->VoidFunction {
-            unsigned n=CLI::parse_unsigned<unsigned>(value);
+            unsigned n=Bench::parse_unsigned<unsigned>(value);
             if(n==0u) throw std::invalid_argument("max-replay-cells must be positive");
             return [&selection,n] { selection.max_replay_cells=n; };
         }));
     result.append(make_valued_argument_parser(
         "","retention-steps","Repeated/different compact sets per manager (1..64)",
         [&selection](String const& value)->VoidFunction {
-            unsigned n=CLI::parse_unsigned<unsigned>(value);
+            unsigned n=Bench::parse_unsigned<unsigned>(value);
             if(n<1u or n>64u) throw std::invalid_argument("retention-steps must be in [1,64]");
             return [&selection,n] { selection.retention_steps=n; };
         }));
     result.append(make_valued_argument_parser(
         "","retention-fineness","Grid fineness for the standalone retention experiment (1..6)",
         [&selection](String const& value)->VoidFunction {
-            unsigned n=CLI::parse_unsigned<unsigned>(value);
+            unsigned n=Bench::parse_unsigned<unsigned>(value);
             if(n<1u or n>6u) throw std::invalid_argument("retention-fineness must be in [1,6]");
             return [&selection,n] { selection.retention_fineness=n; };
         }));
@@ -264,113 +263,73 @@ EffectiveConstrainedImageSet make_shape(
     return result;
 }
 
-template<class T>
-void keep_alive(T const& value) {
-#if defined(__GNUC__) || defined(__clang__)
-    asm volatile("" : : "g"(&value) : "memory");
-#else
-    static void const* volatile sink=nullptr;
-    sink=&value;
-#endif
-}
+using Bench::keep_alive;
+struct Timing { double milliseconds; unsigned iterations; Bench::Statistics statistics; };
 
-struct Timing {
-    double milliseconds;
-    unsigned iterations;
-};
-
-// A timed sample is long enough to amortize clock precision and dispatch.
-// Calibration is independent for each backend and operation. Each candidate
-// run is a complete operation with a visible result (not a baseline subtraction).
 template<class Operation>
-Timing median_ms(Operation&& operation,unsigned min_iterations,
-                 unsigned samples,unsigned minimum_ms,unsigned max_iterations) {
-    using Clock=std::chrono::steady_clock;
-    unsigned iterations=min_iterations;
-    auto run=[&](unsigned count) {
-        auto start=Clock::now();
-        for(unsigned i=0u;i<count;++i) {
-            auto value=operation(i);
-            keep_alive(value);
+Timing median_ms(Operation&& operation,unsigned iterations,unsigned samples,
+                 unsigned minimum_ms,unsigned maximum,unsigned warmups) {
+    auto execute=[&](unsigned count) {
+        for(unsigned k=0u;k<count;++k) {
+            auto result=operation(k);
+            Bench::keep_alive(result);
         }
-        return std::chrono::duration<double,std::milli>(
-            Clock::now()-start).count();
     };
-    // Perform an unmeasured warm-up. For cold-manager mode, each operation
-    // has a fresh manager even though the CPU/cache gets warmed up.
-    double elapsed=run(iterations);
-    while(elapsed<static_cast<double>(minimum_ms) and
-          iterations<max_iterations) {
-        // Increase progressively without exceeding the user's safety budget.
-        unsigned next=iterations>max_iterations/2u
-            ?max_iterations:iterations*2u;
-        if(next==iterations) break;
+    double elapsed=Bench::measure_ns([&]{execute(iterations);});
+    while(elapsed<static_cast<double>(minimum_ms)*1e6&&iterations<maximum) {
+        unsigned next=iterations>maximum/2u?maximum:iterations*2u;
+        if(next==iterations)break;
         iterations=next;
-        elapsed=run(iterations);
+        elapsed=Bench::measure_ns([&]{execute(iterations);});
     }
-    std::vector<double> measurements;
-    measurements.reserve(samples);
-    for(unsigned sample=0u;sample<samples;++sample) {
-        double ms=run(iterations)/static_cast<double>(iterations);
-        if(not std::isfinite(ms) or ms<=0.0) {
-            throw std::runtime_error("nonpositive/nonfinite benchmark timing");
-        }
-        measurements.push_back(ms);
-    }
-    std::sort(measurements.begin(),measurements.end());
-    return {measurements[samples/2u],iterations};
+    Bench::Runner runner(warmups);
+    auto durations=runner.run("paving-operation",samples,[]{},
+        [&]{execute(iterations);},[]{},static_cast<double>(iterations));
+    auto stats=Bench::summarize(durations);
+    if(!std::isfinite(stats.median)||stats.median<=0.0)
+        throw std::runtime_error("nonpositive/nonfinite benchmark timing");
+    return {stats.median/1e6,iterations,stats};
 }
 
-// Only insertion/recombination occurs inside timed batches. All input
-// paving copies are constructed outside the timed interval.
+// Preserve mutation-only timing: copies are constructed outside each timed
+// chunk and no more than 256 copies are resident at once.
 template<class Factory,class Mutate>
 Timing median_mutation_ms(Factory&& factory,Mutate&& mutate,
-        unsigned min_iterations,unsigned samples,unsigned minimum_ms,
-        unsigned max_iterations) {
-    using Clock=std::chrono::steady_clock;
-    // Allocate independent copies before each timed chunk, then destroy
-    // them afterwards. Repeated chunks accumulate an adequately long
-    // timing sample without retaining thousands of copies simultaneously.
-    constexpr unsigned maximum_live_copies=256u;
-    unsigned iterations=min_iterations;
-    auto run=[&](unsigned count) {
-        double elapsed_ms=0.0;
-        while(count!=0u) {
-            unsigned chunk=std::min(count,maximum_live_copies);
+        unsigned iterations,unsigned samples,unsigned minimum_ms,
+        unsigned maximum,unsigned warmups) {
+    constexpr unsigned limit=256u;
+    auto execute=[&](unsigned count) {
+        double total=0.0;
+        while(count>0u) {
+            unsigned chunk=std::min(count,limit);
             std::vector<decltype(factory())> copies;
             copies.reserve(chunk);
-            for(unsigned i=0u;i<chunk;++i) {
-                copies.push_back(factory());
-            }
-            auto start=Clock::now();
-            for(auto& copy:copies) {
-                mutate(*copy);
-                keep_alive(*copy);
-            }
-            elapsed_ms+=std::chrono::duration<double,std::milli>(
-                Clock::now()-start).count();
+            for(unsigned k=0u;k<chunk;++k)copies.push_back(factory());
+            total+=Bench::measure_ns([&] {
+                for(auto& copy:copies) {
+                    mutate(*copy);
+                    Bench::keep_alive(*copy);
+                }
+            });
             count-=chunk;
         }
-        return elapsed_ms;
+        return total;
     };
-    double elapsed=run(iterations);
-    while(elapsed<static_cast<double>(minimum_ms) and
-          iterations<max_iterations) {
-        iterations=iterations>max_iterations/2u
-            ?max_iterations:iterations*2u;
-        elapsed=run(iterations);
+    double elapsed=execute(iterations);
+    while(elapsed<static_cast<double>(minimum_ms)*1e6&&iterations<maximum) {
+        unsigned next=iterations>maximum/2u?maximum:iterations*2u;
+        if(next==iterations)break;
+        iterations=next;
+        elapsed=execute(iterations);
     }
-    std::vector<double> measured;
-    measured.reserve(samples);
-    for(unsigned sample=0u;sample<samples;++sample) {
-        double per_operation=run(iterations)/static_cast<double>(iterations);
-        if(not std::isfinite(per_operation) or per_operation<=0.0) {
-            throw std::runtime_error("invalid isolated mutation timing");
-        }
-        measured.push_back(per_operation);
-    }
-    std::sort(measured.begin(),measured.end());
-    return {measured[samples/2u],iterations};
+    for(unsigned k=0u;k<warmups;++k)(void)execute(iterations);
+    Bench::Samples measured;
+    for(unsigned k=0u;k<samples;++k)
+        measured.add(execute(iterations)/static_cast<double>(iterations));
+    auto stats=Bench::summarize(measured);
+    if(!std::isfinite(stats.median)||stats.median<=0.0)
+        throw std::runtime_error("invalid isolated mutation timing");
+    return {stats.median/1e6,iterations,stats};
 }
 
 SizeType count_tree_nodes(BinaryTreeNode const& node) {
@@ -706,6 +665,7 @@ struct Datum {
     SizeType leaves;
     SizeType nodes;
     unsigned iterations;
+    Bench::Statistics statistics;
 };
 
 struct Aggregate {
@@ -999,11 +959,11 @@ OuterPreparationResult benchmark_outer_preparation(
         throw std::runtime_error("outer preparation timing checksum mismatch");
 
     Timing const t0=median_ms(baseline,selection.iterations,
-        selection.samples,selection.min_sample_ms,selection.max_iterations);
+        selection.samples,selection.min_sample_ms,selection.max_iterations,selection.warmups);
     Timing const t1=median_ms(joined,selection.iterations,
-        selection.samples,selection.min_sample_ms,selection.max_iterations);
+        selection.samples,selection.min_sample_ms,selection.max_iterations,selection.warmups);
     Timing const t2=median_ms(compiled,selection.iterations,
-        selection.samples,selection.min_sample_ms,selection.max_iterations);
+        selection.samples,selection.min_sample_ms,selection.max_iterations,selection.warmups);
     row.baseline=t0.milliseconds;
     row.joined=t1.milliseconds;
     row.compiled=t2.milliseconds;
@@ -1159,15 +1119,15 @@ void profile_outer_phases(
             keep_alive(result);
             return result.visited+result.selected.size();
         },selection.iterations,selection.samples,
-        selection.min_sample_ms,selection.max_iterations);
+        selection.min_sample_ms,selection.max_iterations,selection.warmups);
     Timing predicate_time=median_ms(
         [&](unsigned) { return replay_outer_predicates(set,recorded.trace); },
         selection.iterations,selection.samples,
-        selection.min_sample_ms,selection.max_iterations);
+        selection.min_sample_ms,selection.max_iterations,selection.warmups);
     Timing geometry_time=median_ms(
         [&](unsigned) { return replay_outer_geometry(recorded,false); },
         selection.iterations,selection.samples,
-        selection.min_sample_ms,selection.max_iterations);
+        selection.min_sample_ms,selection.max_iterations,selection.warmups);
 
     LOGGING_PRINTLN("OUTER_PHASES shape="<<shape
         <<" d="<<dimension<<" f="<<fineness
@@ -1239,15 +1199,15 @@ void append_case(std::vector<Datum>& data,std::vector<MemoryDatum>& memory,
     auto record=[&](char const* name,auto&& tree_operation,
                     auto&& robdd_operation) {
         Timing tree_time=median_ms(tree_operation,selection.iterations,
-            selection.samples,selection.min_sample_ms,selection.max_iterations);
+            selection.samples,selection.min_sample_ms,selection.max_iterations,selection.warmups);
         Timing robdd_time=median_ms(robdd_operation,selection.iterations,
-            selection.samples,selection.min_sample_ms,selection.max_iterations);
+            selection.samples,selection.min_sample_ms,selection.max_iterations,selection.warmups);
         data.push_back({shape,name,"tree",dimension,fineness,
                         tree_time.milliseconds,tree_leaves,tree_nodes,
-                        tree_time.iterations});
+                        tree_time.iterations,tree_time.statistics});
         data.push_back({shape,name,"robdd",dimension,fineness,
                         robdd_time.milliseconds,robdd_leaves,reachable_nodes,
-                        robdd_time.iterations});
+                        robdd_time.iterations,robdd_time.statistics});
     };
     // The BDD manager is reused for all timed operations in this case.
     // In particular, repeated construction benefits from its unique table;
@@ -1360,19 +1320,19 @@ void append_case(std::vector<Datum>& data,std::vector<MemoryDatum>& memory,
         Timing owner_begin=median_ms(
             [&](unsigned) { return tree.begin(); },
             selection.iterations,selection.samples,
-            selection.min_sample_ms,selection.max_iterations);
+            selection.min_sample_ms,selection.max_iterations,selection.warmups);
         Timing borrowed_begin=median_ms(
             [&](unsigned) { return stable_tree.BinaryTreeSubpaving::begin(); },
             selection.iterations,selection.samples,
-            selection.min_sample_ms,selection.max_iterations);
+            selection.min_sample_ms,selection.max_iterations,selection.warmups);
         Timing owner_visit=median_ms(
             [&](unsigned) { return visit_leaves(tree); },
             selection.iterations,selection.samples,
-            selection.min_sample_ms,selection.max_iterations);
+            selection.min_sample_ms,selection.max_iterations,selection.warmups);
         Timing borrowed_visit=median_ms(
             [&](unsigned) { return visit_borrowed_tree_leaves(stable_tree); },
             selection.iterations,selection.samples,
-            selection.min_sample_ms,selection.max_iterations);
+            selection.min_sample_ms,selection.max_iterations,selection.warmups);
 
         LOGGING_PRINTLN("TREE_ITERATOR_COST shape="<<shape
             <<" d="<<dimension<<" f="<<fineness
@@ -1398,27 +1358,28 @@ void append_case(std::vector<Datum>& data,std::vector<MemoryDatum>& memory,
             copy.adjoin(right_half);
             copy.recombine();
         },selection.iterations,selection.samples,selection.min_sample_ms,
-        selection.max_iterations);
+        selection.max_iterations,selection.warmups);
     Timing robdd_adjoin=median_mutation_ms(
         [&] { return std::make_unique<RobddPaving>(robdd); },
         [&](RobddPaving& copy) {
             copy.adjoin(right_half);
             copy.recombine();
         },selection.iterations,selection.samples,selection.min_sample_ms,
-        selection.max_iterations);
+        selection.max_iterations,selection.warmups);
     data.push_back({shape,"adjoin_recombine","tree",dimension,fineness,
         tree_adjoin.milliseconds,tree_leaves,tree_nodes,
-        tree_adjoin.iterations});
+        tree_adjoin.iterations,tree_adjoin.statistics});
     data.push_back({shape,"adjoin_recombine","robdd",dimension,fineness,
         robdd_adjoin.milliseconds,robdd_leaves,reachable_nodes,
-        robdd_adjoin.iterations});
+        robdd_adjoin.iterations,robdd_adjoin.statistics});
     memory.back().robdd_manager_after_nodes=manager.node_count();
     memory.back().after_warm=manager.statistics();
 }
 
 void report(std::vector<Datum> const& data,
             std::vector<MemoryDatum> const& memory,
-            Selection const& selection,unsigned skipped) {
+            Selection const& selection,unsigned skipped,
+            Bench::SummaryFields const& fields) {
     constexpr int width=132;
     LOGGING_PRINTLN("BinaryTree / ROBDD compact-set benchmark")
     LOGGING_PRINTLN("Minimum iterations="<<selection.iterations
@@ -1432,38 +1393,29 @@ void report(std::vector<Datum> const& data,
                    " the threading runtime but does not parallelize BDD operations.")
     LOGGING_PRINTLN("Node column: tree physical nodes; ROBDD root-reachable"
                    " distinct nodes (not manager total).")
-    if (not selection.summary_only) {
-        LOGGING_PRINTLN(std::string(width,'='))
-        LOGGING_PRINTLN(std::left
-            <<std::setw(19)<<"Shape"<<"  "
-            <<std::setw(5)<<"D"<<"  "<<std::setw(5)<<"F"<<"  "
-            <<std::setw(8)<<"Backend"<<"  "
-            <<std::setw(21)<<"Operation"<<"  "
-            <<std::right<<std::setw(16)<<"Median (ms)"
-            <<"  "<<std::setw(10)<<"Leaves"
-            <<"  "<<std::setw(12)<<"Nodes"
-            <<"  "<<std::setw(8)<<"Iter")
-        LOGGING_PRINTLN(std::string(width,'-'))
-        for (std::size_t i=0u;i<data.size();++i) {
-            Datum const& datum=data[i];
-            if (i!=0u and (datum.dimension!=data[i-1u].dimension
-                    or datum.fineness!=data[i-1u].fineness
-                    or datum.shape!=data[i-1u].shape)) {
-                LOGGING_PRINTLN(std::string(width,'-'))
-            }
-            LOGGING_PRINTLN(std::left
-                <<std::setw(19)<<datum.shape<<"  "
-                <<std::setw(5)<<datum.dimension<<"  "
-                <<std::setw(5)<<datum.fineness<<"  "
-                <<std::setw(8)<<datum.backend<<"  "
-                <<std::setw(21)<<datum.operation<<"  "
-                <<std::right<<std::fixed<<std::setprecision(4)
-                <<std::setw(16)<<datum.milliseconds
-                <<"  "<<std::setw(10)<<datum.leaves
-                <<"  "<<std::setw(12)<<datum.nodes
-                <<"  "<<std::setw(8)<<datum.iterations)
-        }
-        LOGGING_PRINTLN(std::string(width,'='))
+    if(not selection.summary_only) {
+        Bench::Report report("Paving operation timings (nanoseconds)",fields);
+        report.set_dimension_columns({
+            {"Shape"},{"D",0u,Bench::TableAlignment::Right},
+            {"F",0u,Bench::TableAlignment::Right},
+            {"Backend"},{"Operation"},
+            {"Median (ms)",0u,Bench::TableAlignment::Right},
+            {"Leaves",0u,Bench::TableAlignment::Right},
+            {"Nodes",0u,Bench::TableAlignment::Right},
+            {"Iterations",0u,Bench::TableAlignment::Right}
+        });
+        auto options=Bench::TableOptions::ruled();
+        options.group_columns={0u,1u,2u};
+        report.set_table_options(options);
+        for(auto const& datum:data)
+            report.add_row({
+                datum.shape,std::to_string(datum.dimension),
+                std::to_string(datum.fineness),datum.backend,datum.operation,
+                Bench::Table::number(datum.milliseconds,4u),
+                std::to_string(datum.leaves),std::to_string(datum.nodes),
+                std::to_string(datum.iterations)
+            },datum.statistics);
+        report.print();
     }
 
     print_memory_results(memory);
@@ -1520,20 +1472,15 @@ void report(std::vector<Datum> const& data,
 } // namespace
 
 int main(int argc,char const* argv[]) {
-    // ThreadingCommandLineInterface initializes ThreadManager and its
-    // Logger thread registry. The measured BDD work remains sequential.
+    // Benchmarking::CommandLine configures threading and logging.
     try {
-        Logger::instance().configuration().set_verbosity(1u);
         Selection selection;
         verify_reachable_node_oracle();
-        ThreadingCommandLineInterface command_line;
+        Bench::CommandLine command_line;
         command_line.add(CommandLineContribution(
             "paving-backends-benchmark",parsers(selection)));
-        List<String> args;
-        for (int i=0;i<argc;++i) { args.append(String(argv[i])); }
-        if(not command_line.acquire(args)) {
-            return CLI::requests_help(args)?0:1;
-        }
+        if(not command_line.acquire(argc,argv))return 0;
+        selection.warmups=command_line.warmups();
 
         if(selection.outer_preparation_verify_only
            and not selection.compare_outer_preparation)
@@ -1607,7 +1554,7 @@ int main(int argc,char const* argv[]) {
             throw std::runtime_error("no nondegenerate cases within the selection"
                 " (lower --min-leaves or increase --finenesses)");
         }
-        report(data,memory,selection,skipped);
+        report(data,memory,selection,skipped,command_line.summary_fields());
         if(selection.run_retention) print_manager_retention(selection);
         return 0;
     } catch(std::exception const& error) {

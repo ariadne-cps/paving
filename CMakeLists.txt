@@ -20,15 +20,15 @@ if(NOT TARGET ariadne-build)
 endif()
 
 if(EXISTS "${PROJECT_SOURCE_DIR}/.git")
-    # Child commits guarantee their own internal consistency.
-    # Keep cross-branch comparisons where the same dependency is shared.
+    # Check production dependencies only: Testing and Benchmarking are
+    # independent development dependencies, not commit consistency gates.
     require_same_dependency_commit(Build CHAINS
-        "build" "set|build" "bdd|build" "testing|build")
+        "build" "set|build" "bdd|build" "tree|build")
     require_same_dependency_commit(Foundation CHAINS
         "tree|foundation"
         "set|linear-programming|algebra|interval|numeric|foundation")
     require_same_dependency_commit(Logging CHAINS
-        "set|linear-programming|algebra|interval|numeric|logging"
+        "set|linear-programming|logging"
         "bdd|threading|logging")
     require_same_dependency_commit(PythonCommon CHAINS
         "set|linear-programming|algebra|interval|numeric|foundation|python-common"
@@ -65,7 +65,7 @@ setup_project_library(
     LINK_LIBRARIES paving
 )
 
-setup_standalone_project_tests(
+setup_standalone_project(
     TARGET ariadne-paving
     TEST_DIRECTORY tests
     TEST_TARGET tests

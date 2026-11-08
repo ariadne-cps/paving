@@ -9,12 +9,10 @@
 #include "paving/robdd_paving.hpp"
 #include "paving/grid_cell_alignment.hpp"
 #include "logging/logging.hpp"
-#include "threading/threading_command_line_interface.hpp"
+#include "ariadne-benchmarking.hpp"
 #include "threading/thread_manager.hpp"
-#include "benchmark_command_line.hpp"
 
 #include <algorithm>
-#include <chrono>
 #include <cmath>
 #include <iomanip>
 #include <limits>
@@ -24,7 +22,7 @@
 #include <vector>
 
 using namespace Ariadne;
-namespace CLI=Ariadne::PavingBenchmarkCommandLine;
+namespace Bench=Ariadne::Benchmarking;
 
 namespace {
 
@@ -42,55 +40,46 @@ List<ArgumentParser> parsers(Selection& selection) {
     result.append(make_valued_argument_parser(
         "d","dimension","Grid dimension (1..6)",
         [&selection](String const& value)->VoidFunction {
-            unsigned n=CLI::parse_unsigned<unsigned>(value);
+            unsigned n=Bench::parse_unsigned<unsigned>(value);
             if(n<1u or n>6u) throw std::invalid_argument("dimension must be in [1,6]");
             return [&selection,n] { selection.dimension=n; };
         }));
     result.append(make_valued_argument_parser(
         "","probes-per-class","Number of prepared queries per class (4..1024)",
         [&selection](String const& value)->VoidFunction {
-            unsigned n=CLI::parse_unsigned<unsigned>(value);
+            unsigned n=Bench::parse_unsigned<unsigned>(value);
             if(n<4u or n>1024u) throw std::invalid_argument("probes-per-class must be in [4,1024]");
             return [&selection,n] { selection.probes=n; };
         }));
     result.append(make_valued_argument_parser(
         "i","iterations","Minimum complete batches per timing sample",
         [&selection](String const& value)->VoidFunction {
-            unsigned n=CLI::parse_unsigned<unsigned>(value);
+            unsigned n=Bench::parse_unsigned<unsigned>(value);
             if(n==0u) throw std::invalid_argument("iterations must be positive");
             return [&selection,n] { selection.iterations=n; };
         }));
     result.append(make_valued_argument_parser(
         "n","samples","Odd number of samples (>=3)",
         [&selection](String const& value)->VoidFunction {
-            unsigned n=CLI::parse_unsigned<unsigned>(value);
+            unsigned n=Bench::parse_unsigned<unsigned>(value);
             if(n<3u or n%2u==0u) throw std::invalid_argument("samples must be odd and >=3");
             return [&selection,n] { selection.samples=n; };
         }));
     result.append(make_valued_argument_parser(
         "","min-sample-ms","Minimum calibration time (ms)",
         [&selection](String const& value)->VoidFunction {
-            unsigned n=CLI::parse_unsigned<unsigned>(value);
+            unsigned n=Bench::parse_unsigned<unsigned>(value);
             if(n==0u or n>10000u) throw std::invalid_argument("min-sample-ms out of range");
             return [&selection,n] { selection.min_sample_ms=n; };
         }));
     result.append(make_valued_argument_parser(
         "","max-iterations","Maximum complete batches per sample",
         [&selection](String const& value)->VoidFunction {
-            unsigned n=CLI::parse_unsigned<unsigned>(value);
+            unsigned n=Bench::parse_unsigned<unsigned>(value);
             if(n==0u) throw std::invalid_argument("max-iterations must be positive");
             return [&selection,n] { selection.max_iterations=n; };
         }));
     return result;
-}
-
-template<class T> void keep_alive(T const& value) {
-#if defined(__GNUC__) || defined(__clang__)
-    asm volatile("" : : "g"(&value) : "memory");
-#else
-    static void const* volatile sink=nullptr;
-    sink=&value;
-#endif
 }
 
 // This is the *previous* geometry-prefix lookup, retained here ONLY as
@@ -203,48 +192,41 @@ std::vector<ProbeGroup> make_probes(
 struct Timing {
     double nanoseconds_per_query;
     unsigned batches;
+    Bench::Statistics statistics;
 };
 
 template<class Operation>
 Timing median_query_ns(Operation&& operation,
-        std::vector<GridCell> const& queries,Selection const& selection) {
-    using Clock=std::chrono::steady_clock;
+        std::vector<GridCell> const& queries,Selection const& selection,
+        unsigned warmups) {
     unsigned batches=selection.iterations;
-    auto run=[&](unsigned count) {
-        SizeType count_true=0u;
-        auto start=Clock::now();
-        for(unsigned batch=0u;batch<count;++batch) {
-            for(GridCell const& cell:queries) {
-                if(operation(cell)) { ++count_true; }
-            }
+    auto batch=[&](unsigned count) {
+        SizeType true_count=0u;
+        for(unsigned i=0u;i<count;++i) {
+            for(GridCell const& cell:queries)
+                true_count+=static_cast<SizeType>(operation(cell));
         }
-        auto elapsed=std::chrono::duration<double,std::milli>(
-            Clock::now()-start).count();
-        keep_alive(count_true);
-        return elapsed;
+        Bench::keep_alive(true_count);
     };
-    double elapsed=run(batches);
-    while(elapsed<selection.min_sample_ms and
-          batches<selection.max_iterations) {
+    // A pilot is not part of reported samples; calibrate to the same
+    // minimum batch duration without including probe construction.
+    double elapsed=Bench::measure_ns([&]{batch(batches);});
+    double const minimum_ns=static_cast<double>(selection.min_sample_ms)*1e6;
+    while(elapsed<minimum_ns && batches<selection.max_iterations) {
         unsigned next=batches>selection.max_iterations/2u
             ?selection.max_iterations:batches*2u;
-        if(next==batches) break;
+        if(next==batches)break;
         batches=next;
-        elapsed=run(batches);
+        elapsed=Bench::measure_ns([&]{batch(batches);});
     }
-    std::vector<double> samples;
-    samples.reserve(selection.samples);
-    for(unsigned sample=0u;sample<selection.samples;++sample) {
-        double milliseconds=run(batches);
-        double nanoseconds=milliseconds*1.0e6/
-            (static_cast<double>(batches)*queries.size());
-        if(not std::isfinite(nanoseconds) or nanoseconds<=0.0) {
-            throw std::runtime_error("invalid query timing");
-        }
-        samples.push_back(nanoseconds);
-    }
-    std::sort(samples.begin(),samples.end());
-    return {samples[selection.samples/2u],batches};
+    Bench::Runner runner(warmups,1u);
+    auto samples=runner.run("superset-queries",selection.samples,
+        []{},[&]{batch(batches);},[]{},
+        static_cast<double>(batches)*queries.size());
+    auto stats=Bench::summarize(samples);
+    if(not std::isfinite(stats.median)||stats.median<=0.0)
+        throw std::runtime_error("invalid query timing");
+    return {stats.median,batches,stats};
 }
 
 bool same_manager_statistics(
@@ -255,7 +237,7 @@ bool same_manager_statistics(
         and x.ite_cache_entries==y.ite_cache_entries;
 }
 
-void benchmark(Selection const& selection) {
+void benchmark(Selection const& selection,unsigned warmups) {
     Grid grid(selection.dimension);
     GridCell root(grid,1u,make_binary_word("01"));
     std::vector<GridCell> enabled,disabled;
@@ -286,18 +268,17 @@ void benchmark(Selection const& selection) {
         " production ROBDD, all using identical precomputed queries.")
     LOGGING_PRINTLN("Time is median nanoseconds PER query. Probe generation,"
         " geometric validation and manager snapshots are never timed.")
-    LOGGING_PRINTLN(std::string(117,'='))
-    LOGGING_PRINTLN(std::left<<std::setw(13)<<"Category"
-        <<"  "<<std::right<<std::setw(7)<<"Probes"
-        <<"  "<<std::setw(10)<<"Tree ns"
-        <<"  "<<std::setw(11)<<"Reference"
-        <<"  "<<std::setw(11)<<"Optimized"
-        <<"  "<<std::setw(12)<<"Opt/ref"
-        <<"  "<<std::setw(12)<<"Opt/tree"
-        <<"  "<<std::setw(9)<<"Tree bat"
-        <<"  "<<std::setw(9)<<"Ref bat"
-        <<"  "<<std::setw(9)<<"Opt bat")
-    LOGGING_PRINTLN(std::string(117,'-'))
+    Bench::Table table({
+        {"Category"},{"Probes",0u,Bench::TableAlignment::Right},
+        {"Tree ns",0u,Bench::TableAlignment::Right},
+        {"Reference ns",0u,Bench::TableAlignment::Right},
+        {"Optimized ns",0u,Bench::TableAlignment::Right},
+        {"Opt/ref",0u,Bench::TableAlignment::Right},
+        {"Opt/tree",0u,Bench::TableAlignment::Right},
+        {"Tree bat",0u,Bench::TableAlignment::Right},
+        {"Ref bat",0u,Bench::TableAlignment::Right},
+        {"Opt bat",0u,Bench::TableAlignment::Right}
+    },Bench::TableOptions::ruled());
     for(ProbeGroup const& group:groups) {
         for(GridCell const& query:group.queries) {
             Bool expected=tree.superset(query);
@@ -312,52 +293,48 @@ void benchmark(Selection const& selection) {
         RobddManagerStatistics before=manager.statistics();
         Timing tree_t=median_query_ns(
             [&](GridCell const& q) { return tree.superset(q); },
-            group.queries,selection);
+            group.queries,selection,warmups);
         Timing ref_t=median_query_ns(
             [&](GridCell const& q) {
                 return reference_alignment_superset(manager,robdd,q);
-            },group.queries,selection);
+            },group.queries,selection,warmups);
         Timing opt_t=median_query_ns(
             [&](GridCell const& q) { return robdd.superset(q); },
-            group.queries,selection);
+            group.queries,selection,warmups);
         RobddManagerStatistics after=manager.statistics();
         if(not same_manager_statistics(before,after)) {
             throw std::runtime_error("superset query modified ROBDD manager");
         }
-        LOGGING_PRINTLN(std::left<<std::setw(13)<<group.name
-            <<"  "<<std::right<<std::setw(7)<<group.queries.size()
-            <<std::fixed<<std::setprecision(2)
-            <<"  "<<std::setw(10)<<tree_t.nanoseconds_per_query
-            <<"  "<<std::setw(11)<<ref_t.nanoseconds_per_query
-            <<"  "<<std::setw(11)<<opt_t.nanoseconds_per_query
-            <<"  "<<std::setw(11)<<opt_t.nanoseconds_per_query/ref_t.nanoseconds_per_query<<"x"
-            <<"  "<<std::setw(11)<<opt_t.nanoseconds_per_query/tree_t.nanoseconds_per_query<<"x"
-            <<"  "<<std::setw(9)<<tree_t.batches
-            <<"  "<<std::setw(9)<<ref_t.batches
-            <<"  "<<std::setw(9)<<opt_t.batches)
+        table.add_row({
+            group.name,std::to_string(group.queries.size()),
+            Bench::Table::number(tree_t.nanoseconds_per_query,2u),
+            Bench::Table::number(ref_t.nanoseconds_per_query,2u),
+            Bench::Table::number(opt_t.nanoseconds_per_query,2u),
+            Bench::Table::number(opt_t.nanoseconds_per_query/
+                                 ref_t.nanoseconds_per_query,2u,"x"),
+            Bench::Table::number(opt_t.nanoseconds_per_query/
+                                 tree_t.nanoseconds_per_query,2u,"x"),
+            std::to_string(tree_t.batches),std::to_string(ref_t.batches),
+            std::to_string(opt_t.batches)
+        });
     }
-    LOGGING_PRINTLN(std::string(117,'='))
+    LOGGING_PRINTLN(table.str())
 }
 
 } // namespace
 
 int main(int argc,char const* argv[]) {
     try {
-        Logger::instance().configuration().set_verbosity(1u);
         Selection selection;
-        ThreadingCommandLineInterface command_line;
+        Bench::CommandLine command_line;
         command_line.add(CommandLineContribution(
             "paving-superset-benchmark",parsers(selection)));
-        List<String> args;
-        for(int i=0;i<argc;++i) args.append(String(argv[i]));
-        if(not command_line.acquire(args)) {
-            return CLI::requests_help(args)?0:1;
-        }
+        if(not command_line.acquire(argc,argv))return 0;
         if(selection.iterations>selection.max_iterations) {
             throw std::invalid_argument(
                 "--iterations must not exceed --max-iterations");
         }
-        benchmark(selection);
+        benchmark(selection,command_line.warmups());
         return 0;
     } catch(std::exception const& error) {
         LOGGING_PRINTLN("benchmark_paving_superset: "<<error.what())

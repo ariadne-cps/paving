@@ -13,3 +13,6 @@
 [submodule "tre"]
 	path = ss/tre
 	url = https://github.com/ariadne-cps/tree
+[submodule "bmk"]
+	path = ss/bmk
+	url = https://github.com/ariadne-cps/benchmarking
