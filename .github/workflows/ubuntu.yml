@@ -76,29 +76,6 @@ jobs:
       working-directory: ${{ runner.workspace }}/build
       run: cmake --build . --parallel $NPROC --target benchmarks
 
-    - name: Verify outer overlap benchmark semantics
-      if: matrix.build_type == 'Release'
-      working-directory: ${{ runner.workspace }}/build
-      run: |
-        ./benchmarks/benchmark_paving_backends \
-          --compare-outer-overlap --verify-only \
-          --dimensions 2 --finenesses 2 --shapes aligned-box,ball \
-          --max-depth-bits 8 --min-leaves 2 --concurrency 0
-
-    - name: Check outer overlap backend ratio summary
-      if: matrix.build_type == 'Release'
-      working-directory: ${{ runner.workspace }}/build
-      run: |
-        ./benchmarks/benchmark_paving_backends \
-          --compare-outer-overlap \
-          --dimensions 2 --finenesses 2 --shapes aligned-box,ball \
-          --max-depth-bits 8 --min-leaves 2 --samples 3 \
-          --min-sample-ms 1 --max-iterations 64 --concurrency 0 > overlap-report.log
-        grep -q OUTER_OVERLAP_BACKEND_CASE overlap-report.log
-        grep -q OUTER_OVERLAP_BACKEND_GEOMETRY overlap-report.log
-        grep -q OUTER_OVERLAP_BACKEND_COVERAGE overlap-report.log
-        grep -q OUTER_OVERLAP_BACKEND_OVERALL overlap-report.log
-
     - name: Build Debug tests and bindings
       if: matrix.build_type == 'Debug'
       working-directory: ${{ runner.workspace }}/build

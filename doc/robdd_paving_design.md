@@ -2805,3 +2805,26 @@ Ubuntu Release now runs a small two-geometry 2D/f2 measurement
 all four summary sections exist, in addition to the existing
 verification-only semantic smoke. Compilation and CI remain pending;
 no new measured timings or backend superiority claims are made.
+
+
+## 2026-11-08 - Retract unrequested benchmark execution from CI
+
+The two Ubuntu Release steps added during this optimization series,
+`Verify outer overlap benchmark semantics` and
+`Check outer overlap backend ratio summary`, were introduced without
+a request to execute experimental benchmarks in CI. They also created
+an inconsistent Ubuntu-only policy. Both steps have been removed;
+`.github/workflows/ubuntu.yml` was restored **byte-for-byte** to
+the version preceding those additions (commit `93e56d6`).
+
+The original Release target **compilation** of `benchmarks` remains
+unchanged; no `benchmark_paving_backends` executable is invoked by
+these CI jobs. Experimental runs, correctness-only replays and timing
+measurements are manual, opt-in activities. The prior journal
+descriptions of Ubuntu benchmark execution refer to the historical
+temporary workflow, not the current CI policy.
+
+The temporary Ubuntu-only report smoke had failed because the logging
+output uses `std::clog` (stderr) while its `grep` checks examined a
+stdout-only redirection. Removing the unrequested step is the fix:
+no benchmark-output inspection has been added elsewhere in CI.
