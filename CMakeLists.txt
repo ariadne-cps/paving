@@ -33,8 +33,6 @@ if(EXISTS "${PROJECT_SOURCE_DIR}/.git")
     require_same_dependency_commit(PythonCommon CHAINS
         "set|linear-programming|algebra|interval|numeric|foundation|python-common"
         "bdd|python-common")
-    require_same_dependency_commit(Testing CHAINS
-        "testing" "set|testing" "bdd|testing")
 endif()
 
 setup_project()
