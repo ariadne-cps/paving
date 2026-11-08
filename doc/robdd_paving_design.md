@@ -2873,3 +2873,52 @@ No CI workflow was changed. Benchmarks are invoked manually; the
 CI retains only its original Release benchmark build steps. The
 new C++ report code still requires ordinary compilation validation
 and its numeric output requires a manual Release execution.
+
+
+## 2026-11-08 - Fully calibrated post-deferral five-shape overlap results
+
+**Measured by the operator (Release, 4D/f3):** five geometric shapes,
+`--samples 7 --min-sample-ms 12 --max-iterations 8192`, concurrency
+zero. All 15 independent geometry checks returned
+`geometry_matches=true`. Every tree/ROBDD pair reported
+`tree_calibration_met=true` and `robdd_calibration_met=true`;
+full-coverage cases calibrated at 4096 operations per sample.
+
+| Shape | Empty ROBDD/tree | Partial ROBDD/tree | Full ROBDD/tree |
+| --- | ---: | ---: | ---: |
+| aligned-box | 1.027931 | 1.059336 | 0.962373 |
+| rotated-box | 1.001028 | 0.997451 | 0.961219 |
+| aligned-ellipsoid | 1.000088 | 1.009691 | 0.961799 |
+| rotated-ellipsoid | 0.999335 | 0.995380 | 0.962985 |
+| ball | 1.006920 | 1.008584 | 0.959604 |
+| **Geometric mean** | **1.007003** | **1.013825** | **0.961595** |
+
+All-case and calibrated-only overall geometric mean are both
+0.993868 for the 15 pairs. Across the ten nontrivial empty and partial
+cases, the geometric mean is about 1.0104, a roughly 1% tree
+point-estimate advantage. For the five full-coverage cases, ROBDD
+is consistently about 4% quicker in relative terms, but the
+actual timings are only about 4.19-4.21 us (ROBDD) versus
+4.36-4.39 us (tree), i.e. roughly 0.16-0.18 us difference.
+
+**Workload weighting caveat:** equal geometric-case weights give a
+small overall ROBDD advantage because the trivial full scenario has
+the same weight as an expensive empty/partial approximation. Summing
+one operation per reported case instead gives tree 2719.69 ms and
+ROBDD 2727.86 ms (ROBDD/tree about 1.0030). Neither choice models a
+real application frequency distribution; neither is statistical
+evidence of a universal backend winner. Independently calibrated
+sample medians and system noise still matter for ~1% effects.
+
+**Next experiment, no benchmark code or CI changes:** the existing
+default `benchmark_paving_backends` workload already isolates
+representation-sensitive operations (`replay_bulk`, `copy`,
+`iterate_leaves`, `iterate_min`, `superset_16`,
+`adjoin_recombine`) and reports node/memory estimates,
+alongside `outer_warm`/`outer_cold`. These are more informative
+about the tree/ROBDD trade-off than further optimizing an outer
+approximation that spends almost all nontrivial time in geometry.
+Run an opt-in Release sweep over dimensions 2,3,4 at fineness 3
+with `--summary-only --no-retention --max-depth-bits 28`;
+then follow up on operations showing a material gap.
+The benchmark will not be executed as part of CI.
