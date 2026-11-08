@@ -35,6 +35,9 @@ if(EXISTS "${PROJECT_SOURCE_DIR}/.git")
         "bdd|python-common")
 endif()
 
+# This source-file change bootstraps the first reconfigure on upgrades
+# from older Build gitlinks that did not yet watch the Git index.
+# Subsequent pulls are detected by Build's centralized setup_project().
 setup_project()
 
 include_directories(${PROJECT_SOURCE_DIR}/include)
