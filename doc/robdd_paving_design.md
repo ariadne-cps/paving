@@ -2828,3 +2828,48 @@ The temporary Ubuntu-only report smoke had failed because the logging
 output uses `std::clog` (stderr) while its `grep` checks examined a
 stdout-only redirection. Removing the unrequested step is the fix:
 no benchmark-output inspection has been added elsewhere in CI.
+
+
+## 2026-11-08 - New full-coverage timings and calibrated-only backend summary
+
+**Operator-supplied Release measurement (after deferred separation).**
+The operator ran five shapes in 4D/f3 with 7 samples, 12 ms minimum
+sample duration and 2048 maximum iterations. All fifteen semantic
+geometry comparisons passed. Both backends calibrated in the empty
+and partial scenarios, but every full scenario hit the iteration cap
+(`tree_calibration_met=false`, `robdd_calibration_met=false`).
+
+| Shape | Tree full before (us) | Tree full after (us) | ROBDD full before (us) | ROBDD full after (us) |
+| --- | ---: | ---: | ---: | ---: |
+| aligned-box | 23.579 | 4.466 | 23.782 | 4.226 |
+| rotated-box | 29.625 | 4.488 | 29.958 | 4.243 |
+| aligned-ellipsoid | 17.099 | 4.405 | 17.387 | 4.243 |
+| rotated-ellipsoid | 20.758 | 4.470 | 20.909 | 4.244 |
+| ball | 17.153 | 4.393 | 17.449 | 4.237 |
+
+Before: previous calibrated run without deferral. After: separate
+uncalibrated-in-full run with deferral. The substantial difference
+is consistent with avoided solver preparation, but does not establish
+a precise old/new speedup: runs were neither paired nor equally
+calibrated. Other workloads remain close to previous measurements.
+
+The report's all-case overall ROBDD/tree geomean 0.993629 from
+fifteen cases mixes ten calibrated and five uncalibrated ratios.
+The **calibrated-only** geomeans from that same operator output
+are 1.012051 for empty and 1.016364 for partial; combined across
+the ten valid pairs, the geomean is about 1.0142. This is a
+point estimate, not evidence of a statistically significant tree
+advantage. All five full-case ratios must be treated as preliminary.
+
+**Benchmark reporting refinement, manual only.** Keep the existing
+all-case ratio diagnostics, but add independent calibrated-only
+aggregates by geometry, coverage and overall. A pair qualifies only
+when both backends met the configured minimum sample duration.
+No valid pairs in a category produces an explicit `NA`, not a
+fictitious geomean. The manual benchmark recipe raises the cap to
+8192 iterations so 4-microsecond full scenarios can reach 12 ms.
+
+No CI workflow was changed. Benchmarks are invoked manually; the
+CI retains only its original Release benchmark build steps. The
+new C++ report code still requires ordinary compilation validation
+and its numeric output requires a manual Release execution.

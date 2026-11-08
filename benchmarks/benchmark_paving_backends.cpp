@@ -1218,6 +1218,11 @@ void report_outer_overlap_backend_ratios(
     std::array<OuterOverlapRatioAggregate,3> by_coverage{};
     std::map<std::string,OuterOverlapRatioAggregate> by_geometry;
     OuterOverlapRatioAggregate overall;
+    // Retain the descriptive, all-case aggregates but build independent
+    // quality-filtered summaries from pairs where BOTH sides calibrated.
+    std::array<OuterOverlapRatioAggregate,3> calibrated_coverage{};
+    std::map<std::string,OuterOverlapRatioAggregate> calibrated_geometry;
+    OuterOverlapRatioAggregate calibrated_overall;
 
     LOGGING_PRINTLN(" ")
     LOGGING_PRINTLN("OUTER OVERLAP BACKEND COMPARISON (ROBDD / BinaryTree)")
@@ -1259,6 +1264,11 @@ void report_outer_overlap_backend_ratios(
             by_geometry[result.shape].add(ratio,case_name,calibrated);
             by_coverage[i].add(ratio,case_name,calibrated);
             overall.add(ratio,case_name,calibrated);
+            if(calibrated) {
+                calibrated_geometry[result.shape].add(ratio,case_name,true);
+                calibrated_coverage[i].add(ratio,case_name,true);
+                calibrated_overall.add(ratio,case_name,true);
+            }
         }
         LOGGING_PRINTLN(std::left<<std::setw(23)<<result.shape
             <<std::right<<std::setw(4)<<result.dimension
@@ -1319,7 +1329,9 @@ void report_outer_overlap_backend_ratios(
             <<" ties="<<a.ties
             <<" uncalibrated="<<a.uncalibrated)
     };
-    header("AGGREGATE BY GEOMETRY (all selected dimensions, finenesses, coverage)");
+    LOGGING_PRINTLN("ALL-CASE AGGREGATES ARE DESCRIPTIVE: they may include"
+                    " ratios with insufficient sample calibration.")
+    header("AGGREGATE BY GEOMETRY (all cases, including uncalibrated)");
     for(auto const& entry:by_geometry)
         emit("OUTER_OVERLAP_BACKEND_GEOMETRY","shape",entry.first,entry.second);
     header("AGGREGATE BY INITIAL COVERAGE (all selected geometries, d, f)");
@@ -1327,10 +1339,37 @@ void report_outer_overlap_backend_ratios(
         if(by_coverage[i].cases!=0u)
             emit("OUTER_OVERLAP_BACKEND_COVERAGE","scenario",
                  categories[i],by_coverage[i]);
-    header("OVERALL (equal case weighting)");
+    header("OVERALL (all cases, including uncalibrated)");
     emit("OUTER_OVERLAP_BACKEND_OVERALL","scope","all",overall);
-    LOGGING_PRINTLN("Summaries use independently calibrated sample medians;"
-                    " no statistical significance is claimed.")
+
+    // A group's geomean is meaningful here only when both measured
+    // backend samples reached the requested minimum batch duration.
+    header("CALIBRATED ONLY: AGGREGATE BY GEOMETRY");
+    for(auto const& entry:calibrated_geometry)
+        emit("OUTER_OVERLAP_BACKEND_CALIBRATED_GEOMETRY",
+             "shape",entry.first,entry.second);
+    header("CALIBRATED ONLY: AGGREGATE BY INITIAL COVERAGE");
+    for(std::size_t i=0u;i<categories.size();++i) {
+        if(calibrated_coverage[i].cases!=0u)
+            emit("OUTER_OVERLAP_BACKEND_CALIBRATED_COVERAGE",
+                 "scenario",categories[i],calibrated_coverage[i]);
+        else {
+            LOGGING_PRINTLN(categories[i]<<": no calibrated backend pairs")
+            LOGGING_PRINTLN("OUTER_OVERLAP_BACKEND_CALIBRATED_COVERAGE"
+                " scenario="<<categories[i]<<" cases=0 geomean_ratio=NA")
+        }
+    }
+    header("CALIBRATED ONLY: OVERALL (equal case weighting)");
+    if(calibrated_overall.cases!=0u)
+        emit("OUTER_OVERLAP_BACKEND_CALIBRATED_OVERALL",
+             "scope","calibrated_only",calibrated_overall);
+    else
+        LOGGING_PRINTLN("OUTER_OVERLAP_BACKEND_CALIBRATED_OVERALL"
+            " scope=calibrated_only cases=0 geomean_ratio=NA")
+    LOGGING_PRINTLN("Calibrated-only aggregates omit each whole ROBDD/tree"
+        " pair unless both sides met the requested sample duration.")
+    LOGGING_PRINTLN("Reported ratios use independent medians and are not"
+        " estimates of statistical significance.")
 }
 
 void report_outer_overlap(std::vector<OuterOverlapResult> const& results,

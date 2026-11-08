@@ -424,7 +424,7 @@ cmake --build build-release --target benchmark_paving_backends
   --compare-outer-overlap \
   --dimensions 4 --finenesses 3 --max-depth-bits 28 \
   --shapes aligned-box,rotated-box,aligned-ellipsoid,rotated-ellipsoid,ball \
-  --samples 7 --min-sample-ms 12 --max-iterations 2048 \
+  --samples 7 --min-sample-ms 12 --max-iterations 8192 \
   --concurrency 0
 ```
 
@@ -452,18 +452,32 @@ ratio < 1 means ROBDD faster.** These are geometric means of
 pairwise median ratios, not a ratio of summed runtimes, and do not
 compare different code versions.
 
-The machine-readable summaries are prefixed
+The report distinguishes **descriptive all-case** aggregates from
+**calibrated-only** aggregates. Calibrated-only ratios exclude a
+backend pair unless both sides met `--min-sample-ms`. If a coverage
+category has no calibrated pairs it reports `cases=0 geomean_ratio=NA`,
+not an artificial ratio. Base backend comparisons primarily on the
+calibrated-only tables; a short sample should not reverse the
+interpretation of the overall geometric mean.
+
+Machine-readable all-case summaries use
 `OUTER_OVERLAP_BACKEND_CASE`, `OUTER_OVERLAP_BACKEND_GEOMETRY`,
-`OUTER_OVERLAP_BACKEND_COVERAGE` and
-`OUTER_OVERLAP_BACKEND_OVERALL`.
+`OUTER_OVERLAP_BACKEND_COVERAGE`, `OUTER_OVERLAP_BACKEND_OVERALL`.
+The filtered summaries use
+`OUTER_OVERLAP_BACKEND_CALIBRATED_GEOMETRY`,
+`OUTER_OVERLAP_BACKEND_CALIBRATED_COVERAGE`, and
+`OUTER_OVERLAP_BACKEND_CALIBRATED_OVERALL`.
 
 Timing rows report `tree_calibration_met` and `robdd_calibration_met`.
 If the iteration cap is reached before `--min-sample-ms`, the benchmark
 also emits `OUTER_OVERLAP_CALIBRATION_WARNING`. This is not a
 correctness failure, but short samples make microsecond-level ratios
-less reliable. Increasing `--max-iterations` permits the fast full
-scenario to reach the minimum duration without forcing expensive
-empty/partial scenarios to run longer.
+less reliable. With prepared-solver construction deferred, the
+reported fully covered 4D/f3 cases take about 4 microseconds.
+At that speed 2048 iterations are too few for a 12 ms batch, so the
+manual Release example now uses `--max-iterations 8192`.
+This higher cap does not force already-slow empty/partial cases to
+run longer: calibration ends as soon as the duration threshold is met.
 
 ### Concurrent adjoin (initial correctness milestone)
 
