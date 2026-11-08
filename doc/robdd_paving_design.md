@@ -2612,3 +2612,38 @@ cross-platform CI. The integrated 9,167-query correctness replay,
 including complete geometry checks, and the new seven-sample
 timings are pending. Do not treat earlier standalone results as
 measurements of the integrated production implementation.
+
+
+## 2026-11-08 - Avoid reclassifying already-covered outer candidates
+
+**Optimization scope.** For the explicit tree's effective and validated
+outer-approximation visitors, an already-enabled leaf is a no-op for
+union. Both visitors now return before constructing the candidate
+GridCell or invoking `separated()`/`covers()`, while retaining the
+existing one-level path unwind. This applies to repeated and partially
+overlapping approximations, without changing the first-visit geometric
+classification or the ownership/locking model.
+
+The ROBDD effective outer visitor now checks `superset(cell)`
+before `separated(cell.box())` when the destination was nonempty at
+the start. An initially empty ROBDD still avoids containment queries,
+as before. The new order can skip certified predicates for covered
+prefixes; it trades an inexpensive read-only DAG membership query for
+potentially fewer expensive geometric calls on nonempty destinations.
+It need not improve workloads with little existing overlap.
+
+**Regression.** The backend test uses a derived
+`ConstrainedImageSet` that counts calls to its virtual
+`separated()` override (therefore bypassing exact-type prepared
+dispatch). It checks that re-adjoining an approximation makes fewer
+predicate calls than its first insertion, that both backend unions
+are set-idempotent and agree geometrically, and that an ROBDD already
+covering the enclosing primary root needs zero separation calls.
+
+**Verification status.** This increment has not been built or
+benchmark-run locally. Cross-platform CI and the regression are
+required to validate it. No speedup is claimed: the existing
+five-shape fresh-construction benchmark cannot measure a repeated
+or overlapping-adjoin win. A future isolated benchmark should compare
+fresh and prepopulated destinations, including disjoint and high-overlap
+cases, before generalizing the performance benefit.

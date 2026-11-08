@@ -30,9 +30,76 @@ using namespace Ariadne;
 static_assert(std::is_base_of_v<PavingInterface,BinaryTreePaving>);
 
 
+// A derived set deliberately keeps virtual separation dispatch; the
+// production prepared-contractor shortcut is restricted to exact base types.
+class CountingConstrainedImageSet : public ConstrainedImageSet {
+  public:
+    using ConstrainedImageSet::ConstrainedImageSet;
+    mutable SizeType separated_calls=0u;
+
+    LowerKleenean separated(ExactBoxType const& box) const override {
+        ++separated_calls;
+        return ConstrainedImageSet::separated(box);
+    }
+};
+
 class TestPavingBackends : public Ariadne::Testing::ContextFixture {
   public:
     using ContextFixture::ContextFixture;
+
+    Void test_outer_approximation_skips_covered_cell_predicates() {
+        Grid grid(2u);
+        CountingConstrainedImageSet set(
+            RealBox({RealInterval(-1,+1),RealInterval(-1,+1)}));
+        EffectiveEuclideanCompactSetInterface const& source=set;
+
+        // Both backends perform the first approximation normally. A
+        // repeated union must retain the exact set while classifying fewer
+        // candidates because already-enabled regions need no recheck.
+        BinaryTreePaving tree(grid);
+        tree.adjoin_outer_approximation(source,1u);
+        SizeType const first_tree_calls=set.separated_calls;
+        ARIADNE_TESTING_PROVE(first_tree_calls>0u);
+        BinaryTreePaving tree_before(tree);
+        set.separated_calls=0u;
+        tree.adjoin_outer_approximation(source,1u);
+        ARIADNE_TESTING_PROVE(set.separated_calls<first_tree_calls);
+        tree.recombine();
+        tree_before.recombine();
+        ARIADNE_TESTING_PROVE(tree.subset(tree_before));
+        ARIADNE_TESTING_PROVE(tree_before.subset(tree));
+
+        RobddManager manager;
+        GridCell primary(grid,0u,BinaryWord{});
+        RobddPaving robdd(manager,primary,manager.constant(false),0u);
+        set.separated_calls=0u;
+        robdd.adjoin_outer_approximation(source,1u);
+        SizeType const first_robdd_calls=set.separated_calls;
+        ARIADNE_TESTING_PROVE(first_robdd_calls>0u);
+        RobddPaving robdd_before(robdd);
+        set.separated_calls=0u;
+        robdd.adjoin_outer_approximation(source,1u);
+        ARIADNE_TESTING_PROVE(set.separated_calls<first_robdd_calls);
+        ARIADNE_TESTING_PROVE(robdd.subset(robdd_before));
+        ARIADNE_TESTING_PROVE(robdd_before.subset(robdd));
+
+        for(auto it=tree.begin(), end=tree.end();it!=end;++it)
+            ARIADNE_TESTING_PROVE(robdd.superset(*it));
+        for(auto it=robdd.begin(), end=robdd.end();it!=end;++it)
+            ARIADNE_TESTING_PROVE(tree.superset(*it));
+
+        // A true-terminal ROBDD covering the entire enclosing root must
+        // not invoke the virtual separated() predicate even once.
+        Nat extent=GridCell::smallest_enclosing_primary_cell_extent(
+            set.bounding_box(),grid);
+        GridCell enclosure(grid,extent+static_cast<Nat>(grid.dimension()),
+                           BinaryWord{});
+        RobddPaving full(manager,enclosure,manager.constant(true),0u);
+        set.separated_calls=0u;
+        full.adjoin_outer_approximation(source,1u);
+        ARIADNE_TESTING_EXPECT_EQUAL(set.separated_calls,0u);
+        ARIADNE_TESTING_PROVE(full.superset(enclosure));
+    }
 
     Void test_prepared_constrained_outer_geometry() {
         auto coords=EffectiveScalarMultivariateFunction::coordinates(2u);
@@ -2751,6 +2818,7 @@ int main(int argc, char** argv) {
     ARIADNE_TESTING_ADD_TEST(TestPavingBackends, test_common_view_forward_iterator);
     ARIADNE_TESTING_ADD_TEST(TestPavingBackends, test_outer_box_approximation_between_backends);
     ARIADNE_TESTING_ADD_TEST(TestPavingBackends, test_prepared_constrained_outer_geometry);
+    ARIADNE_TESTING_ADD_TEST(TestPavingBackends, test_outer_approximation_skips_covered_cell_predicates);
     ARIADNE_TESTING_ADD_TEST(TestPavingBackends, test_generic_approximations_between_backends);
     ARIADNE_TESTING_ADD_TEST(TestPavingBackends, test_polymorphic_paving_handle_and_subpaving_views);
     ARIADNE_TESTING_ADD_TEST(TestPavingBackends, test_polymorphic_sequences_backend_isolation);

@@ -686,11 +686,13 @@ Void RobddPaving::adjoin_outer_approximation(
     std::vector<GridCell> selected;
     std::function<Void(GridCell const&,SizeType)> visit =
         [&](GridCell const& cell, SizeType depth) {
+            // Existing coverage makes this candidate redundant, so no
+            // expensive geometric separation/covers query is needed.
+            if (check_existing and superset(cell)) { return; }
             Bool const excluded=prepared
                 ? definitely(prepared->separated(cell.box()))
                 : definitely(set.separated(cell.box()));
             if(excluded) { return; }
-            if (check_existing and superset(cell)) { return; }
             if ((open_set and definitely(open_set->covers(cell.box())))
                     or depth==target_depth) {
                 selected.push_back(cell);

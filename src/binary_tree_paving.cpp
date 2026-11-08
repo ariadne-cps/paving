@@ -2172,6 +2172,12 @@ Void BinaryTreePaving::_adjoin_cell( const Nat theCellRootExtent, BinaryWord con
 Void BinaryTreePaving::_adjoin_outer_approximation( const Grid & theGrid, BinaryTreeNode * pBinaryTreeNode, const Nat primary_cell_extent,
                                                   const Nat max_mince_tree_depth,  const EffectiveEuclideanCompactSetInterface& theSet, BinaryWord * pPath,
                                                   const PreparedConstrainedImageSetSeparation* prepared ){
+    // Union with an already-enabled leaf is an identity. Skip geometry and
+    // certified separation, but preserve the recursive path-pop contract.
+    if(pBinaryTreeNode->is_enabled()) {
+        if(pPath->size()>0u) pPath->pop_back();
+        return;
+    }
     //Compute the cell corresponding to the current node
     GridCell theCurrentCell( theGrid, primary_cell_extent, *pPath );
 
@@ -2223,6 +2229,12 @@ Void BinaryTreePaving::_adjoin_outer_approximation( const Grid & theGrid, Binary
 
 Void BinaryTreePaving::_adjoin_outer_approximation( const Grid & theGrid, BinaryTreeNode * pBinaryTreeNode, const Nat primary_cell_extent,
                                                   const Nat max_mince_tree_depth,  const ValidatedEuclideanCompactSetInterface& theSet, BinaryWord * pPath ){
+    // Union with an already-enabled leaf is an identity. Skip geometry and
+    // certified separation, but preserve the recursive path-pop contract.
+    if(pBinaryTreeNode->is_enabled()) {
+        if(pPath->size()>0u) pPath->pop_back();
+        return;
+    }
     //Compute the cell correspomding to the current node
     GridCell theCurrentCell( theGrid, primary_cell_extent, *pPath );
 
