@@ -1380,7 +1380,6 @@ void report(std::vector<Datum> const& data,
             std::vector<MemoryDatum> const& memory,
             Selection const& selection,unsigned skipped,
             Bench::SummaryFields const& fields) {
-    constexpr int width=132;
     LOGGING_PRINTLN("BinaryTree / ROBDD compact-set benchmark")
     LOGGING_PRINTLN("Minimum iterations="<<selection.iterations
         <<"  samples="<<selection.samples
