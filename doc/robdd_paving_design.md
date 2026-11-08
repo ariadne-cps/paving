@@ -2969,3 +2969,58 @@ benchmark with the same 4D/f3 five-shape settings (including
 `--no-retention --tree-iterator-cost` if matching the historic run)
 and compare `replay_bulk` values, memory diagnostics and the other
 operation timings. No benchmark execution is added to GitHub Actions.
+
+
+## 2026-11-08 - Measured dense-arena replay_bulk: close allocation microoptimization
+
+The operator ran the same five-geometry Release 4D/f3 structural
+benchmark after commit `603d50a`, with seven samples, 12 ms minimum,
+8192 maximum iterations, `--summary-only --no-retention
+--tree-iterator-cost --concurrency 0`. The geometric configurations
+remained aligned-box (416 enabled leaves), rotated-box (360),
+aligned-ellipsoid (96), rotated-ellipsoid (104), and ball (80).
+
+| Operation | Previous ROBDD/tree geomean | Dense-arena ROBDD/tree geomean |
+| --- | ---: | ---: |
+| replay_bulk | 8.288x | 7.830x |
+| iterate_leaves | 0.990x | 0.982x |
+| iterate_min | 0.995x | 0.999x |
+| outer_warm | 1.004x | 1.010x |
+| outer_cold | 0.997x | 1.009x |
+| adjoin_recombine | 1.014x | 1.029x |
+| superset_16 | 0.486x | 0.480x |
+| copy | 0.004x | 0.003x |
+
+The replay_bulk **ratio** fell by about 5.5%, from 8.288 to 7.830,
+but no paired absolute old/new timing or between-run variance was
+supplied. Do not infer a proven 5.5% ROBDD speedup from this change.
+The worst remaining replay_bulk ratio was 9.197x on aligned-box.
+This operation remains substantially slower for ROBDD in isolation;
+the data do not demonstrate a large gain from the vector arena.
+
+The estimated *root-reachable decision-node payload* still ranges
+from 5.3% to 20.6% of the explicit tree's physical-node payload
+across the five shapes (24 bytes per node for either estimate).
+This is neither a complete retained-manager footprint nor RSS.
+Other trade-offs remain stark: cheaper ROBDD copies and direct
+containment queries, nearly identical iteration/geometry costs.
+
+**Absolute-cost assessment and decision.** The earlier aligned-box
+4D/f3 structural benchmark reported tree replay_bulk about 0.0724 ms
+versus ROBDD about 0.6974 ms, while a geometric outer construction
+cost about 570 ms. These are **previous measurements**, not new
+dense-arena absolute timings, but illustrate that even the full
+~0.625 ms differential was about 0.11% of the geometric operation
+in that setting. The current summary-only output gives relative
+ratios, not absolute replay_bulk times. Without a workload where
+batch rebuilding actually dominates, further microoptimizations
+of this operation have weak application-level justification.
+
+Close the dense-trie allocation experiment as a modest,
+not conclusively established gain; do not keep tuning ROBDD
+replay_bulk merely because its ratio is large. Reprioritize
+parallel certified cell classification common to both paving
+backends, gated by independent-thread solver/rounding correctness
+and a manual 1/2/4/8-worker performance experiment. Existing
+threading abstractions should be reused. Keep CI as tests/build
+only: no new performance benchmark invocation in GitHub Actions.
