@@ -2390,3 +2390,71 @@ candidate sequence, unlike the preceding fixed-32-query benchmark;
 the differing timing methodology and the omitted set-side
 assembly still preclude a literal subtractive interpretation of
 solver and paving time. No README/workflow changes are warranted.
+
+
+## 2026-11-08 - Actual box-contractor activity on adaptive traces
+
+The operator reran `constraint-solving/benchmarks/benchmark_constraint_reduce`
+(commit `993dc3e4aed5573e18f3288d73db195c9e23d022`) on the five
+exported adaptive paving traces (4D/fineness 3), using the original
+`ConstraintSolver::reduce` as an exact contracted-domain oracle for
+every query. All five traces passed equivalence and paving separation
+checks. The diagnostic calls the existing five-argument
+`box_reduce(...,function_evaluations)` overload: it counts actual
+interval-function evaluations, compares the targeted interval before
+and after each call, and tabulates activity by output and variable.
+
+| Shape | Box calls | Function evaluations | Changed | Unchanged | Zero evaluations | Changed (%) |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| aligned-box | 223392 | 278592 | 0 | 223392 | 84096 | 0.00 |
+| rotated-box | 203174 | 315092 | 3540 | 199634 | 52284 | 1.74 |
+| aligned-ellipsoid | 92145 | 214460 | 11351 | 80794 | 16370 | 12.32 |
+| rotated-ellipsoid | 115414 | 291702 | 19082 | 96332 | 938 | 16.53 |
+| ball | 114344 | 263612 | 13528 | 100816 | 19834 | 11.83 |
+| **All** | **748469** | **1363458** | **47501** | **700968** | **173522** | **6.35** |
+
+Overall **93.65%** of box calls leave their targeted interval
+unchanged; 23.18% execute zero function evaluations, often
+because a coordinate is already degenerate. A no-change call
+is **not automatically safe to skip**: it may be required to
+establish certified impossibility or confirm the absence of
+further contraction. These are counts from an instrumented
+single replay, not repeated-sample speed measurements.
+
+**Important per-output pattern:** every one of the first four
+outputs (the image identity coordinates) has exactly zero
+box-based contractions in all five workloads. Those outputs
+account for 403248/748469 = **53.88%** of box calls and
+about 779/2560 = **30.43%** of measured box-contractor time
+in these replays; their call share reaches ~80.5-80.9%
+for the three ellipsoidal/ball examples. On the axis-aligned
+box workload, *all* box calls are unchanged, whereas its
+600 proofs of separation occur during hull contraction.
+
+For aligned/rotated ellipsoid and ball, every productive box
+contraction occurs at the single nonlinear constraint output
+(index 4), with 11351, 19082, and 13528 changed calls
+respectively. For rotated-box, the only productive box outputs
+are indices 4-7 (the rotated-coordinate constraints);
+the image outputs 0-3 and axis-aligned constraint outputs
+8-11 are unchanged throughout these traces.
+
+**Next hypothesis to test, NOT yet a production change:**
+before calling all box contractors for a particular output in
+a given round, compute a certified interval image of the
+current domain. If the image is *provably contained* in that
+output's allowed codomain, the constraint is satisfied
+throughout the entire domain, so shaving for that output
+cannot soundly eliminate any portion; all its coordinate
+calls can be skipped for that round. As an alternative,
+consider static per-function variable dependencies using the
+existing `propagation_procedure_dependencies` machinery
+already employed by the separate `ConstraintSolver::propagate`
+path, but do not assume it has been tested for `reduce`.
+Compare both proposed diagnostic strategies with the unchanged
+`reduce` on **every** adaptive input, requiring identical final
+contracted domains and certified separation bits. Only then
+benchmark end-to-end speed and consider a production change.
+
+No README, CI benchmark workflow, or production solver algorithm
+change follows from these measurements alone.
