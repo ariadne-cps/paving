@@ -865,8 +865,9 @@ SizeType replay_outer_geometry(OuterSelection const& reference,
 }
 
 
-// Experimental preparations at the set/paving boundary; the real
-// set::separated() and paving backends remain unchanged. A new context
+// Experimental preparation comparison at the set/paving boundary.
+// Compiled mode now uses the *real*, centralized set/solver prepared API.
+// A new context
 // is constructed *inside every timed full-trace sweep* so preparation
 // cost is accounted for, rather than hidden in a warm-cache estimate.
 struct OuterPredicateContext {
@@ -883,44 +884,6 @@ struct OuterPredicateContext {
     }
 };
 
-// Frozen benchmark-only reproduction of production P6 reduce() with a
-// caller-owned compiled hull procedure. Keep the same hull/box order,
-// per-call containment certificates, empty check and width-stop test.
-// Every result is compared with production's exact *contracted box*.
-void reduce_prepared_outer(
-        UpperBoxType& domain,OuterPredicateContext const& context,
-        Vector<ValidatedProcedure> const& procedure,
-        ExactBoxType const& codomain) {
-    ConstraintSolver solver;
-    const ExactDouble MINIMUM_REDUCTION=0.75_x;
-    if(definitely(domain.is_empty())) return;
-    std::vector<Bool> certified(codomain.size(),false);
-    FloatDPUpperBound magnitude={0u,dp};
-    for(SizeType j=0u;j<domain.size();++j) magnitude+=domain[j].width();
-    FloatDPUpperBound old_magnitude=magnitude;
-    do {
-        solver.hull_reduce(domain,procedure,codomain);
-        if(definitely(domain.is_empty())) return;
-        for(SizeType i=0u;i<codomain.size();++i) {
-            if(certified[i]) continue;
-            if(definitely(subset(
-                    Ariadne::apply(context.function[i],domain),
-                    codomain[i]))) {
-                certified[i]=true;
-                continue;
-            }
-            for(SizeType j=0u;j<domain.size();++j) {
-                solver.box_reduce(domain,context.function[i],codomain[i],j);
-                if(definitely(domain.is_empty())) return;
-            }
-        }
-        old_magnitude=magnitude;
-        magnitude=0u;
-        for(SizeType j=0u;j<domain.size();++j) magnitude+=domain[j].width();
-    } while(magnitude.raw()<mul(
-        near,old_magnitude.raw(),FloatDP(MINIMUM_REDUCTION,dp)));
-}
-
 SizeType replay_outer_joined(OuterPredicateContext const& context,
                              std::vector<OuterTraceEntry> const& trace) {
     ConstraintSolver solver;
@@ -934,16 +897,12 @@ SizeType replay_outer_joined(OuterPredicateContext const& context,
 }
 
 SizeType replay_outer_compiled(
-        OuterPredicateContext const& context,
-        Vector<ValidatedProcedure> const& procedure,
+        PreparedConstrainedImageSetSeparation const& context,
         std::vector<OuterTraceEntry> const& trace) {
     SizeType checksum=0u;
-    for(OuterTraceEntry const& entry:trace) {
-        UpperBoxType domain=context.domain;
-        reduce_prepared_outer(
-            domain,context,procedure,context.codomain(entry.box));
-        checksum+=static_cast<SizeType>(definitely(domain.is_empty()));
-    }
+    for(OuterTraceEntry const& entry:trace)
+        checksum+=static_cast<SizeType>(
+            definitely(context.separated(entry.box)));
     return checksum;
 }
 
@@ -969,8 +928,30 @@ OuterPreparationResult benchmark_outer_preparation(
        or reference.covers_calls!=0u or reference.selected.empty())
         throw std::runtime_error("inconsistent prepared outer trace");
 
+    // Full geometric oracle: the old virtual set.separated() path
+    // selected the reference cells, independently of either backend's
+    // newly prepared contractor. Check the actual backend results.
+    BinaryTreePaving oracle(grid);
+    for(GridCell const& cell:reference.selected) oracle.adjoin(cell);
+    oracle.recombine();
+    BinaryTreePaving actual_tree(grid);
+    actual_tree.adjoin_outer_approximation(set,fineness);
+    actual_tree.recombine();
+    RobddManager manager;
+    GridCell const primary(grid,0u,BinaryWord{});
+    RobddPaving actual_robdd(
+        manager,primary,manager.constant(false),0u);
+    actual_robdd.adjoin_outer_approximation(set,fineness);
+    actual_robdd.recombine();
+    validate_geometry(oracle,actual_tree);
+    validate_geometry(oracle,actual_robdd);
+    LOGGING_PRINTLN("OUTER_PREPARATION_GEOMETRY shape="<<shape
+        <<" d=4 f=3 selected="<<reference.selected.size()
+        <<" tree_matches_oracle=true robdd_matches_oracle=true")
+
     OuterPredicateContext const context(compact);
-    Vector<ValidatedProcedure> const procedure(context.function);
+    PreparedConstrainedImageSetSeparation const procedure(
+        compact.prepare_separation());
     ConstraintSolver solver;
     SizeType separated=0u;
     for(SizeType q=0u;q<reference.trace.size();++q) {
@@ -979,8 +960,7 @@ OuterPreparationResult benchmark_outer_preparation(
         ExactBoxType const codomain=context.codomain(entry.box);
         UpperBoxType joined=context.domain;
         solver.reduce(joined,context.function,codomain);
-        UpperBoxType compiled=context.domain;
-        reduce_prepared_outer(compiled,context,procedure,codomain);
+        UpperBoxType compiled=procedure.reduced_domain(entry.box);
         if(original!=entry.separated
            or original!=definitely(joined.is_empty())
            or original!=definitely(compiled.is_empty())
@@ -1010,9 +990,9 @@ OuterPreparationResult benchmark_outer_preparation(
         return replay_outer_joined(data,reference.trace);
     };
     auto compiled=[&](unsigned) {
-        OuterPredicateContext const data(compact);
-        Vector<ValidatedProcedure> const hull(data.function);
-        return replay_outer_compiled(data,hull,reference.trace);
+        PreparedConstrainedImageSetSeparation const data(
+            compact.prepare_separation());
+        return replay_outer_compiled(data,reference.trace);
     };
     if(baseline(0u)!=separated or joined(0u)!=separated
        or compiled(0u)!=separated)

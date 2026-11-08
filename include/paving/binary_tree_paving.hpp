@@ -62,6 +62,8 @@
 
 namespace Ariadne {
 
+class PreparedConstrainedImageSetSeparation;
+
 // Some type definitions
 typedef Array<Int> IndexArray;
 typedef Array<SizeType> SizeArray;
@@ -456,7 +458,8 @@ class BinaryTreePaving
     //! This method is recursive, the parameter \a pPath defines the path to the current node pBinaryTreeNode
     //! from the root node in recursive calls, thus the initial evaluate for this method must be done with an empty word.
     static Void _adjoin_outer_approximation( const Grid & theGrid, BinaryTreeNode * pBinaryTreeNode, const Nat primary_cell_extent,
-                                             const Nat max_mince_tree_depth, const EffectiveEuclideanCompactSetInterface& theSet, BinaryWord * pPath );
+                                             const Nat max_mince_tree_depth, const EffectiveEuclideanCompactSetInterface& theSet, BinaryWord * pPath,
+                                             const PreparedConstrainedImageSetSeparation* prepared );
     static Void _adjoin_outer_approximation( const Grid & theGrid, BinaryTreeNode * pBinaryTreeNode, const Nat primary_cell_extent,
                                              const Nat max_mince_tree_depth, const ValidatedEuclideanCompactSetInterface& theSet, BinaryWord * pPath );
 

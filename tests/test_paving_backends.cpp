@@ -21,6 +21,7 @@
 #include "paving/binary_tree_paving.hpp"
 #include "paving/binary_tree_paving.hpp"
 #include "paving/robdd_paving.hpp"
+#include "set/function_set.hpp"
 #include "paving/paving_cell_operations.hpp"
 #include "ariadne-testing.hpp"
 
@@ -32,6 +33,44 @@ static_assert(std::is_base_of_v<PavingInterface,BinaryTreePaving>);
 class TestPavingBackends : public Ariadne::Testing::ContextFixture {
   public:
     using ContextFixture::ContextFixture;
+
+    Void test_prepared_constrained_outer_geometry() {
+        auto coords=EffectiveScalarMultivariateFunction::coordinates(2u);
+        ConstrainedImageSet set(
+            RealBox({RealInterval(-1,+1),RealInterval(-1,+1)}),
+            EffectiveVectorMultivariateFunction({coords[0],coords[1]}));
+        set.new_parameter_constraint(
+            coords[0]*coords[0]+coords[1]*coords[1]<=1);
+
+        Grid grid(2u);
+        BinaryTreePaving tree(grid);
+        RobddManager manager;
+        GridCell root(grid,0u,BinaryWord{});
+        RobddPaving bdd(manager,root,manager.constant(false),0u);
+        EffectiveEuclideanCompactSetInterface const& source=set;
+        tree.adjoin_outer_approximation(source,2u);
+        tree.recombine();
+        bdd.adjoin_outer_approximation(source,2u);
+        bdd.recombine();
+        for(auto cell=tree.begin(),end=tree.end();cell!=end;++cell)
+            ARIADNE_TESTING_PROVE(bdd.superset(*cell));
+        for(auto cell=bdd.begin(),end=bdd.end();cell!=end;++cell)
+            ARIADNE_TESTING_PROVE(tree.superset(*cell));
+
+        // Reference oracle must still use the original lazy predicate.
+        auto const prepared=set.prepare_separation();
+        for(ExactBoxType const& box:std::vector<ExactBoxType>({
+                ExactBoxType({{1.5_x,2.0_x},{0.0_x,1.0_x}}),
+                ExactBoxType({{-0.5_x,0.5_x},{-0.5_x,0.5_x}})
+            })) {
+            auto const baseline=set.separated(box,Effort::get_default());
+            auto const candidate=prepared.separated(box);
+            ARIADNE_TESTING_EXPECT_EQUAL(
+                definitely(baseline),definitely(candidate));
+            ARIADNE_TESTING_EXPECT_EQUAL(
+                possibly(baseline),possibly(candidate));
+        }
+    }
 
     Void test_cell_view_snapshot_comparisons_and_queries() {
         RobddManager manager;
@@ -2711,6 +2750,7 @@ int main(int argc, char** argv) {
     ARIADNE_TESTING_ADD_TEST(TestPavingBackends, test_common_view_geometric_queries);
     ARIADNE_TESTING_ADD_TEST(TestPavingBackends, test_common_view_forward_iterator);
     ARIADNE_TESTING_ADD_TEST(TestPavingBackends, test_outer_box_approximation_between_backends);
+    ARIADNE_TESTING_ADD_TEST(TestPavingBackends, test_prepared_constrained_outer_geometry);
     ARIADNE_TESTING_ADD_TEST(TestPavingBackends, test_generic_approximations_between_backends);
     ARIADNE_TESTING_ADD_TEST(TestPavingBackends, test_polymorphic_paving_handle_and_subpaving_views);
     ARIADNE_TESTING_ADD_TEST(TestPavingBackends, test_polymorphic_sequences_backend_isolation);

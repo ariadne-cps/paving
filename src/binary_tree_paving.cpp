@@ -25,6 +25,7 @@
 #include "function/functional.hpp"
 #include <iostream>
 #include <iomanip>
+#include <optional>
 
 #include "utility/macros.hpp"
 #include "utility/exceptions.hpp"
@@ -2168,13 +2169,17 @@ Void BinaryTreePaving::_adjoin_cell( const Nat theCellRootExtent, BinaryWord con
 
 
 Void BinaryTreePaving::_adjoin_outer_approximation( const Grid & theGrid, BinaryTreeNode * pBinaryTreeNode, const Nat primary_cell_extent,
-                                                  const Nat max_mince_tree_depth,  const EffectiveEuclideanCompactSetInterface& theSet, BinaryWord * pPath ){
+                                                  const Nat max_mince_tree_depth,  const EffectiveEuclideanCompactSetInterface& theSet, BinaryWord * pPath,
+                                                  const PreparedConstrainedImageSetSeparation* prepared ){
     //Compute the cell corresponding to the current node
     GridCell theCurrentCell( theGrid, primary_cell_extent, *pPath );
 
     const EffectiveEuclideanOpenSetInterface* pOpenSet=dynamic_cast<const EffectiveEuclideanOpenSetInterface*>(static_cast<const EuclideanSetInterfaceBase*>(&theSet));
 
-    if( definitely( theSet.separated( theCurrentCell.box() ) ) ) {
+    Bool const excluded=prepared
+        ? definitely(prepared->separated(theCurrentCell.box()))
+        : definitely(theSet.separated(theCurrentCell.box()));
+    if(excluded) {
         //DO NOTHING: We are in the node whoes representation in the original space is
         //disjoint from pSet and thus there will be nothing added to this cell.
     } else if( pOpenSet && definitely( pOpenSet->covers( theCurrentCell.box() ) ) ) {
@@ -2191,10 +2196,10 @@ Void BinaryTreePaving::_adjoin_outer_approximation( const Grid & theGrid, Binary
                 pBinaryTreeNode->split(); //NOTE: splitting a non-leaf node does not do any harm
                 //Check the left branch
                 pPath->push_back(false);
-                _adjoin_outer_approximation( theGrid, pBinaryTreeNode->left_node(), primary_cell_extent, max_mince_tree_depth, theSet, pPath );
+                _adjoin_outer_approximation( theGrid, pBinaryTreeNode->left_node(), primary_cell_extent, max_mince_tree_depth, theSet, pPath, prepared );
                 //Check the right branch
                 pPath->push_back(true);
-                _adjoin_outer_approximation( theGrid, pBinaryTreeNode->right_node(), primary_cell_extent, max_mince_tree_depth, theSet, pPath );
+                _adjoin_outer_approximation( theGrid, pBinaryTreeNode->right_node(), primary_cell_extent, max_mince_tree_depth, theSet, pPath, prepared );
             } else {
                 //We should not mince any further, so since the node is a leaf and
                 //it's cell is not disjoint from theSet, we mark the node as enabled.
@@ -2356,6 +2361,10 @@ Void BinaryTreePaving::adjoin_outer_approximation( const UpperBoxType& theBoxTyp
 }
 
 Void BinaryTreePaving::adjoin_outer_approximation( const EffectiveEuclideanCompactSetInterface& theSet, const Nat numSubdivInDim ) {
+    // A fresh immutable prepared snapshot is scoped to this operation.
+    std::optional<PreparedConstrainedImageSetSeparation> prepared;
+    if(auto const* constrained=dynamic_cast<ConstrainedImageSet const*>(&theSet))
+        prepared.emplace(constrained->prepare_separation());
     // Serialize direct node mutation with the same owner lock as adjoin.
     // Do not call virtual owner accessors inside this critical section.
     std::lock_guard<std::mutex> lock(_adjoin_mutex);
@@ -2384,7 +2393,8 @@ Void BinaryTreePaving::adjoin_outer_approximation( const EffectiveEuclideanCompa
         //Adjoin the outer approximation, computing it on the fly.
         BinaryWord * pEmptyPath = new BinaryWord();
         _adjoin_outer_approximation( BinaryTreeSubpaving::_theGridCell.grid(), pBinaryTreeNode, outer_approx_primary_cell_extent,
-                                     max_mince_tree_depth, theSet, pEmptyPath );
+                                     max_mince_tree_depth, theSet, pEmptyPath,
+                                     prepared ? &*prepared : nullptr );
 
         delete pEmptyPath;
     }

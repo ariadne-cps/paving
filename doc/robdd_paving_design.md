@@ -2555,3 +2555,60 @@ synchronized with P6's exact contractor semantics; it is not
 a proof of general equivalence for arbitrary functions or
 precision/lifetime settings.
 
+
+## 2026-11-08 - Production preparation of effective-set outer predicates
+
+**Architecture.** The P6 contractor loop is now centralized in
+constraint-solving, shared by ordinary reduce() and the new
+reduce(domain, PreparedConstraintSolverFunction, codomain).
+The immutable prepared object owns its function and specialized
+vector procedure. Reduction certificates, domains, and numerical
+scratch remain per call; no global cache exists.
+
+ConstrainedImageSet::prepare_separation() provides a caller-owned
+snapshot of the joined image/constraint function, fixed bounds and
+prepared solver. The snapshot does not follow later mutations to
+the originating ConstrainedImageSet, preventing stale-cache use.
+The unchanged direct separated() method remains available.
+
+The effective-set outer paths of BinaryTreePaving and RobddPaving
+prepare exactly once per operation **only for concrete
+ConstrainedImageSet instances**. Other effective compact sets
+continue using their prior virtual separated() methods. Validated
+constrained-set paving algorithms remain entirely unchanged.
+
+**Benchmark integration.** The opt-in --compare-outer-preparation
+path now invokes the actual set-level prepared API instead of
+duplicating the P1 contractor loop. Preparation is included inside
+each timed sweep. Verification compares the complete final
+BinaryTree and ROBDD geometries against an oracle built using
+the original separated() decisions, as well as checking exact
+P1-contracted box equality on each recorded query.
+
+**Historical result, not a measured production result:** the
+previous diagnostic Compiled implementation saved 13.78% of
+predicate replay time over the original baseline on the five
+d4/f3 geometries, but the new integrated implementation must
+be rebuilt and benchmarked before claiming any production gain.
+
+Validation commands:
+
+~~~sh
+git pull --ff-only
+git submodule update --init --recursive
+cmake --build build-release --target benchmark_paving_backends test_paving_backends
+ctest --test-dir build-release -R '^test_paving_backends$' --output-on-failure
+./build-release/benchmarks/benchmark_paving_backends \
+  --dimensions 4 --finenesses 3 --max-depth-bits 28 \
+  --compare-outer-preparation --verify-only --concurrency 0
+./build-release/benchmarks/benchmark_paving_backends \
+  --dimensions 4 --finenesses 3 --max-depth-bits 28 \
+  --compare-outer-preparation --samples 7 --min-sample-ms 12 \
+  --concurrency 0
+~~~
+
+**Release gate:** new solver/set/paving builds and tests must pass
+cross-platform CI. The integrated 9,167-query correctness replay,
+including complete geometry checks, and the new seven-sample
+timings are pending. Do not treat earlier standalone results as
+measurements of the integrated production implementation.

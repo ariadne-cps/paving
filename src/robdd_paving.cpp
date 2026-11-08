@@ -18,11 +18,13 @@
 #include <memory>
 #include <optional>
 #include <stdexcept>
+#include <optional>
 #include <utility>
 #include <vector>
 
 #include "utility/macros.hpp"
 #include "paving/binary_tree_paving.hpp"
+#include "set/function_set.hpp"
 #include "paving/grid_cell_alignment.hpp"
 #include "paving/paving_cell_operations.hpp"
 #include "paving/robdd_paving.hpp"
@@ -651,6 +653,10 @@ Void RobddPaving::remove(SubPavingInterface const& other) {
 
 Void RobddPaving::adjoin_outer_approximation(
         EffectiveEuclideanCompactSetInterface const& set, Nat fineness) {
+    // A scoped prepared snapshot; generic virtual sets remain unchanged.
+    std::optional<PreparedConstrainedImageSetSeparation> prepared;
+    if(auto const* constrained=dynamic_cast<ConstrainedImageSet const*>(&set))
+        prepared.emplace(constrained->prepare_separation());
     // Geometric metadata is captured as a value, never as a borrowed grid.
     GridCell geometric_root=root_cell();
     Grid grid_value=geometric_root.grid();
@@ -676,7 +682,10 @@ Void RobddPaving::adjoin_outer_approximation(
     std::vector<GridCell> selected;
     std::function<Void(GridCell const&,SizeType)> visit =
         [&](GridCell const& cell, SizeType depth) {
-            if (definitely(set.separated(cell.box()))) { return; }
+            Bool const excluded=prepared
+                ? definitely(prepared->separated(cell.box()))
+                : definitely(set.separated(cell.box()));
+            if(excluded) { return; }
             if (check_existing and superset(cell)) { return; }
             if ((open_set and definitely(open_set->covers(cell.box())))
                     or depth==target_depth) {
