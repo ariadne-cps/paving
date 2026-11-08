@@ -17,6 +17,7 @@
 #include <limits>
 #include <memory>
 #include <optional>
+#include <typeinfo>
 #include <stdexcept>
 #include <optional>
 #include <utility>
@@ -655,7 +656,10 @@ Void RobddPaving::adjoin_outer_approximation(
         EffectiveEuclideanCompactSetInterface const& set, Nat fineness) {
     // A scoped prepared snapshot; generic virtual sets remain unchanged.
     std::optional<PreparedConstrainedImageSetSeparation> prepared;
-    if(auto const* constrained=dynamic_cast<ConstrainedImageSet const*>(&set))
+    // Avoid bypassing an overridden separated() in a derived set.
+    if(auto const* constrained=dynamic_cast<ConstrainedImageSet const*>(&set);
+       constrained and typeid(*constrained)==typeid(ConstrainedImageSet)
+       and constrained->dimension()!=0u)
         prepared.emplace(constrained->prepare_separation());
     // Geometric metadata is captured as a value, never as a borrowed grid.
     GridCell geometric_root=root_cell();

@@ -26,6 +26,7 @@
 #include <iostream>
 #include <iomanip>
 #include <optional>
+#include <typeinfo>
 
 #include "utility/macros.hpp"
 #include "utility/exceptions.hpp"
@@ -2363,7 +2364,11 @@ Void BinaryTreePaving::adjoin_outer_approximation( const UpperBoxType& theBoxTyp
 Void BinaryTreePaving::adjoin_outer_approximation( const EffectiveEuclideanCompactSetInterface& theSet, const Nat numSubdivInDim ) {
     // A fresh immutable prepared snapshot is scoped to this operation.
     std::optional<PreparedConstrainedImageSetSeparation> prepared;
-    if(auto const* constrained=dynamic_cast<ConstrainedImageSet const*>(&theSet))
+    // Preserve derived-class polymorphic overrides and zero-dimensional
+    // behavior: only the exact concrete type has this prepared semantics.
+    if(auto const* constrained=dynamic_cast<ConstrainedImageSet const*>(&theSet);
+       constrained and typeid(*constrained)==typeid(ConstrainedImageSet)
+       and constrained->dimension()!=0u)
         prepared.emplace(constrained->prepare_separation());
     // Serialize direct node mutation with the same owner lock as adjoin.
     // Do not call virtual owner accessors inside this critical section.
