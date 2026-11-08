@@ -2647,3 +2647,46 @@ five-shape fresh-construction benchmark cannot measure a repeated
 or overlapping-adjoin win. A future isolated benchmark should compare
 fresh and prepopulated destinations, including disjoint and high-overlap
 cases, before generalizing the performance benefit.
+
+
+## 2026-11-08 - Controlled outer-approximation coverage benchmark
+
+The existing backend benchmark now accepts opt-in
+`--compare-outer-overlap`. It isolates the performance consequences
+of reusing previously populated paving destinations without inventing
+a different geometric set. For each selected shape/dimension/fineness,
+a fully independent reference is built from the original virtual
+`separated()`/`covers()` candidate classification. Compact enabled
+reference leaves provide a deterministic half-leaf prepopulation. A
+third destination begins with the complete enclosing search root
+enabled. The empty destination is the first control.
+
+For each of the three cases, tree and ROBDD inputs represent the
+same geometric set; after applying the actual production outer
+approximation, their geometries are checked in both directions
+against the independently constructed expected union and against
+one another. The verification-only mode executes these oracles but
+does not sample timings. Cases with fewer than two reference leaves
+are skipped, rather than claiming meaningful partial coverage.
+
+Timed runs clone each prepared destination outside their measured
+interval, run only one `adjoin_outer_approximation` per clone, and
+exclude clone/destruction and recombination. The production predicate
+preparation, when applicable, remains inside the operation. Samples
+are independently calibrated for each backend and initial coverage;
+the ROBDD manager is reused (warm/shared). The existing
+`--max-depth-bits` budget applies to this experiment.
+
+A short two-geometry 2D/f2 verification-only smoke is added to the
+Ubuntu Release workflow, after the benchmarks are built. It does
+not enforce machine-specific performance thresholds.
+
+**Interpretation:** the reported empty/partial/full ratios are
+state-dependent operation timings, *not an A/B old-versus-new
+implementation speedup*. The presence of root-alignment, manager
+and predicate preparation overhead limits what can be inferred from
+full-coverage cases. No performance result is recorded until a
+compiled Release run returns actual measurements. Cross-platform
+compilation and Ubuntu verification are pending CI.
+
+See README for commands including a bounded 4D/f3 five-shape run.

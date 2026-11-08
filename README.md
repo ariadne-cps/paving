@@ -396,6 +396,50 @@ control the workload. Times are medians in nanoseconds per query,
 calibrated separately by category/implementation. This benchmark is not
 registered with CTest; invoke it explicitly when needed.
 
+
+### Outer approximation with pre-existing geometric coverage
+
+Use the opt-in `--compare-outer-overlap` mode of
+`benchmark_paving_backends` to measure full outer-approximation
+operations on three kinds of destination: **empty**, **partial** (every
+second compact leaf of an independently classified approximation), and
+**full** (the enclosing search-root cell already enabled). The same
+shape, grid and fineness are used in all three scenarios.
+
+The benchmark verifies each scenario against a separate reference
+constructed using the original virtual `separated()` and `covers()`
+classification, comparing both backend outputs by bidirectional
+geometric containment. It skips a scenario family when fewer than two
+reference leaves exist. `--verify-only` runs these checks without
+timings. No speedup is inferred from correctness alone.
+
+```sh
+cmake --build build-release --target benchmark_paving_backends
+./build-release/benchmarks/benchmark_paving_backends \
+  --compare-outer-overlap --verify-only \
+  --dimensions 2 --finenesses 2 --shapes aligned-box,ball \
+  --max-depth-bits 8 --concurrency 0
+
+./build-release/benchmarks/benchmark_paving_backends \
+  --compare-outer-overlap \
+  --dimensions 4 --finenesses 3 --max-depth-bits 28 \
+  --shapes aligned-box,rotated-box,aligned-ellipsoid,rotated-ellipsoid,ball \
+  --samples 7 --min-sample-ms 12 --max-iterations 128 \
+  --concurrency 0
+```
+
+Each independently calibrated sample times only the in-place outer
+approximation call. Destination copies are prepared outside the timed
+interval, while preparation of the effective-set geometric predicate
+is included within the timed call. Recombination, setup and destruction
+are excluded equally. The ROBDD manager is reused and warmed, not
+cold-started. Outputs `OUTER_OVERLAP_VERIFIED`,
+`OUTER_OVERLAP_TIMING` and `OUTER_OVERLAP_RELATIVE` separate
+semantic checks, measured timings and ratios to the initially empty
+case. Such ratios compare destination **states**, not the old and new
+algorithm, and are not automatically attributable to the recent
+early-containment optimization.
+
 ### Concurrent adjoin (initial correctness milestone)
 
 Both `BinaryTreePaving` and `RobddPaving` serialize concurrent `adjoin(GridCell)`, `adjoin(std::vector<GridCell>)`, and same-backend `adjoin(SubPavingInterface)` calls on one destination. A vector batch holds one paving mutex for the full operation. The tree backend additionally locks both owning tree pavings in a deadlock-safe order when merging them; the ROBDD backend snapshots the source before acquiring the destination mutex. Independently owned sources are supported; borrowed source views must remain valid and stable during the operation.

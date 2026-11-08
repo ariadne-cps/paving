@@ -18,6 +18,7 @@
 #include "threading/thread_manager.hpp"
 
 #include <algorithm>
+#include <optional>
 #include <cmath>
 #include <functional>
 #include <fstream>
@@ -64,6 +65,7 @@ struct Selection {
     bool tree_iterator_cost=false;
     bool outer_phases=false;
     bool compare_outer_preparation=false;
+    bool compare_outer_overlap=false;
     bool outer_preparation_verify_only=false;
     std::string outer_trace_prefix;
 };
@@ -195,7 +197,11 @@ List<ArgumentParser> parsers(Selection& selection) {
         "Compare full separated(), prepared join and compiled outer predicates",
         [&selection] { selection.compare_outer_preparation=true; }));
     result.append(make_unvalued_argument_parser(
-        "","verify-only","Check prepared predicates without timing",
+        "","compare-outer-overlap",
+        "Compare outer approximation on empty, partially covered and full pavings",
+        [&selection] { selection.compare_outer_overlap=true; }));
+    result.append(make_unvalued_argument_parser(
+        "","verify-only","Check opt-in outer workload correctness without timing",
         [&selection] { selection.outer_preparation_verify_only=true; }));
     result.append(make_valued_argument_parser(
         "","outer-trace-prefix","Export exact adaptive d4/f3 query boxes to PREFIX-SHAPE-d4-f3.trace",
@@ -1039,6 +1045,182 @@ void report_outer_preparation(
         " Medians are independently calibrated, not paired.")
 }
 
+
+struct OuterOverlapTiming {
+    std::string scenario;
+    Timing tree;
+    Timing robdd;
+};
+
+struct OuterOverlapResult {
+    std::string shape;
+    unsigned dimension;
+    unsigned fineness;
+    SizeType reference_leaves;
+    SizeType partial_seed_leaves;
+    std::vector<OuterOverlapTiming> timings;
+};
+
+void benchmark_outer_overlap(
+        Selection const& selection,std::string const& shape,
+        unsigned dimension,unsigned fineness,
+        std::vector<OuterOverlapResult>& results) {
+    Grid grid(dimension);
+    EffectiveConstrainedImageSet compact=make_shape(dimension,shape);
+    EffectiveEuclideanCompactSetInterface const& set=compact;
+
+    // Independent geometric oracle: classify every candidate using the
+    // original virtual separated/covers path, NOT either paving backend.
+    OuterSelection reference_cells=select_outer_cells(set,grid,fineness,false);
+    BinaryTreePaving reference(grid);
+    reference.adjoin(reference_cells.selected);
+    reference.recombine();
+    SizeType const reference_leaves=reference.size();
+    SizeType const minimum=std::max<SizeType>(selection.min_leaves,2u);
+    if(reference_leaves<minimum) {
+        LOGGING_PRINTLN("OUTER_OVERLAP_SKIP shape="<<shape
+            <<" d="<<dimension<<" f="<<fineness
+            <<" leaves="<<reference_leaves<<" min_leaves="<<minimum)
+        return;
+    }
+
+    // Alternating *compact* leaves yields an actual nonempty proper subset
+    // of the same reference approximation, not a shifted/different set.
+    std::vector<GridCell> partial_cells;
+    partial_cells.reserve((reference_leaves+1u)/2u);
+    SizeType ordinal=0u;
+    for(auto it=reference.begin(),end=reference.end();it!=end;++it) {
+        if((ordinal++%2u)==0u) partial_cells.push_back(*it);
+    }
+    if(partial_cells.empty() or partial_cells.size()>=reference_leaves)
+        throw std::runtime_error("partial outer seed is not a proper subset");
+
+    RobddManager manager;
+    GridCell primary(grid,0u,BinaryWord{});
+    OuterOverlapResult result{shape,dimension,fineness,
+                              reference_leaves,partial_cells.size(),{}};
+    for(unsigned scenario=0u;scenario<3u;++scenario) {
+        char const* name=scenario==0u?"empty":
+                         scenario==1u?"partial":"full";
+        BinaryTreePaving initial_tree(grid);
+        RobddPaving initial_robdd(
+            manager,primary,manager.constant(false),0u);
+        if(scenario==1u) {
+            initial_tree.adjoin(partial_cells);
+            initial_robdd.adjoin(partial_cells);
+        } else if(scenario==2u) {
+            // Exactly the geometric search root used by BOTH backends.
+            initial_tree.adjoin(reference_cells.enclosing_cell);
+            initial_robdd.adjoin(reference_cells.enclosing_cell);
+        }
+
+        // Verify that the two independently seeded representations agree.
+        validate_geometry(initial_tree,initial_robdd);
+        BinaryTreePaving expected(reference);
+        if(scenario==2u) expected.adjoin(reference_cells.enclosing_cell);
+        expected.recombine();
+
+        // Compute both candidate unions once outside all timed samples.
+        BinaryTreePaving actual_tree(initial_tree);
+        RobddPaving actual_robdd(initial_robdd);
+        actual_tree.adjoin_outer_approximation(set,fineness);
+        actual_robdd.adjoin_outer_approximation(set,fineness);
+        actual_tree.recombine();
+        actual_robdd.recombine();
+
+        // Each of the three checks is bidirectional geometric inclusion.
+        // The expected result comes from an independently classified
+        // reference, so common backend mistakes cannot self-validate.
+        validate_geometry(expected,actual_tree);
+        validate_geometry(expected,actual_robdd);
+        validate_geometry(actual_tree,actual_robdd);
+        LOGGING_PRINTLN("OUTER_OVERLAP_VERIFIED shape="<<shape
+            <<" d="<<dimension<<" f="<<fineness
+            <<" scenario="<<name
+            <<" reference_leaves="<<reference_leaves
+            <<" partial_seed_leaves="<<partial_cells.size()
+            <<" geometry_matches=true")
+        if(selection.outer_preparation_verify_only) continue;
+
+        // Factories deep-copy the prepared destinations OUTSIDE each
+        // timed chunk. Only adjoin_outer_approximation is timed, not
+        // setup, destruction, reference construction or recombination.
+        // The shared manager is warm, as in existing backend workloads.
+        Timing tree_time=median_mutation_ms(
+            [&] { return std::make_unique<BinaryTreePaving>(initial_tree); },
+            [&](BinaryTreePaving& value) {
+                value.adjoin_outer_approximation(set,fineness);
+            },selection.iterations,selection.samples,
+            selection.min_sample_ms,selection.max_iterations,
+            selection.warmups);
+        Timing robdd_time=median_mutation_ms(
+            [&] { return std::make_unique<RobddPaving>(initial_robdd); },
+            [&](RobddPaving& value) {
+                value.adjoin_outer_approximation(set,fineness);
+            },selection.iterations,selection.samples,
+            selection.min_sample_ms,selection.max_iterations,
+            selection.warmups);
+        result.timings.push_back({name,tree_time,robdd_time});
+    }
+    results.push_back(std::move(result));
+}
+
+void report_outer_overlap(std::vector<OuterOverlapResult> const& results,
+                          Selection const& selection) {
+    if(results.empty())
+        throw std::runtime_error("no nondegenerate outer-overlap cases");
+    if(selection.outer_preparation_verify_only) {
+        LOGGING_PRINTLN("OUTER_OVERLAP_VERIFICATION_COMPLETE cases="
+                        <<results.size()<<" timing=false")
+        return;
+    }
+    LOGGING_PRINTLN("Outer approximation of already populated pavings"
+        " | independently calibrated median ms per mutation")
+    LOGGING_PRINTLN("Empty vs partial vs full reflects INITIAL COVERAGE,"
+        " not speedup relative to the previous implementation.")
+    LOGGING_PRINTLN("Each sample times only the approximation call;"
+        " cloning, reference classification and recombination excluded.")
+    LOGGING_PRINTLN(std::left<<std::setw(21)<<"Shape"
+        <<std::right<<std::setw(4)<<"D"<<std::setw(4)<<"F"
+        <<std::setw(11)<<"Coverage"<<std::setw(14)<<"Tree (ms)"
+        <<std::setw(14)<<"ROBDD (ms)"
+        <<std::setw(13)<<"Tree Iters"<<std::setw(13)<<"BDD Iters")
+    for(auto const& result:results) {
+        if(result.timings.size()!=3u)
+            throw std::runtime_error("missing outer overlap timings");
+        for(auto const& row:result.timings) {
+            LOGGING_PRINTLN(std::left<<std::setw(21)<<result.shape
+                <<std::right<<std::setw(4)<<result.dimension
+                <<std::setw(4)<<result.fineness
+                <<std::setw(11)<<row.scenario
+                <<std::fixed<<std::setprecision(6)
+                <<std::setw(14)<<row.tree.milliseconds
+                <<std::setw(14)<<row.robdd.milliseconds
+                <<std::setw(13)<<row.tree.iterations
+                <<std::setw(13)<<row.robdd.iterations)
+            LOGGING_PRINTLN("OUTER_OVERLAP_TIMING shape="<<result.shape
+                <<" d="<<result.dimension<<" f="<<result.fineness
+                <<" scenario="<<row.scenario
+                <<" tree_ms="<<std::setprecision(9)<<row.tree.milliseconds
+                <<" robdd_ms="<<row.robdd.milliseconds
+                <<" tree_iterations="<<row.tree.iterations
+                <<" robdd_iterations="<<row.robdd.iterations
+                <<" tree_vs_robdd="<<(row.robdd.milliseconds/row.tree.milliseconds)
+                <<" reference_leaves="<<result.reference_leaves
+                <<" partial_seed_leaves="<<result.partial_seed_leaves)
+        }
+        auto const& empty=result.timings[0];
+        for(unsigned i=1u;i<3u;++i) {
+            auto const& row=result.timings[i];
+            LOGGING_PRINTLN("OUTER_OVERLAP_RELATIVE shape="<<result.shape
+                <<" d="<<result.dimension<<" f="<<result.fineness
+                <<" scenario="<<row.scenario
+                <<" empty_over_tree="<<(empty.tree.milliseconds/row.tree.milliseconds)
+                <<" empty_over_robdd="<<(empty.robdd.milliseconds/row.robdd.milliseconds))
+        }
+    }
+}
+
 void export_outer_solver_trace(
         std::string const& prefix,std::string const& shape,
         unsigned dimension,unsigned fineness,
@@ -1482,9 +1664,34 @@ int main(int argc,char const* argv[]) {
         selection.warmups=command_line.warmups();
 
         if(selection.outer_preparation_verify_only
-           and not selection.compare_outer_preparation)
+           and not (selection.compare_outer_preparation or
+                    selection.compare_outer_overlap))
             throw std::invalid_argument(
-                "--verify-only requires --compare-outer-preparation");
+                "--verify-only requires an opt-in outer comparison");
+        if(selection.compare_outer_overlap) {
+            if(selection.compare_outer_preparation or selection.outer_phases
+               or not selection.outer_trace_prefix.empty()
+               or selection.tree_iterator_cost)
+                throw std::invalid_argument(
+                    "--compare-outer-overlap cannot combine with other"
+                    " opt-in outer comparisons or --tree-iterator-cost");
+            std::vector<OuterOverlapResult> rows;
+            for(unsigned d:selection.dimensions) {
+                for(unsigned f:selection.finenesses) {
+                    unsigned long long bits=
+                        (static_cast<unsigned long long>(d)+f)*d;
+                    if(bits>selection.max_depth_bits) {
+                        LOGGING_PRINTLN("OUTER_OVERLAP_SKIP d="<<d<<" f="<<f
+                            <<" bits="<<bits<<" max_bits="<<selection.max_depth_bits)
+                        continue;
+                    }
+                    for(auto const& shape:selection.shapes)
+                        benchmark_outer_overlap(selection,shape,d,f,rows);
+                }
+            }
+            report_outer_overlap(rows,selection);
+            return 0;
+        }
         if(selection.compare_outer_preparation) {
             if(selection.outer_phases
                or not selection.outer_trace_prefix.empty()
