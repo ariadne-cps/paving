@@ -2777,3 +2777,31 @@ retain their geometric roots, inclusion and ROBDD depth. These timing
 measurements are **pre-optimization baseline numbers**, not claimed
 speedups for deferred preparation. CI plus a new Release run are
 required to establish correctness and performance of this change.
+
+ 
+## 2026-11-08 - Geometry-aware backend ratio summary
+
+Extended the opt-in outer-overlap benchmark with an explicit
+ROBDD/BinaryTree report. Its per-case matrix includes geometry,
+dimension and fineness and separate empty/partial/full ratios, with
+their per-case geometric mean and winner counts. Further tables
+aggregate by **geometry type** across all selected dimensions,
+finenesses and coverage states, and by **initial coverage** across
+all geometries/dimension/fineness combinations. A final overall
+geometric mean weights every case once.
+
+All grouped reports include observed minimum/maximum backend ratios,
+tree/ROBDD win and tie counts, and incomplete-calibration counts.
+Machine-readable prefixes are OUTER_OVERLAP_BACKEND_CASE,
+OUTER_OVERLAP_BACKEND_GEOMETRY,
+OUTER_OVERLAP_BACKEND_COVERAGE and
+OUTER_OVERLAP_BACKEND_OVERALL. Ratio >1 means BinaryTree was faster;
+ratio <1 means ROBDD was faster. These are independently measured
+median ratios, not a summed-time ratio, statistical significance
+test or old/new-algorithm speedup.
+
+Ubuntu Release now runs a small two-geometry 2D/f2 measurement
+(with no pass/fail threshold on runtime or ratio) and checks that
+all four summary sections exist, in addition to the existing
+verification-only semantic smoke. Compilation and CI remain pending;
+no new measured timings or backend superiority claims are made.

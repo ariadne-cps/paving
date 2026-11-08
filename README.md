@@ -440,6 +440,23 @@ case. Such ratios compare destination **states**, not the old and new
 algorithm, and are not automatically attributable to the recent
 early-containment optimization.
 
+The benchmark ends with a **ROBDD/BinaryTree summary**: a matrix of
+ratios for every geometry/dimension/fineness with separate `empty`,
+`partial`, `full` columns; a geometric-mean ratio grouped by geometry
+type (across all selected dimensions/finenesses and coverage states);
+a geometric-mean ratio grouped by initial coverage (across all
+geometries); and one equal-case-weighted overall geometric mean.
+The summary also reports minima/maxima, win counts for each backend,
+ties and uncalibrated counts. **Ratio > 1 means BinaryTree faster;
+ratio < 1 means ROBDD faster.** These are geometric means of
+pairwise median ratios, not a ratio of summed runtimes, and do not
+compare different code versions.
+
+The machine-readable summaries are prefixed
+`OUTER_OVERLAP_BACKEND_CASE`, `OUTER_OVERLAP_BACKEND_GEOMETRY`,
+`OUTER_OVERLAP_BACKEND_COVERAGE` and
+`OUTER_OVERLAP_BACKEND_OVERALL`.
+
 Timing rows report `tree_calibration_met` and `robdd_calibration_met`.
 If the iteration cap is reached before `--min-sample-ms`, the benchmark
 also emits `OUTER_OVERLAP_CALIBRATION_WARNING`. This is not a

@@ -18,6 +18,7 @@
 #include "threading/thread_manager.hpp"
 
 #include <algorithm>
+#include <array>
 #include <optional>
 #include <cmath>
 #include <functional>
@@ -1180,6 +1181,158 @@ void benchmark_outer_overlap(
     results.push_back(std::move(result));
 }
 
+
+struct OuterOverlapRatioAggregate {
+    SizeType cases=0u;
+    SizeType tree_wins=0u;
+    SizeType robdd_wins=0u;
+    SizeType ties=0u;
+    SizeType uncalibrated=0u;
+    double sum_log=0.0;
+    double minimum=std::numeric_limits<double>::infinity();
+    double maximum=0.0;
+    std::string min_case;
+    std::string max_case;
+
+    void add(double ratio,std::string const& case_name,bool calibrated) {
+        if(not std::isfinite(ratio) or ratio<=0.0)
+            throw std::runtime_error("invalid overlap backend ratio");
+        ++cases;
+        sum_log+=std::log(ratio);
+        if(ratio<minimum) {minimum=ratio; min_case=case_name;}
+        if(ratio>maximum) {maximum=ratio; max_case=case_name;}
+        if(ratio>1.0) ++tree_wins;
+        else if(ratio<1.0) ++robdd_wins;
+        else ++ties;
+        if(not calibrated) ++uncalibrated;
+    }
+    double geomean() const {
+        if(cases==0u) throw std::runtime_error("empty overlap aggregate");
+        return std::exp(sum_log/static_cast<double>(cases));
+    }
+};
+
+void report_outer_overlap_backend_ratios(
+        std::vector<OuterOverlapResult> const& results) {
+    constexpr std::array<char const*,3> categories{"empty","partial","full"};
+    std::array<OuterOverlapRatioAggregate,3> by_coverage{};
+    std::map<std::string,OuterOverlapRatioAggregate> by_geometry;
+    OuterOverlapRatioAggregate overall;
+
+    LOGGING_PRINTLN(" ")
+    LOGGING_PRINTLN("OUTER OVERLAP BACKEND COMPARISON (ROBDD / BinaryTree)")
+    LOGGING_PRINTLN("Ratio >1: tree faster; <1: ROBDD faster. Ratios use"
+                    " matched initial states, not historical code versions.")
+    LOGGING_PRINTLN("Geometric means weight each shape/dimension/fineness/"
+                    "coverage combination equally.")
+    LOGGING_PRINTLN(std::string(99,'='))
+    LOGGING_PRINTLN(std::left<<std::setw(23)<<"Geometry"
+        <<std::right<<std::setw(4)<<"D"<<std::setw(4)<<"F"
+        <<std::setw(13)<<"Empty"
+        <<std::setw(13)<<"Partial"
+        <<std::setw(13)<<"Full"
+        <<std::setw(13)<<"Geomean"
+        <<std::setw(8)<<"Tree"
+        <<std::setw(8)<<"ROBDD")
+    LOGGING_PRINTLN(std::string(99,'-'))
+    for(auto const& result:results) {
+        if(result.timings.size()!=categories.size())
+            throw std::runtime_error("missing overlap backend timing");
+        std::array<double,3> ratios{};
+        OuterOverlapRatioAggregate row;
+        for(std::size_t i=0u;i<categories.size();++i) {
+            OuterOverlapTiming const& datum=result.timings[i];
+            if(datum.scenario!=categories[i]
+               or not std::isfinite(datum.tree.milliseconds)
+               or not std::isfinite(datum.robdd.milliseconds)
+               or datum.tree.milliseconds<=0.0
+               or datum.robdd.milliseconds<=0.0)
+                throw std::runtime_error("invalid overlap backend timing");
+            double ratio=datum.robdd.milliseconds/datum.tree.milliseconds;
+            std::string case_name=result.shape+"/d"+
+                std::to_string(result.dimension)+"/f"+
+                std::to_string(result.fineness)+"/"+datum.scenario;
+            bool calibrated=datum.tree.calibration_met
+                            and datum.robdd.calibration_met;
+            ratios[i]=ratio;
+            row.add(ratio,case_name,calibrated);
+            by_geometry[result.shape].add(ratio,case_name,calibrated);
+            by_coverage[i].add(ratio,case_name,calibrated);
+            overall.add(ratio,case_name,calibrated);
+        }
+        LOGGING_PRINTLN(std::left<<std::setw(23)<<result.shape
+            <<std::right<<std::setw(4)<<result.dimension
+            <<std::setw(4)<<result.fineness
+            <<std::fixed<<std::setprecision(4)
+            <<std::setw(13)<<ratios[0]
+            <<std::setw(13)<<ratios[1]
+            <<std::setw(13)<<ratios[2]
+            <<std::setw(13)<<row.geomean()
+            <<std::setw(8)<<row.tree_wins
+            <<std::setw(8)<<row.robdd_wins)
+        LOGGING_PRINTLN("OUTER_OVERLAP_BACKEND_CASE shape="<<result.shape
+            <<" d="<<result.dimension<<" f="<<result.fineness
+            <<" empty_ratio="<<std::setprecision(9)<<ratios[0]
+            <<" partial_ratio="<<ratios[1]
+            <<" full_ratio="<<ratios[2]
+            <<" geomean_ratio="<<row.geomean()
+            <<" tree_wins="<<row.tree_wins
+            <<" robdd_wins="<<row.robdd_wins
+            <<" ties="<<row.ties
+            <<" uncalibrated="<<row.uncalibrated)
+    }
+
+    auto header=[&](char const* title) {
+        LOGGING_PRINTLN(" ")
+        LOGGING_PRINTLN(title)
+        LOGGING_PRINTLN(std::string(99,'='))
+        LOGGING_PRINTLN(std::left<<std::setw(23)<<"Group"
+            <<std::right<<std::setw(7)<<"Cases"
+            <<std::setw(13)<<"Geomean"
+            <<std::setw(13)<<"Min"
+            <<std::setw(13)<<"Max"
+            <<std::setw(10)<<"Tree"
+            <<std::setw(10)<<"ROBDD"
+            <<std::setw(10)<<"Ties"
+            <<std::setw(10)<<"Uncal.")
+        LOGGING_PRINTLN(std::string(99,'-'))
+    };
+    auto emit=[&](char const* marker,char const* key,
+                  std::string const& group,OuterOverlapRatioAggregate const& a) {
+        LOGGING_PRINTLN(std::left<<std::setw(23)<<group
+            <<std::right<<std::setw(7)<<a.cases
+            <<std::fixed<<std::setprecision(4)
+            <<std::setw(13)<<a.geomean()
+            <<std::setw(13)<<a.minimum
+            <<std::setw(13)<<a.maximum
+            <<std::setw(10)<<a.tree_wins
+            <<std::setw(10)<<a.robdd_wins
+            <<std::setw(10)<<a.ties
+            <<std::setw(10)<<a.uncalibrated)
+        LOGGING_PRINTLN(marker<<" "<<key<<"="<<group
+            <<" cases="<<a.cases
+            <<" geomean_ratio="<<std::setprecision(9)<<a.geomean()
+            <<" min_ratio="<<a.minimum<<" min_case="<<a.min_case
+            <<" max_ratio="<<a.maximum<<" max_case="<<a.max_case
+            <<" tree_wins="<<a.tree_wins
+            <<" robdd_wins="<<a.robdd_wins
+            <<" ties="<<a.ties
+            <<" uncalibrated="<<a.uncalibrated)
+    };
+    header("AGGREGATE BY GEOMETRY (all selected dimensions, finenesses, coverage)");
+    for(auto const& entry:by_geometry)
+        emit("OUTER_OVERLAP_BACKEND_GEOMETRY","shape",entry.first,entry.second);
+    header("AGGREGATE BY INITIAL COVERAGE (all selected geometries, d, f)");
+    for(std::size_t i=0u;i<categories.size();++i)
+        if(by_coverage[i].cases!=0u)
+            emit("OUTER_OVERLAP_BACKEND_COVERAGE","scenario",
+                 categories[i],by_coverage[i]);
+    header("OVERALL (equal case weighting)");
+    emit("OUTER_OVERLAP_BACKEND_OVERALL","scope","all",overall);
+    LOGGING_PRINTLN("Summaries use independently calibrated sample medians;"
+                    " no statistical significance is claimed.")
+}
+
 void report_outer_overlap(std::vector<OuterOverlapResult> const& results,
                           Selection const& selection) {
     if(results.empty())
@@ -1236,6 +1389,7 @@ void report_outer_overlap(std::vector<OuterOverlapResult> const& results,
                 <<" empty_over_robdd="<<(empty.robdd.milliseconds/row.robdd.milliseconds))
         }
     }
+    report_outer_overlap_backend_ratios(results);
 }
 
 void export_outer_solver_trace(
