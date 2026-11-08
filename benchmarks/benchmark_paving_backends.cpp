@@ -14,6 +14,8 @@
 #include "set/function_set.hpp"
 #include "function/functional.hpp"
 #include "logging/logging.hpp"
+#include "threading/thread_manager.hpp"
+#include "threading/threading_command_line_interface.hpp"
 #include "ariadne-benchmarking.hpp"
 #include "threading/thread_manager.hpp"
 
@@ -1863,11 +1865,12 @@ void report(std::vector<Datum> const& data,
 } // namespace
 
 int main(int argc,char const* argv[]) {
-    // Benchmarking::CommandLine configures threading and logging.
     try {
         Selection selection;
         verify_reachable_node_oracle();
         Bench::CommandLine command_line;
+        ThreadManager::instance();
+        command_line.add(threading_command_line_contribution());
         command_line.add(CommandLineContribution(
             "paving-backends-benchmark",parsers(selection)));
         if(not command_line.acquire(argc,argv))return 0;

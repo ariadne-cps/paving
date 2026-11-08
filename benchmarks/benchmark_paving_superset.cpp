@@ -9,6 +9,8 @@
 #include "paving/robdd_paving.hpp"
 #include "paving/grid_cell_alignment.hpp"
 #include "logging/logging.hpp"
+#include "threading/thread_manager.hpp"
+#include "threading/threading_command_line_interface.hpp"
 #include "ariadne-benchmarking.hpp"
 #include "threading/thread_manager.hpp"
 
@@ -327,6 +329,8 @@ int main(int argc,char const* argv[]) {
     try {
         Selection selection;
         Bench::CommandLine command_line;
+        ThreadManager::instance();
+        command_line.add(threading_command_line_contribution());
         command_line.add(CommandLineContribution(
             "paving-superset-benchmark",parsers(selection)));
         if(not command_line.acquire(argc,argv))return 0;
