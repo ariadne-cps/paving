@@ -2690,3 +2690,45 @@ compiled Release run returns actual measurements. Cross-platform
 compilation and Ubuntu verification are pending CI.
 
 See README for commands including a bounded 4D/f3 five-shape run.
+
+
+## 2026-11-08 - Operator d4/f3 overlap results and calibration limits
+
+An operator supplied one Release run of the full five-shape
+--compare-outer-overlap workload, dimension 4, fineness 3, 7 samples,
+min-sample-ms 12, max-iterations 128, concurrency 0. All fifteen
+scenario/backend pairings reported geometry_matches=true.
+These figures compare different initial destinations, **not the
+predicate-first code versus the early-pruning optimization**.
+
+| Shape | Reference leaves | Tree empty ms | Tree partial ms | Tree saved | ROBDD empty ms | ROBDD partial ms | ROBDD saved |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| aligned-box | 416 | 33.381 | 25.072 | 24.9% | 34.733 | 26.490 | 23.7% |
+| rotated-box | 360 | 156.871 | 119.909 | 23.6% | 158.085 | 121.176 | 23.3% |
+| aligned-ellipsoid | 96 | 323.464 | 297.648 | 8.0% | 326.503 | 300.213 | 8.1% |
+| rotated-ellipsoid | 104 | 540.443 | 503.763 | 6.8% | 553.028 | 505.120 | 8.7% |
+| ball | 80 | 399.695 | 347.452 | 13.1% | 401.593 | 351.722 | 12.4% |
+
+Partial initial state uses every second reference compact leaf (half
+the leaf count, not half the geometric volume). Measured reductions
+are 6.8%-24.9% for tree, 8.1%-23.7% for ROBDD. Tree and ROBDD
+are close on these examples: the ROBDD/tree median ratio ranges
+approximately 1.003-1.057 for empty/partial configurations. Without
+between-run variance, this does not establish a reliable relative
+backend advantage.
+
+Full initial coverage produced 0.018-0.030 ms operations, versus
+tens to hundreds of milliseconds for initially empty pavings.
+However the 128-iteration cap was insufficient to meet the requested
+12 ms minimum sample duration: 128 such operations occupy only
+about 2.2-3.8 ms. The very large full/empty ratios thus describe
+state-dependent avoided work, not a measured software speedup;
+microsecond-level backend ratios also warrant better calibration.
+
+The benchmark now records whether mutation timing reached its
+minimum calibration duration and emits explicit diagnostics on a
+shortfall. The README raises the recommended maximum to 2048 to
+calibrate fast full-coverage cases without unnecessarily repeating
+already-slow empty/partial calls. No production algorithm changed.
+CI/compilation of this reporting improvement and any new measured
+timings remain pending.

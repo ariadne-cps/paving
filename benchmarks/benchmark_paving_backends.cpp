@@ -270,7 +270,13 @@ EffectiveConstrainedImageSet make_shape(
 }
 
 using Bench::keep_alive;
-struct Timing { double milliseconds; unsigned iterations; Bench::Statistics statistics; };
+// Calibration can stop at the iteration cap before the requested duration.
+struct Timing {
+    double milliseconds;
+    unsigned iterations;
+    Bench::Statistics statistics;
+    bool calibration_met=true;
+};
 
 template<class Operation>
 Timing median_ms(Operation&& operation,unsigned iterations,unsigned samples,
@@ -335,7 +341,8 @@ Timing median_mutation_ms(Factory&& factory,Mutate&& mutate,
     auto stats=Bench::summarize(measured);
     if(!std::isfinite(stats.median)||stats.median<=0.0)
         throw std::runtime_error("invalid isolated mutation timing");
-    return {stats.median/1e6,iterations,stats};
+    return {stats.median/1e6,iterations,stats,
+        elapsed>=static_cast<double>(minimum_ms)*1e6};
 }
 
 SizeType count_tree_nodes(BinaryTreeNode const& node) {
@@ -1160,6 +1167,14 @@ void benchmark_outer_overlap(
             },selection.iterations,selection.samples,
             selection.min_sample_ms,selection.max_iterations,
             selection.warmups);
+        if(not tree_time.calibration_met or not robdd_time.calibration_met)
+            LOGGING_PRINTLN("OUTER_OVERLAP_CALIBRATION_WARNING shape="<<shape
+                <<" d="<<dimension<<" f="<<fineness
+                <<" scenario="<<name
+                <<" max_iterations="<<selection.max_iterations
+                <<" min_sample_ms="<<selection.min_sample_ms
+                <<" tree_met="<<(tree_time.calibration_met?"true":"false")
+                <<" robdd_met="<<(robdd_time.calibration_met?"true":"false"))
         result.timings.push_back({name,tree_time,robdd_time});
     }
     results.push_back(std::move(result));
@@ -1205,6 +1220,8 @@ void report_outer_overlap(std::vector<OuterOverlapResult> const& results,
                 <<" robdd_ms="<<row.robdd.milliseconds
                 <<" tree_iterations="<<row.tree.iterations
                 <<" robdd_iterations="<<row.robdd.iterations
+                <<" tree_calibration_met="<<(row.tree.calibration_met?"true":"false")
+                <<" robdd_calibration_met="<<(row.robdd.calibration_met?"true":"false")
                 <<" tree_vs_robdd="<<(row.robdd.milliseconds/row.tree.milliseconds)
                 <<" reference_leaves="<<result.reference_leaves
                 <<" partial_seed_leaves="<<result.partial_seed_leaves)

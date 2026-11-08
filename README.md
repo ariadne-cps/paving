@@ -424,7 +424,7 @@ cmake --build build-release --target benchmark_paving_backends
   --compare-outer-overlap \
   --dimensions 4 --finenesses 3 --max-depth-bits 28 \
   --shapes aligned-box,rotated-box,aligned-ellipsoid,rotated-ellipsoid,ball \
-  --samples 7 --min-sample-ms 12 --max-iterations 128 \
+  --samples 7 --min-sample-ms 12 --max-iterations 2048 \
   --concurrency 0
 ```
 
@@ -439,6 +439,14 @@ semantic checks, measured timings and ratios to the initially empty
 case. Such ratios compare destination **states**, not the old and new
 algorithm, and are not automatically attributable to the recent
 early-containment optimization.
+
+Timing rows report `tree_calibration_met` and `robdd_calibration_met`.
+If the iteration cap is reached before `--min-sample-ms`, the benchmark
+also emits `OUTER_OVERLAP_CALIBRATION_WARNING`. This is not a
+correctness failure, but short samples make microsecond-level ratios
+less reliable. Increasing `--max-iterations` permits the fast full
+scenario to reach the minimum duration without forcing expensive
+empty/partial scenarios to run longer.
 
 ### Concurrent adjoin (initial correctness milestone)
 
