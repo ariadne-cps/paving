@@ -2458,3 +2458,100 @@ benchmark end-to-end speed and consider a production change.
 
 No README, CI benchmark workflow, or production solver algorithm
 change follows from these measurements alone.
+
+## 2026-11-08 - Benchmark-only preparation of outer separation predicates
+
+**Motivation and baseline.** An independent five-shape d4/f3
+`--outer-phases` replay reported approximately
+95.9%–100.8% as much measured time in predicate-only sweeps
+as in independent full outer-selection sweeps, while pure cell
+traversal took only 1.4–4.2 ms per shape. Those workloads
+overlap and are *not* additive, but they establish that
+optimization of BinaryTree/ROBDD traversal alone is unlikely
+to materially accelerate outer approximation here.
+The existing `ConstrainedImageSet::separated(bx,Effort)`
+reconstructs the joined image/constraint function, the
+constraint bounds and a solver for each cell query.
+
+**Diagnostic implementation.** Extend the **existing**
+`benchmark_paving_backends` with opt-in
+`--compare-outer-preparation` and `--verify-only`
+modes (the latter only valid with the former). They require
+`--dimensions 4 --finenesses 3 --max-depth-bits 28`
+and run over all five geometry families by default. The
+experiment uses the same recorded adaptive outer-selection
+boxes and order as `--outer-phases`, while keeping
+the actual paving library, its backends and the `set`
+library **unchanged**.
+
+The three measured predicate workloads are:
+
+1. **Baseline:** the actual virtual `set.separated(box)`
+   path, with its normal effort dispatch and per-query
+   construction of combined function/bounds/solver.
+2. **Joined:** create one immutable joined validated
+   image/constraint function and static constraint bounds
+   per full replay, then call the unchanged production
+   `ConstraintSolver::reduce()` on each query.
+3. **Compiled:** additionally create a specialized
+   `Vector<ValidatedProcedure>` once per full replay;
+   use a benchmark-only reproduction of the P6 hull/guard/box
+   loop with that procedure and per-query certified-containment
+   state. This variant is not a new solver API.
+
+**Timing and correctness.** Each candidate constructs its
+preparation inside **every calibrated timed full-trace
+sweep**, so setup is included. The trace generation and
+cell-box construction are equally excluded from all three
+sweeps; comparisons are on whole predicate replays,
+not on an isolated contractor microbenchmark. A separate
+pre-timing check compares all three separation decisions
+with the recorded paving bits and checks exact equality
+of the *full contracted boxes* between the Joined solver
+and Compiled diagnostic on every query. The original
+selected cell trace was already checked against the two
+concrete backends by the existing benchmark mechanism.
+The new reports use `LOGGING_PRINTLN` and Numeric-style
+aligned tables: `OUTER_PREPARATION_VERIFIED`,
+`OUTER_PREPARATION_COMPARE`, and
+`OUTER_PREPARATION_AGGREGATE`. The aggregate
+reports both geometric-mean P1-relative speedups
+(equal shape weight) and ratio of independently
+sampled shape medians (workload weight).
+
+```sh
+git pull --ff-only
+cmake --build build-release --target benchmark_paving_backends
+
+./build-release/benchmarks/benchmark_paving_backends \
+  --dimensions 4 --finenesses 3 --max-depth-bits 28 \
+  --shapes aligned-box,rotated-box,aligned-ellipsoid,rotated-ellipsoid,ball \
+  --compare-outer-preparation --verify-only \
+  --no-retention --concurrency 0
+
+./build-release/benchmarks/benchmark_paving_backends \
+  --dimensions 4 --finenesses 3 --max-depth-bits 28 \
+  --shapes aligned-box,rotated-box,aligned-ellipsoid,rotated-ellipsoid,ball \
+  --compare-outer-preparation \
+  --samples 7 --min-sample-ms 12 \
+  --no-retention --concurrency 0
+```
+
+**Build coverage:** Ubuntu and macOS Release CI explicitly
+build the standalone `benchmark_paving_backends`
+target, which ordinary library builds omit. This protects
+against specialized-vector API and compiler-warning failures,
+but does not run the expensive experimental five-shape trace
+on CI.
+
+**Validation status:** code and benchmark registration changed,
+but no complete CI/local C++ build or operator replay of
+this revision has yet been observed. All claimed speedups
+are *hypotheses*, not measurements. A change to production
+`set` or paving APIs is prohibited until equivalence
+and performance are demonstrated across all five shapes.
+The compiled variant is a diagnostic that must remain
+synchronized with P6's exact contractor semantics; it is not
+a proof of general equivalence for arbitrary functions or
+precision/lifetime settings.
+

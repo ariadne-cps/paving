@@ -6,7 +6,8 @@
  *  This file is part of Ariadne Paving, GPL-3.0-or-later.
  ****************************************************************************/
 
-#include "paving/binary_tree_paving.hpp"
+#include "function/procedure.hpp"
+#include "constraint-solving/constraint_solver.hpp"
 #include "paving/binary_tree_paving.hpp"
 #include "paving/robdd_paving.hpp"
 #include "paving/paving_cell_operations.hpp"
@@ -57,6 +58,8 @@ struct Selection {
     bool run_retention=true;
     bool tree_iterator_cost=false;
     bool outer_phases=false;
+    bool compare_outer_preparation=false;
+    bool outer_preparation_verify_only=false;
     std::string outer_trace_prefix;
 };
 
@@ -182,6 +185,13 @@ List<ArgumentParser> parsers(Selection& selection) {
     result.append(make_unvalued_argument_parser(
         "","outer-phases","Profile geometric outer classification versus predicate calls and cell traversal",
         [&selection] { selection.outer_phases=true; }));
+    result.append(make_unvalued_argument_parser(
+        "","compare-outer-preparation",
+        "Compare full separated(), prepared join and compiled outer predicates",
+        [&selection] { selection.compare_outer_preparation=true; }));
+    result.append(make_unvalued_argument_parser(
+        "","verify-only","Check prepared predicates without timing",
+        [&selection] { selection.outer_preparation_verify_only=true; }));
     result.append(make_valued_argument_parser(
         "","outer-trace-prefix","Export exact adaptive d4/f3 query boxes to PREFIX-SHAPE-d4-f3.trace",
         [&selection](String const& value)->VoidFunction {
@@ -849,6 +859,240 @@ SizeType replay_outer_geometry(OuterSelection const& reference,
 }
 
 
+// Experimental preparations at the set/paving boundary; the real
+// set::separated() and paving backends remain unchanged. A new context
+// is constructed *inside every timed full-trace sweep* so preparation
+// cost is accounted for, rather than hidden in a warm-cache estimate.
+struct OuterPredicateContext {
+    UpperBoxType domain;
+    ValidatedVectorMultivariateFunction function;
+    ExactBoxType bounds;
+    explicit OuterPredicateContext(EffectiveConstrainedImageSet const& set)
+        : domain(over_approximation(set.domain()))
+        , function(join(set.function(),set.constraint_function()))
+        , bounds(ExactBoxType(over_approximation(set.constraint_bounds()))) { }
+
+    ExactBoxType codomain(ExactBoxType const& box) const {
+        return product(box,bounds);
+    }
+};
+
+// Frozen benchmark-only reproduction of production P6 reduce() with a
+// caller-owned compiled hull procedure. Keep the same hull/box order,
+// per-call containment certificates, empty check and width-stop test.
+// Every result is compared with production's exact *contracted box*.
+void reduce_prepared_outer(
+        UpperBoxType& domain,OuterPredicateContext const& context,
+        Vector<ValidatedProcedure> const& procedure,
+        ExactBoxType const& codomain) {
+    ConstraintSolver solver;
+    const ExactDouble MINIMUM_REDUCTION=0.75_x;
+    if(definitely(domain.is_empty())) return;
+    std::vector<Bool> certified(codomain.size(),false);
+    FloatDPUpperBound magnitude={0u,dp};
+    for(SizeType j=0u;j<domain.size();++j) magnitude+=domain[j].width();
+    FloatDPUpperBound old_magnitude=magnitude;
+    do {
+        solver.hull_reduce(domain,procedure,codomain);
+        if(definitely(domain.is_empty())) return;
+        for(SizeType i=0u;i<codomain.size();++i) {
+            if(certified[i]) continue;
+            if(definitely(subset(
+                    Ariadne::apply(context.function[i],domain),
+                    codomain[i]))) {
+                certified[i]=true;
+                continue;
+            }
+            for(SizeType j=0u;j<domain.size();++j) {
+                solver.box_reduce(domain,context.function[i],codomain[i],j);
+                if(definitely(domain.is_empty())) return;
+            }
+        }
+        old_magnitude=magnitude;
+        magnitude=0u;
+        for(SizeType j=0u;j<domain.size();++j) magnitude+=domain[j].width();
+    } while(magnitude.raw()<mul(
+        near,old_magnitude.raw(),FloatDP(MINIMUM_REDUCTION,dp)));
+}
+
+SizeType replay_outer_joined(OuterPredicateContext const& context,
+                             std::vector<OuterTraceEntry> const& trace) {
+    ConstraintSolver solver;
+    SizeType checksum=0u;
+    for(OuterTraceEntry const& entry:trace) {
+        UpperBoxType domain=context.domain;
+        solver.reduce(domain,context.function,context.codomain(entry.box));
+        checksum+=static_cast<SizeType>(definitely(domain.is_empty()));
+    }
+    return checksum;
+}
+
+SizeType replay_outer_compiled(
+        OuterPredicateContext const& context,
+        Vector<ValidatedProcedure> const& procedure,
+        std::vector<OuterTraceEntry> const& trace) {
+    SizeType checksum=0u;
+    for(OuterTraceEntry const& entry:trace) {
+        UpperBoxType domain=context.domain;
+        reduce_prepared_outer(
+            domain,context,procedure,context.codomain(entry.box));
+        checksum+=static_cast<SizeType>(definitely(domain.is_empty()));
+    }
+    return checksum;
+}
+
+struct OuterPreparationResult {
+    std::string shape;
+    SizeType queries=0u;
+    SizeType separated=0u;
+    double baseline=0.0;
+    double joined=0.0;
+    double compiled=0.0;
+};
+
+OuterPreparationResult benchmark_outer_preparation(
+        Selection const& selection,std::string const& shape) {
+    constexpr unsigned dimension=4u;
+    constexpr unsigned fineness=3u;
+    Grid grid(dimension);
+    EffectiveConstrainedImageSet compact=make_shape(dimension,shape);
+    EffectiveEuclideanCompactSetInterface const& set=compact;
+    OuterSelection const reference=select_outer_cells(
+        set,grid,fineness,true);
+    if(reference.visited!=reference.trace.size()
+       or reference.covers_calls!=0u or reference.selected.empty())
+        throw std::runtime_error("inconsistent prepared outer trace");
+
+    OuterPredicateContext const context(compact);
+    Vector<ValidatedProcedure> const procedure(context.function);
+    ConstraintSolver solver;
+    SizeType separated=0u;
+    for(SizeType q=0u;q<reference.trace.size();++q) {
+        OuterTraceEntry const& entry=reference.trace[q];
+        Bool const original=definitely(set.separated(entry.box));
+        ExactBoxType const codomain=context.codomain(entry.box);
+        UpperBoxType joined=context.domain;
+        solver.reduce(joined,context.function,codomain);
+        UpperBoxType compiled=context.domain;
+        reduce_prepared_outer(compiled,context,procedure,codomain);
+        if(original!=entry.separated
+           or original!=definitely(joined.is_empty())
+           or original!=definitely(compiled.is_empty())
+           or not same(joined,compiled))
+            throw std::runtime_error(
+                "outer prepared-predicate mismatch shape="+shape
+                +" query="+std::to_string(q));
+        separated+=static_cast<SizeType>(original);
+    }
+    LOGGING_PRINTLN("OUTER_PREPARATION_VERIFIED shape="<<shape
+        <<" d=4 f=3 queries="<<reference.visited
+        <<" selected="<<reference.selected.size()
+        <<" separated="<<separated
+        <<" joined_equal=true compiled_equal=true"
+        <<" exact_contracted_boxes_equal=true")
+    OuterPreparationResult row;
+    row.shape=shape;
+    row.queries=reference.visited;
+    row.separated=separated;
+    if(selection.outer_preparation_verify_only) return row;
+
+    auto baseline=[&](unsigned) {
+        return replay_outer_predicates(set,reference.trace);
+    };
+    auto joined=[&](unsigned) {
+        OuterPredicateContext const data(compact);
+        return replay_outer_joined(data,reference.trace);
+    };
+    auto compiled=[&](unsigned) {
+        OuterPredicateContext const data(compact);
+        Vector<ValidatedProcedure> const hull(data.function);
+        return replay_outer_compiled(data,hull,reference.trace);
+    };
+    if(baseline(0u)!=separated or joined(0u)!=separated
+       or compiled(0u)!=separated)
+        throw std::runtime_error("outer preparation timing checksum mismatch");
+
+    Timing const t0=median_ms(baseline,selection.iterations,
+        selection.samples,selection.min_sample_ms,selection.max_iterations);
+    Timing const t1=median_ms(joined,selection.iterations,
+        selection.samples,selection.min_sample_ms,selection.max_iterations);
+    Timing const t2=median_ms(compiled,selection.iterations,
+        selection.samples,selection.min_sample_ms,selection.max_iterations);
+    row.baseline=t0.milliseconds;
+    row.joined=t1.milliseconds;
+    row.compiled=t2.milliseconds;
+    for(double ms:{row.baseline,row.joined,row.compiled})
+        if(not std::isfinite(ms) or ms<=0.0)
+            throw std::runtime_error("invalid outer preparation timing");
+    LOGGING_PRINTLN("OUTER_PREPARATION_COMPARE shape="<<shape
+        <<" queries="<<row.queries
+        <<" baseline_ms="<<std::fixed<<std::setprecision(6)<<row.baseline
+        <<" joined_ms="<<row.joined
+        <<" compiled_ms="<<row.compiled
+        <<" joined_speedup="<<(row.baseline/row.joined)
+        <<" compiled_speedup="<<(row.baseline/row.compiled)
+        <<" preparation_in_timed_sweep=true")
+    return row;
+}
+
+void report_outer_preparation(
+        Selection const& selection,
+        std::vector<OuterPreparationResult> const& rows) {
+    if(rows.empty()) throw std::runtime_error("no outer preparation shapes");
+    LOGGING_PRINTLN(" ")
+    LOGGING_PRINTLN("Paving separated() preparation | d=4 f=3"
+        <<" | samples="<<selection.samples)
+    LOGGING_PRINTLN("Baseline uses actual set.separated(); Joined reuses"
+        " the combined function and constraint bounds; Compiled also"
+        " reuses hull instructions. Preparation INCLUDED per sweep.")
+    if(selection.outer_preparation_verify_only) {
+        LOGGING_PRINTLN("Correctness-only replay; timing not collected.")
+        return;
+    }
+    LOGGING_PRINTLN(std::string(102u,'='))
+    LOGGING_PRINTLN(std::left<<std::setw(22)<<"Shape"
+        <<std::right<<std::setw(16)<<"Baseline (ms)"
+        <<std::setw(16)<<"Joined (ms)"
+        <<std::setw(16)<<"Compiled (ms)"
+        <<std::setw(16)<<"Joined/base"
+        <<std::setw(16)<<"Compiled/base")
+    LOGGING_PRINTLN(std::string(102u,'-'))
+    double sum_base=0.0,sum_join=0.0,sum_comp=0.0;
+    double log_join=0.0,log_comp=0.0;
+    SizeType all_queries=0u;
+    for(auto const& row:rows) {
+        sum_base+=row.baseline;
+        sum_join+=row.joined;
+        sum_comp+=row.compiled;
+        log_join+=std::log(row.baseline/row.joined);
+        log_comp+=std::log(row.baseline/row.compiled);
+        all_queries+=row.queries;
+        LOGGING_PRINTLN(std::left<<std::setw(22)<<row.shape
+            <<std::right<<std::fixed<<std::setprecision(4)
+            <<std::setw(16)<<row.baseline
+            <<std::setw(16)<<row.joined
+            <<std::setw(16)<<row.compiled
+            <<std::setw(15)<<(row.baseline/row.joined)<<"x"
+            <<std::setw(15)<<(row.baseline/row.compiled)<<"x")
+    }
+    LOGGING_PRINTLN(std::string(102u,'='))
+    LOGGING_PRINTLN("OUTER_PREPARATION_AGGREGATE shapes="<<rows.size()
+        <<" queries="<<all_queries
+        <<" baseline_sum_ms="<<std::fixed<<std::setprecision(6)<<sum_base
+        <<" joined_sum_ms="<<sum_join
+        <<" compiled_sum_ms="<<sum_comp
+        <<" joined_total_speedup="<<(sum_base/sum_join)
+        <<" compiled_total_speedup="<<(sum_base/sum_comp)
+        <<" joined_geomean_speedup="
+            <<std::exp(log_join/static_cast<double>(rows.size()))
+        <<" compiled_geomean_speedup="
+            <<std::exp(log_comp/static_cast<double>(rows.size()))
+        <<" preparation_in_timed_sweep=true")
+    LOGGING_PRINTLN("Input trace box construction and grid traversal"
+        " are excluded equally from all three timed predicate sweeps."
+        " Medians are independently calibrated, not paired.")
+}
+
 void export_outer_solver_trace(
         std::string const& prefix,std::string const& shape,
         unsigned dimension,unsigned fineness,
@@ -1303,6 +1547,31 @@ int main(int argc,char const* argv[]) {
         for (int i=0;i<argc;++i) { args.append(String(argv[i])); }
         if(not command_line.acquire(args)) {
             return CLI::requests_help(args)?0:1;
+        }
+
+        if(selection.outer_preparation_verify_only
+           and not selection.compare_outer_preparation)
+            throw std::invalid_argument(
+                "--verify-only requires --compare-outer-preparation");
+        if(selection.compare_outer_preparation) {
+            if(selection.outer_phases
+               or not selection.outer_trace_prefix.empty()
+               or selection.dimensions!=std::vector<unsigned>{4u}
+               or selection.finenesses!=std::vector<unsigned>{3u}
+               or selection.max_depth_bits<28u)
+                throw std::invalid_argument(
+                    "--compare-outer-preparation requires --dimensions 4"
+                    " --finenesses 3 --max-depth-bits 28; cannot combine"
+                    " with --outer-phases or --outer-trace-prefix");
+            std::vector<OuterPreparationResult> rows;
+            rows.reserve(selection.shapes.size());
+            for(auto const& shape:selection.shapes) {
+                LOGGING_PRINTLN("Measuring outer preparation: "<<shape<<" ...")
+                rows.push_back(benchmark_outer_preparation(selection,shape));
+                LOGGING_PRINTLN("Completed outer preparation: "<<shape)
+            }
+            report_outer_preparation(selection,rows);
+            return 0;
         }
 
         if(not selection.outer_trace_prefix.empty()) {
