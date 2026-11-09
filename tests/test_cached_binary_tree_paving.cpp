@@ -28,6 +28,46 @@ class TestCachedBinaryTreePaving : public Ariadne::Testing::ContextFixture {
   public:
     using ContextFixture::ContextFixture;
 
+    Void test_polymorphic_backend_and_automatic_cache() {
+        Grid grid(1u);
+        GridCell root(grid,0u,BinaryWord{});
+        Paving handle(new CachedBinaryTreePaving(grid,false,true));
+        auto& cached=dynamic_cast<CachedBinaryTreePaving&>(
+            static_cast<PavingInterface&>(handle));
+        ARIADNE_TESTING_PROVE(not cached.has_cache());
+        handle.adjoin(root.split(false));
+        ARIADNE_TESTING_PROVE(not cached.has_cache());
+        ARIADNE_TESTING_PROVE(handle.superset(root.split(false)));
+        ARIADNE_TESTING_PROVE(cached.has_cache());
+        Paving clone(handle);
+        auto& cloned=dynamic_cast<CachedBinaryTreePaving&>(
+            static_cast<PavingInterface&>(clone));
+        ARIADNE_TESTING_PROVE(cloned.automatic_cache());
+        ARIADNE_TESTING_PROVE(not cloned.has_cache());
+        handle.adjoin(root.split(true));
+        ARIADNE_TESTING_PROVE(not cached.has_cache());
+        ARIADNE_TESTING_PROVE(handle.superset(root));
+        ARIADNE_TESTING_PROVE(cached.has_cache());
+        ARIADNE_TESTING_PROVE(not clone.superset(root));
+        ARIADNE_TESTING_PROVE(cloned.has_cache());
+        handle.remove(root.split(false));
+        ARIADNE_TESTING_PROVE(not cached.has_cache());
+        ARIADNE_TESTING_PROVE(handle.superset(root.split(true)));
+        ARIADNE_TESTING_PROVE(cached.has_cache());
+        PavingInterface& abstract=cached;
+        abstract.mince(3u);
+        ARIADNE_TESTING_PROVE(not cached.has_cache());
+        abstract.recombine();
+        ARIADNE_TESTING_PROVE(not cached.has_cache());
+        abstract.restrict_to_extent(0u);
+        ARIADNE_TESTING_PROVE(not cached.has_cache());
+        ARIADNE_TESTING_PROVE(handle.superset(root.split(true)));
+        ARIADNE_TESTING_PROVE(cached.has_cache());
+        abstract.set_root_cell(false);
+        ARIADNE_TESTING_PROVE(not cached.has_cache());
+        ARIADNE_TESTING_PROVE(handle.is_empty());
+    }
+
     Void test_compile_equivalence_and_version_invalidation() {
         Grid grid(2u);
         GridCell root(grid,0u,BinaryWord{});
@@ -150,6 +190,7 @@ int main(int argc,char** argv) {
     ARIADNE_TESTING_SUITE("test_cached_binary_tree_paving");
     ARIADNE_TESTING_ADD_TEST(TestCachedBinaryTreePaving,test_compile_equivalence_and_version_invalidation);
     ARIADNE_TESTING_ADD_TEST(TestCachedBinaryTreePaving,test_wrong_grid_and_snapshot_detachment);
+    ARIADNE_TESTING_ADD_TEST(TestCachedBinaryTreePaving,test_polymorphic_backend_and_automatic_cache);
     ARIADNE_TESTING_ADD_TEST(TestCachedBinaryTreePaving,test_concurrent_queries_mutations_and_compilation);
     return ARIADNE_TESTING_RUN_TESTS_WITH_ARGS(argc,argv);
 }

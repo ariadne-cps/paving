@@ -3275,3 +3275,26 @@ Consumers that explicitly bind `state_paving()` to a `BinaryTreePaving&`
 must migrate to `Paving&`. The hybrid augmented container remains a separate
 migration task. Compilation and downstream CI are required before considering
 this change complete.
+
+## 2026-11-09 - CachedBinaryTreePaving as a polymorphic backend
+
+`CachedBinaryTreePaving` now derives from `BinaryTreePaving`, itself a full
+`PavingInterface`, instead of containing an inaccessible tree. Every
+polymorphic mutation and the principal legacy tree mutators invalidate the
+ROBDD query index before changing the authoritative tree. Cloning through
+`Paving` retains the cached backend and its caching policy but starts with
+a fresh, independently compiled index.
+
+The existing constructors keep explicit `compile_cache()` semantics;
+`CachedBinaryTreePaving(grid,false,true)` opts in to lazy automatic
+recompilation on the first `superset` query after mutation. That compile
+cost occurs in the ordinary query and therefore in an end-to-end reachability
+benchmark. No benchmark should report CachedTree results when the cache has
+never been used. Cache compilation continues to snapshot under the owner
+mutex and build outside it. Borrowed mutable tree views and explicit calls
+through `BinaryTreePaving&` remain unsafe for cache coherency; use the
+`PavingInterface` or concrete CachedBinaryTreePaving mutators.
+
+A dedicated regression checks dispatch through `Paving`, independent
+backend-preserving clones, lazy compilation, and invalidation from polymorphic
+modifications. Preserve the existing concurrency/invalidation regressions.

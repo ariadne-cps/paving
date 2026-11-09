@@ -17,58 +17,87 @@
 
 namespace Ariadne {
 
-//! \brief Mutable BinaryTreePaving with an optional immutable ROBDD query index.
-//! \details The tree is authoritative. compile_cache() explicitly snapshots
-//! the tree and builds a canonical ROBDD *without holding the owner lock*.
-//! The compiled index is published only if no mutation has intervened.
-//! Every mutator invalidates the index BEFORE touching the tree, even when
-//! that mutation subsequently throws. This protects against partial writes.
-//!
-//! Queries are linearizable: a cache hit observes the version current when
-//! its shared index was acquired, while misses query the tree under the lock.
-//! A query overlapping a mutation may observe the earlier version, but a
-//! query started after a completed mutation never uses its stale cache.
-//!
-//! No mutable tree reference escapes this type. All mutation MUST go through
-//! its methods; externally mutating an earlier source tree is independent.
-//! Do not destroy the wrapper while another thread is accessing it.
-class CachedBinaryTreePaving {
+//! Mutable binary-tree backend with an optional canonical ROBDD query cache.
+//! Tree geometry remains authoritative and all PavingInterface mutations
+//! invalidate the cache before writing. The ROBDD is lazily compiled upon
+//! first query of each version only when automatic_cache is enabled.
+//! Legacy constructors keep explicitly compiled caching by default.
+//! Like other BinaryTreePaving views, borrowed subpavings require caller
+//! synchronization; using a borrowed mutable view across compile_cache()
+//! is not safe. Do not bypass this class's mutators via a cast to its base.
+class CachedBinaryTreePaving : public BinaryTreePaving {
   public:
-    explicit CachedBinaryTreePaving(Grid const& grid,Bool enabled=false);
-    explicit CachedBinaryTreePaving(BinaryTreePaving const& source);
+    explicit CachedBinaryTreePaving(Grid const& grid,Bool enabled=false,
+                                    Bool automatic_cache=false);
+    explicit CachedBinaryTreePaving(BinaryTreePaving const& source,
+                                    Bool automatic_cache=false);
+    CachedBinaryTreePaving(CachedBinaryTreePaving const& source);
+    CachedBinaryTreePaving& operator=(CachedBinaryTreePaving const&)=delete;
+    CachedBinaryTreePaving* clone() const override;
 
-    //! \brief Return whether a cell is fully contained (Tree fallback).
-    Bool superset(GridCell const& cell) const;
+    using BinaryTreePaving::superset;
+    Bool superset(GridCell const& cell) const override;
+    Bool superset(ExactBoxType const& box) const override;
 
-    //! \brief Compile the current Tree version, if not already compiled.
-    //! \returns True if a cache for the current version is available;
-    //! false if the source changed while this compilation was in progress.
-    //! Only one compilation of an instance runs at a time.
+    //! Compile a snapshot outside the tree mutex and publish if unchanged.
+    //! Returns false if a concurrent mutation overtook this compilation.
     Bool compile_cache();
-
-    //! \brief Structural changes invalidate the cached ROBDD first.
-    Void adjoin(GridCell const& cell);
-    Void adjoin(std::vector<GridCell> const& cells);
-    Void remove(GridCell const& cell);
-    Void recombine();
-    Void clear();
-
-    //! \brief Snapshot detached from all future mutations.
-    std::unique_ptr<BinaryTreePaving> tree_snapshot() const;
-
+    Bool automatic_cache() const { return _automatic_cache; }
     Bool has_cache() const;
     std::uint64_t version() const;
     SizeType cached_nodes() const;
+    std::unique_ptr<BinaryTreePaving> tree_snapshot() const;
+
+    // The full polymorphic mutation contract plus legacy tree mutations.
+    Void adjoin(GridCell const& cell) override;
+    Void adjoin(std::vector<GridCell> const& cells) override;
+    Void adjoin(SubPavingInterface const& other) override;
+    Void restrict(SubPavingInterface const& other) override;
+    Void remove(SubPavingInterface const& other) override;
+    Void remove(GridCell const& cell) override;
+    Void set_root_cell(Bool enabled) override;
+    Void mince(Nat fineness) override;
+    Void recombine() override;
+    Void restrict_to_extent(Nat extent) override;
+    Void adjoin_outer_approximation(EffectiveEuclideanCompactSetInterface const& set,Nat fineness) override;
+    Void adjoin_outer_approximation(ValidatedEuclideanCompactSetInterface const& set,Nat fineness) override;
+    Void adjoin_outer_approximation(UpperBoxType const& box,Nat fineness) override;
+    Void adjoin_lower_approximation(EffectiveEuclideanOvertSetInterface const& set,Nat extent,Nat fineness) override;
+    Void adjoin_inner_approximation(EffectiveEuclideanOpenSetInterface const& set,Nat extent,Nat fineness) override;
+    Void adjoin_inner_approximation(EffectiveEuclideanSetInterface const& set,Nat fineness) override;
+    Void clear();
+    Void mince_to_depth(Nat depth);
+    Void mince_to_tree_depth(Nat depth);
+    Void subdivide(ApproximateDouble width);
+    Void adjoin_over_approximation(ExactBoxType const& box,Nat fineness);
+    Void adjoin_lower_approximation(EffectiveEuclideanOvertSetInterface const& set,ExactBoxType const& bounding,Nat fineness);
+    Void adjoin_lower_approximation(EffectiveEuclideanLocatedSetInterface const& set,Nat fineness);
+    Void adjoin_inner_approximation(EffectiveEuclideanOpenSetInterface const& set,ExactBoxType const& bounding,Nat fineness);
+    Void adjoin_inner_approximation(LowerBoxType const& box,Nat fineness);
+    Void adjoin(BinaryTreeSubpaving const& other);
+    Void restrict(BinaryTreeSubpaving const& other);
+    Void remove(BinaryTreeSubpaving const& other);
+    //! Borrowed branch creation invalidates the cache before returning it.
+    BinaryTreeSubpaving branch(Bool right) const;
+    template<class Callback> Void with_locked_branch(Bool right,Callback&& cb) {
+        std::lock_guard<std::recursive_mutex> lock(_mutex);
+        invalidate_unlocked();
+        BinaryTreePaving::with_locked_branch(right,std::forward<Callback>(cb));
+    }
+
+  protected:
+    SubPavingInterface* _branch(Bool right) const override;
 
   private:
     struct Compiled;
-    Void invalidate_unlocked();
+    Void invalidate_unlocked() const;
 
-    mutable std::mutex _mutex;
+    // Recursive to handle the tree's virtual overload-forwarding paths.
+    mutable std::recursive_mutex _mutex;
     mutable std::mutex _compile_mutex;
-    BinaryTreePaving _tree;
-    std::uint64_t _version=0u;
-    std::shared_ptr<Compiled const> _compiled;
+    Bool const _automatic_cache;
+    mutable std::uint64_t _version=0u;
+    mutable std::shared_ptr<Compiled const> _compiled;
 };
 
 } // namespace Ariadne
