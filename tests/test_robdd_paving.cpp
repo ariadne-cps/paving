@@ -14,6 +14,7 @@
  */
 
 #include <limits>
+#include <memory>
 #include <sstream>
 #include <type_traits>
 #include <vector>
@@ -33,6 +34,50 @@ static_assert(std::is_base_of_v<PavingInterface,BinaryTreePaving>);
 class TestRobddPaving : public Ariadne::Testing::ContextFixture {
   public:
     using ContextFixture::ContextFixture;
+
+
+    Void test_shared_manager_lifetime_and_interoperability() {
+        Grid grid(1u);
+        GridCell root(grid,0u,BinaryWord{});
+        std::weak_ptr<RobddManager> weak;
+        std::unique_ptr<Paving> retained;
+        {
+            auto manager=std::make_shared<RobddManager>();
+            weak=manager;
+            Paving first(new RobddPaving(manager,grid));
+            Paving second(new RobddPaving(manager,grid));
+            first.adjoin(root.split(false));
+            second.adjoin(root.split(true));
+            ARIADNE_TESTING_PROVE(!intersect(
+                static_cast<SubPavingInterface const&>(
+                    static_cast<PavingInterface const&>(first)),
+                static_cast<SubPavingInterface const&>(
+                    static_cast<PavingInterface const&>(second))));
+            Paving united=join(
+                static_cast<SubPavingInterface const&>(
+                    static_cast<PavingInterface const&>(first)),
+                static_cast<SubPavingInterface const&>(
+                    static_cast<PavingInterface const&>(second)));
+            ARIADNE_TESTING_PROVE(united.superset(root));
+            retained=std::make_unique<Paving>(united);
+        }
+        ARIADNE_TESTING_PROVE(!weak.expired());
+        {
+            auto iterator=retained->begin();
+            ARIADNE_TESTING_PROVE(iterator!=retained->end());
+            ARIADNE_TESTING_PROVE(retained->superset(root));
+        }
+        retained.reset();
+        ARIADNE_TESTING_PROVE(weak.expired());
+
+        auto other_manager=std::make_shared<RobddManager>();
+        auto manager=std::make_shared<RobddManager>();
+        RobddPaving one(manager,grid);
+        RobddPaving two(other_manager,grid);
+        ARIADNE_TESTING_EXPECT_EXCEPTION(one.join(two));
+        ARIADNE_TESTING_EXPECT_EXCEPTION(
+            RobddPaving(std::shared_ptr<RobddManager>{},grid));
+    }
 
     Void test_iterator_identity_end_contracts_and_display() {
         RobddManager manager, foreign;
@@ -505,6 +550,7 @@ class TestRobddPaving : public Ariadne::Testing::ContextFixture {
 int main(int argc, char** argv) {
     ARIADNE_TESTING_SUITE("test_robdd_paving");
 
+    ARIADNE_TESTING_ADD_TEST(TestRobddPaving, test_shared_manager_lifetime_and_interoperability);
     ARIADNE_TESTING_ADD_TEST(TestRobddPaving, test_iterator_identity_end_contracts_and_display);
     ARIADNE_TESTING_ADD_TEST(TestRobddPaving, test_public_depth_geometry_and_assignment_contracts);
     ARIADNE_TESTING_ADD_TEST(TestRobddPaving, test_optional_set_capabilities_and_minced_empty_batch);
