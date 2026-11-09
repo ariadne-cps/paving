@@ -22,12 +22,17 @@
  *  along with Ariadne.  If not, see <https://www.gnu.org/licenses/>.
  */
 
+#include <memory>
+#include <vector>
+
 #include "pybind11.hpp"
 #include "set-utilities.hpp"
 
 #include "numeric/numeric.hpp"
 #include "set/function_set.hpp"
 #include "paving/binary_tree_paving.hpp"
+#include "paving/paving_interface.hpp"
+#include "paving/robdd_paving.hpp"
 #include "paving/set_approximation.hpp"
 #include "set/affine_set.hpp"
 #include "set/list_set.hpp"
@@ -50,6 +55,7 @@ Void export_grid(pybind11::module& module)
 Void export_grid_cell(pybind11::module& module)
 {
     pybind11::class_<GridCell> grid_cell_class(module,"GridCell");
+    grid_cell_class.def(pybind11::init<Grid const&,Nat,BinaryWord const&>());
     grid_cell_class.def("dimension", &GridCell::dimension);
     grid_cell_class.def("depth", &GridCell::depth);
     grid_cell_class.def("split", (Pair<GridCell,GridCell>(GridCell::*)()const) &GridCell::split);
@@ -145,10 +151,103 @@ void export_set_approximation(pybind11::module& module)
         });
 }
 
+
+namespace {
+
+// A Paving is an owning copy-by-clone polymorphic value. Avoid an implicit
+// cross-backend conversion; native ROBDD algebra requires a shared manager.
+SubPavingInterface const& as_subpaving(Paving const& paving) {
+    return static_cast<PavingInterface const&>(paving);
+}
+
+Void export_polymorphic_paving(pybind11::module& module) {
+    pybind11::class_<SubPaving> subpaving_class(module,"SubPaving");
+    subpaving_class
+        .def("root_cell",&SubPaving::root_cell)
+        .def("size",&SubPaving::size)
+        .def("superset",&SubPaving::superset)
+        .def("set_root_cell",&SubPaving::set_root_cell)
+        .def("branch",[](SubPaving const& self, Bool right) {
+            return static_cast<SubPavingInterface const&>(self).branch(right);
+        },pybind11::keep_alive<0,1>())
+        .def("__iter__",[](SubPaving const& self) {
+            return pybind11::make_iterator<pybind11::return_value_policy::copy>(
+                self.begin(),self.end());
+        },pybind11::keep_alive<0,1>())
+        .def("__str__",&__cstr__<SubPaving>);
+
+    pybind11::class_<Paving> paving_class(module,"Paving");
+    paving_class
+        .def(pybind11::init<Paving const&>())
+        .def_static("tree",[](Grid const& grid) {
+            return Paving(new BinaryTreePaving(grid));
+        },pybind11::arg("grid"))
+        .def_static("robdd",[](Grid const& grid,
+                                std::shared_ptr<RobddManager> manager) {
+            return Paving(new RobddPaving(std::move(manager),grid));
+        },pybind11::arg("grid"),pybind11::arg("manager"))
+        .def("dimension",&Paving::dimension)
+        .def("size",&Paving::size)
+        .def("is_empty",&Paving::is_empty)
+        .def("root_cell",&Paving::root_cell)
+        .def("bounding_box",&Paving::bounding_box)
+        .def("superset",&Paving::superset)
+        .def("clear",&Paving::clear)
+        .def("mince",&Paving::mince)
+        .def("recombine",&Paving::recombine)
+        .def("set_root_cell",&Paving::set_root_cell)
+        .def("adjoin",[](Paving& self, GridCell const& cell) {
+            self.adjoin(cell);
+        })
+        .def("adjoin",[](Paving& self, std::vector<GridCell> const& cells) {
+            self.adjoin(cells);
+        })
+        .def("adjoin",[](Paving& self, Paving const& other) {
+            self.adjoin(as_subpaving(other));
+        })
+        .def("restrict",[](Paving& self, Paving const& other) {
+            self.restrict(as_subpaving(other));
+        })
+        .def("remove",[](Paving& self, Paving const& other) {
+            self.remove(as_subpaving(other));
+        })
+        .def("remove",[](Paving& self, GridCell const& cell) {
+            self.remove(cell);
+        })
+        .def("branch",[](Paving const& self, Bool right) {
+            return as_subpaving(self).branch(right);
+        },pybind11::keep_alive<0,1>())
+        .def("__len__",&Paving::size)
+        .def("__iter__",[](Paving const& self) {
+            return pybind11::make_iterator<pybind11::return_value_policy::copy>(
+                self.begin(),self.end());
+        },pybind11::keep_alive<0,1>())
+        .def("__str__",&__cstr__<Paving>);
+
+    module.def("join",[](Paving const& lhs,Paving const& rhs) {
+        return Ariadne::join(as_subpaving(lhs),as_subpaving(rhs));
+    });
+    module.def("intersection",[](Paving const& lhs,Paving const& rhs) {
+        return Ariadne::intersection(as_subpaving(lhs),as_subpaving(rhs));
+    });
+    module.def("difference",[](Paving const& lhs,Paving const& rhs) {
+        return Ariadne::difference(as_subpaving(lhs),as_subpaving(rhs));
+    });
+    module.def("subset",[](Paving const& lhs,Paving const& rhs) {
+        return lhs.subset(as_subpaving(rhs));
+    });
+    module.def("intersect",[](Paving const& lhs,Paving const& rhs) {
+        return lhs.intersects(as_subpaving(rhs));
+    });
+}
+
+} // namespace
+
 void paving_submodule(pybind11::module& module)
 {
     export_grid(module);
     export_grid_cell(module);
     export_binary_tree_paving(module);
+    export_polymorphic_paving(module);
     export_set_approximation(module);
 }

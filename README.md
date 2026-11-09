@@ -194,8 +194,21 @@ Python 3.11 or newer and a compatible development environment are required for t
 
 ## Tutorials
 
-- C++: `tutorials/tutorial_paving/tutorial_paving.cpp`, built separately against an installed `ariadne-paving`.
-- Python: `python/tutorials/tutorial_paving.py`.
+The C++ and Python tutorials perform the **same representation-neutral operations** through
+`Paving`: adjoin cells, iterate, union, intersection, difference, copy an
+independent value, and modify a live `SubPaving` view. Each tutorial runs its
+workflow once with BinaryTreePaving and once with RobddPaving, where both
+ROBDD-backed pavings share one manager. The backend is selected only at
+construction, not in the algorithm.
+
+- C++: `tutorials/tutorial_paving/tutorial_paving.cpp`, built separately
+  against an installed `ariadne-paving` and checked in CTest.
+- Python: `python/tutorials/tutorial_paving.py`, exercised from the
+  Python paving regression test.
+- Python uses `Paving.tree(grid)` and `Paving.robdd(grid, manager)`
+  factory methods; the underlying C++ polymorphic value has the same semantics.
+  The BDD Python `RobddManager` binding uses shared ownership to permit
+  interoperable canonical nodes and safe manager lifetimes.
 
 ## Contribution guidelines
 
