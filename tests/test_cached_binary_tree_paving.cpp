@@ -31,6 +31,85 @@ class TestCachedBinaryTreePaving : public Ariadne::Testing::ContextFixture {
   public:
     using ContextFixture::ContextFixture;
 
+    template<class Mutation> Void verify_mutation(Mutation mutate) {
+        Grid grid(1u);
+        GridCell root(grid,0u,BinaryWord{});
+        BinaryTreePaving source(grid);
+        source.adjoin(root.split(false));
+        CachedBinaryTreePaving cached(source);
+        BinaryTreePaving expected(source);
+        ARIADNE_TESTING_PROVE(cached.compile_cache());
+        auto previous=cached.version();
+        mutate(cached);
+        mutate(expected);
+        ARIADNE_TESTING_PROVE(!cached.has_cache());
+        ARIADNE_TESTING_PROVE(cached.version()>previous);
+        for(unsigned index=0u;index<8u;++index) {
+            auto probe=cell_at(root,index,3u);
+            ARIADNE_TESTING_EXPECT_EQUAL(cached.superset(probe),expected.superset(probe));
+        }
+        ARIADNE_TESTING_PROVE(cached.compile_cache());
+        for(unsigned index=0u;index<8u;++index) {
+            auto probe=cell_at(root,index,3u);
+            ARIADNE_TESTING_EXPECT_EQUAL(cached.superset(probe),expected.superset(probe));
+        }
+    }
+
+    Void test_every_mutation_invalidates_the_query_index() {
+        Grid grid(1u);
+        GridCell root(grid,0u,BinaryWord{});
+        std::vector<GridCell> cells{root.split(true)};
+        BinaryTreePaving other(grid);
+        other.adjoin(root.split(true));
+        ExactBoxType box{{0.125_x,0.875_x}};
+        ExactBoxSetType regular(box);
+        OvertSet<EffectiveTag,RealVector> overt(box);
+        OpenSet<EffectiveTag,RealVector> open(box);
+        LocatedSet<EffectiveTag,RealVector> located(box);
+        ValidatedConstrainedImageSet validated(box);
+        verify_mutation([&](auto& p){ p.adjoin(cells); });
+        verify_mutation([&](auto& p){ p.adjoin(static_cast<SubPavingInterface const&>(other)); });
+        verify_mutation([&](auto& p){ p.restrict(static_cast<SubPavingInterface const&>(other)); });
+        verify_mutation([&](auto& p){ p.remove(static_cast<SubPavingInterface const&>(other)); });
+        verify_mutation([&](auto& p){ p.adjoin(static_cast<BinaryTreeSubpaving const&>(other)); });
+        verify_mutation([&](auto& p){ p.restrict(static_cast<BinaryTreeSubpaving const&>(other)); });
+        verify_mutation([&](auto& p){ p.remove(static_cast<BinaryTreeSubpaving const&>(other)); });
+        verify_mutation([&](auto& p){ p.adjoin_outer_approximation(validated,2u); });
+        verify_mutation([&](auto& p){ p.adjoin_outer_approximation(widen(box),2u); });
+        verify_mutation([&](auto& p){ p.adjoin_inner_approximation(open.reference(),0u,2u); });
+        verify_mutation([&](auto& p){ p.adjoin_inner_approximation(regular,2u); });
+        verify_mutation([&](auto& p){ p.mince_to_depth(3u); });
+        verify_mutation([&](auto& p){ p.mince_to_tree_depth(3u); });
+        verify_mutation([&](auto& p){ p.subdivide(0.25); });
+        verify_mutation([&](auto& p){ p.adjoin_over_approximation(box,2u); });
+        verify_mutation([&](auto& p){ p.adjoin_lower_approximation(overt.reference(),box,2u); });
+        verify_mutation([&](auto& p){ p.adjoin_lower_approximation(located.reference(),2u); });
+        verify_mutation([&](auto& p){ p.adjoin_inner_approximation(open.reference(),box,2u); });
+        verify_mutation([&](auto& p){ p.adjoin_inner_approximation(LowerBoxType({{0.125_x,0.875_x}}),2u); });
+    }
+
+    Void test_box_queries_and_borrowed_branches() {
+        Grid grid(1u);
+        GridCell root(grid,0u,BinaryWord{});
+        BinaryTreePaving source(grid);
+        source.adjoin(root.split(false));
+        CachedBinaryTreePaving manual(source),automatic(source,true);
+        auto box=root.split(false).box();
+        ARIADNE_TESTING_EXPECT_EQUAL(manual.superset(box),source.superset(box));
+        ARIADNE_TESTING_PROVE(!manual.has_cache());
+        ARIADNE_TESTING_PROVE(manual.compile_cache());
+        ARIADNE_TESTING_EXPECT_EQUAL(manual.superset(box),source.superset(box));
+        ARIADNE_TESTING_EXPECT_EQUAL(automatic.superset(box),source.superset(box));
+        ARIADNE_TESTING_PROVE(automatic.has_cache());
+        auto branch=manual.branch(false);
+        ARIADNE_TESTING_PROVE(!manual.has_cache());
+        ARIADNE_TESTING_PROVE(branch.superset(root.split(false)));
+        ARIADNE_TESTING_PROVE(manual.compile_cache());
+        SubPaving abstract=static_cast<SubPavingInterface const&>(manual).branch(true);
+        ARIADNE_TESTING_PROVE(!manual.has_cache());
+        ARIADNE_TESTING_PROVE(abstract.begin()==abstract.end());
+    }
+
     Void test_polymorphic_backend_and_automatic_cache() {
         Grid grid(1u);
         GridCell root(grid,0u,BinaryWord{});
@@ -241,5 +320,7 @@ int main(int argc,char** argv) {
     ARIADNE_TESTING_ADD_TEST(TestCachedBinaryTreePaving,test_polymorphic_backend_and_automatic_cache);
     ARIADNE_TESTING_ADD_TEST(TestCachedBinaryTreePaving,test_augmented_reachability_storage_approximations);
     ARIADNE_TESTING_ADD_TEST(TestCachedBinaryTreePaving,test_concurrent_queries_mutations_and_compilation);
+    ARIADNE_TESTING_ADD_TEST(TestCachedBinaryTreePaving,test_every_mutation_invalidates_the_query_index);
+    ARIADNE_TESTING_ADD_TEST(TestCachedBinaryTreePaving,test_box_queries_and_borrowed_branches);
     return ARIADNE_TESTING_RUN_TESTS_WITH_ARGS(argc,argv);
 }
