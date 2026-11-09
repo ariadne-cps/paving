@@ -3,6 +3,7 @@
 #include <memory>
 #include <sstream>
 #include "paving/augmented_paving.hpp"
+#include "paving/robdd_paving.hpp"
 #include "set/function_set.hpp"
 #include "geometry/set_wrapper.hpp"
 #include "ariadne-testing.hpp"
@@ -88,6 +89,39 @@ class TestAugmentedPaving : public Ariadne::Testing::ContextFixture {
 
     // Exercise the public forwarding API with a fully enabled paving,
     // and check the resulting state rather than just the forwarding calls.
+    Void test_polymorphic_robdd_state_operations() {
+        Grid grid(1u);
+        Mapping mapping=Mapping::identity(1u);
+        auto manager=std::make_shared<RobddManager>();
+        AugmentedPaving first(
+            Paving(new RobddPaving(manager,grid)),mapping);
+        AugmentedPaving second(
+            Paving(new RobddPaving(manager,grid)),mapping);
+        GridCell root(grid,0u,BinaryWord{});
+        first.state_paving().adjoin(root.split(false));
+        second.state_paving().adjoin(root.split(true));
+        ARIADNE_TESTING_PROVE(!intersect(first,second));
+        ARIADNE_TESTING_PROVE(!subset(first,second));
+        ARIADNE_TESTING_PROVE(!subset(second,first));
+        AugmentedPaving copy(first);
+        first.adjoin(second);
+        ARIADNE_TESTING_PROVE(first.state_paving().superset(root));
+        ARIADNE_TESTING_PROVE(!copy.state_paving().superset(root));
+        ARIADNE_TESTING_PROVE(copy.state_paving().superset(root.split(false)));
+        first.restrict(second);
+        ARIADNE_TESTING_PROVE(first.state_paving().superset(root.split(true)));
+        ARIADNE_TESTING_PROVE(!first.state_paving().superset(root.split(false)));
+        first.restrict_to_extent(0u);
+        first.remove(second);
+        ARIADNE_TESTING_PROVE(first.is_empty());
+        // The original backend is retained across copies and operations.
+        // A manager mismatch remains a precondition, not a tree conversion.
+        auto different_manager=std::make_shared<RobddManager>();
+        AugmentedPaving incompatible(
+            Paving(new RobddPaving(different_manager,grid)),mapping);
+        ARIADNE_TESTING_EXPECT_EXCEPTION(first.adjoin(incompatible));
+    }
+
     Void test_state_operations() {
         Grid grid(1u);
         Mapping mapping=Mapping::identity(1u);
@@ -129,6 +163,7 @@ int main(int argc, char** argv) {
     ARIADNE_TESTING_SUITE("test_augmented_paving");
     ARIADNE_TESTING_ADD_TEST(TestAugmentedPaving,test_mapping_and_compatibility);
     ARIADNE_TESTING_ADD_TEST(TestAugmentedPaving,test_state_operations);
+    ARIADNE_TESTING_ADD_TEST(TestAugmentedPaving,test_polymorphic_robdd_state_operations);
     ARIADNE_TESTING_ADD_TEST(TestAugmentedPaving,test_approximation_forwarding);
     return ARIADNE_TESTING_RUN_TESTS_WITH_ARGS(argc,argv);
 }
