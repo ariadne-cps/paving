@@ -484,3 +484,44 @@ run longer: calibration ends as soon as the duration threshold is met.
 Both `BinaryTreePaving` and `RobddPaving` serialize concurrent `adjoin(GridCell)`, `adjoin(std::vector<GridCell>)`, and same-backend `adjoin(SubPavingInterface)` calls on one destination. A vector batch holds one paving mutex for the full operation. The tree backend additionally locks both owning tree pavings in a deadlock-safe order when merging them; the ROBDD backend snapshots the source before acquiring the destination mutex. Independently owned sources are supported; borrowed source views must remain valid and stable during the operation.
 
 **Scope limit:** This is an incremental thread-safety milestone, not a full `PavingInterface` guarantee. `superset(GridCell)`, `size()`, `root_cell()`, `clone()` and owning snapshot/copy construction can now run alongside `adjoin` on both backends. ROBDD additionally snapshots its Boolean root, depth, enabled-cell counts, compact iterators and enumeration. Other concurrent mutations, explicit tree iterators, borrowed views, generic multi-paving comparisons and reference-valued `grid()` are not yet protected. Do not invoke those APIs concurrently with adjoin on the same paving. `RobddManager` retains its separate synchronization. Regression tests exercise both backend read/write overlap.
+
+
+## Dependency update and Paving-level performance comparison (2026-11-09)
+
+Paving now pins `ariadne-cps/bdd` at `378d16e` (canonical
+unique-table hash as default, batched ITE snapshots, experimental
+parallel ITE) and `ariadne-cps/tree` at `ba055ee`
+(opt-in bounded parallel `BinaryTreeNode::recombine_parallel()`).
+The old pins were `3b6c918` and `7166244`, respectively.
+Build, Foundation, Threading, PythonCommon and Benchmarking
+dependency pins have been checked for compatibility; Paving's
+other gitlinks remain unchanged.
+
+**Neither Paving's geometry algorithms nor its default mutation
+paths are made parallel by this dependency update.**
+In particular, the new Tree `recombine_parallel()` API is
+opt-in: an unchanged call to `recombine()` continues to use
+the sequential algorithm. BDD's default `ite()` also remains
+sequential. Do not attribute a performance change to
+parallelism without evidence that it was actually invoked.
+
+Use the existing `benchmark_paving_backends` and
+`benchmark_paving_superset` executables for an
+application-level comparison of the previous pins versus
+the new pins. The separate manual driver in
+`benchmarks/run_dependency_ab.sh` creates isolated Paving
+checkouts with identical Paving sources and a full **2×2
+factorial** of old/new BDD and Tree dependencies. It
+builds and tests each configuration before manually running
+the structural benchmark at concurrency 0 in an order that
+revisits the baseline and fully updated variants.
+
+To run the comparison from a fresh checkout, after obtaining
+all submodules, see `benchmarks/run_dependency_ab.sh`.
+Performance benchmarks are **never** registered with CTest
+or executed in CI. Inspect absolute times separately for
+`tree` and `robdd`, especially `replay_bulk`,
+`adjoin_recombine`, `copy`, `iterate_min` and
+`superset_16`. The full outer-approximation workloads
+also include geometric classification and may dilute
+dependency-level improvements.

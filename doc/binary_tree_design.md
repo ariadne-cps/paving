@@ -83,3 +83,26 @@ other paving consumers remain tested in their existing suites.
 Cross-platform compilation and sanitizers remain necessary to validate
 the include cleanup and eventual migration; documentation is not a
 substitute for a successful build.
+
+
+## 2026-11-09 - Paving Tree dependency baseline and updated pin
+
+Paving upgrades `ss/tre` from
+`7166244bc2cd22fec9e2c7aec1db38903c08b206` to
+`ba055ee7cf5663c916a54635565fb97513b690bb`,
+together with a BDD upgrade `3b6c918` → `378d16e`.
+The public `BinaryTreeNode::recombine_parallel()` in the
+new Tree module uses a bounded TaskGroup fork/join, but
+**Paving still calls the existing sequential `recombine()`**.
+This pin update alone therefore does not activate
+tree recombination parallelism.
+
+A manual Paving-level factorial benchmark will evaluate
+old/new Tree with either old/new BDD, preserving identical
+Paving source and geometry inputs. Differences in Tree
+operation timings may reflect unrelated Tree changes or
+compiler/runtime noise: the opt-in parallel recombination
+must not be credited for them without an explicit call.
+The existing single-owner/different-subtree concurrency
+contract remains unchanged. No performance benchmark
+runs in CI.

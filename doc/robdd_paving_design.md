@@ -3024,3 +3024,46 @@ backends, gated by independent-thread solver/rounding correctness
 and a manual 1/2/4/8-worker performance experiment. Existing
 threading abstractions should be reused. Keep CI as tests/build
 only: no new performance benchmark invocation in GitHub Actions.
+
+
+## 2026-11-09 - Upgrade pinned BDD and Tree dependencies for controlled A/B
+
+Advance the Paving submodule `ss/bdd` from
+`3b6c9183e0c8cebb807ee66ae1891f74c8c45c46` to
+`378d16e12e32641dfafacad9afab28963191d646`, and
+`ss/tre` from
+`7166244bc2cd22fec9e2c7aec1db38903c08b206` to
+`ba055ee7cf5663c916a54635565fb97513b690bb`.
+No Paving C++ implementation is modified in this dependency
+update, and no benchmark is executed in CI.
+
+The new BDD contains a faster hash-based canonical unique
+table and batched cache/cofactor snapshots for serial ITE;
+its opt-in parallel ITE is still slower than serial on
+the previously measured standalone workloads. Paving
+does **not** automatically activate the parallel algorithm.
+The new Tree exposes `recombine_parallel()`, also opt-in;
+default Paving `recombine()` calls remain sequential.
+
+**Experiment design:** use four configurations of exactly
+the same Paving source: legacy BDD / legacy Tree;
+upgraded BDD / legacy Tree; legacy BDD / upgraded Tree;
+upgraded BDD / upgraded Tree. This isolates dependency
+effects and their interaction; simply comparing old
+Paving against new Paving could confound source changes.
+Benchmark both backends with identical geometry,
+dimension, fineness, calibration and concurrency;
+keep certified geometric classification unchanged.
+The existing benchmark separates `replay_bulk`
+from geometric approximation costs and verifies that
+the two representation backends denote the same set.
+
+Interpretation must compare **absolute** operation medians
+across dependency configurations, not only ROBDD/tree
+ratios. No performance improvement is claimed before
+operator-supplied manual measurements, and ordinary
+tests and sanitizers must pass after the pin change.
+Build, Foundation, Threading, PythonCommon and
+Benchmarking gitlink compatibility was checked against
+the existing Set dependency chain; no other Paving
+gitlinks are changed.
