@@ -191,7 +191,12 @@ Void export_polymorphic_paving(pybind11::module& module) {
         .def("is_empty",&Paving::is_empty)
         .def("root_cell",&Paving::root_cell)
         .def("bounding_box",&Paving::bounding_box)
-        .def("superset",&Paving::superset)
+        .def("superset",[](Paving const& paving, GridCell const& cell) {
+            return paving.superset(cell);
+        })
+        .def("superset",[](Paving const& paving, ExactBoxType const& box) {
+            return paving.superset(box);
+        })
         .def("clear",&Paving::clear)
         .def("mince",&Paving::mince)
         .def("recombine",&Paving::recombine)
