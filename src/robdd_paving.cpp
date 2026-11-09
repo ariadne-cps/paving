@@ -33,6 +33,7 @@
 #include "paving/paving_cell_operations.hpp"
 #include "paving/robdd_paving.hpp"
 #include "parallel_classification.hpp"
+#include "prepared_separation.hpp"
 #include "threading/floating_point_environment.hpp"
 #include "threading/task_group.hpp"
 #include "threading/thread_manager.hpp"
@@ -722,10 +723,8 @@ Void RobddPaving::adjoin_outer_approximation(
     // The optional snapshot is built only when a candidate actually
     // requires classification. A fully covered paving skips solver setup.
     std::optional<PreparedConstrainedImageSetSeparation> prepared;
-    auto const* constrained=dynamic_cast<ConstrainedImageSet const*>(&set);
-    bool const can_prepare=constrained
-        and typeid(*constrained)==typeid(ConstrainedImageSet)
-        and constrained->dimension()!=0u;
+    auto const* constrained=PavingDetail::prepared_separation_source(set);
+    bool const can_prepare=constrained!=nullptr;
     // Geometric metadata is captured as a value, never as a borrowed grid.
     GridCell geometric_root=root_cell();
     Grid grid_value=geometric_root.grid();

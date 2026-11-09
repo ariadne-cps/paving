@@ -25,6 +25,7 @@
 #include "paving/paving_cell_operations.hpp"
 #include "ariadne-testing.hpp"
 #include "threading/thread_manager.hpp"
+#include "../src/prepared_separation.hpp"
 
 using namespace Ariadne;
 
@@ -135,6 +136,17 @@ class TestPavingBackends : public Ariadne::Testing::ContextFixture {
         RobddPaving right_only(manager,root,manager.constant(false),0u);
         right_only.adjoin(root.split(true));
         ARIADNE_TESTING_PROVE(not right_only.superset(root.box()));
+    }
+
+    Void test_prepared_solver_dispatch() {
+        ConstrainedImageSet zero_dimensional;
+        ConstrainedImageSet base(RealBox({{0,1}}));
+        CountingConstrainedImageSet derived(RealBox({{0,1}}));
+        ExactBoxSetType box(ExactBoxType({{0,1}}));
+        ARIADNE_TESTING_PROVE(PavingDetail::prepared_separation_source(zero_dimensional)==nullptr);
+        ARIADNE_TESTING_PROVE(PavingDetail::prepared_separation_source(base)==&base);
+        ARIADNE_TESTING_PROVE(PavingDetail::prepared_separation_source(derived)==nullptr);
+        ARIADNE_TESTING_PROVE(PavingDetail::prepared_separation_source(box)==nullptr);
     }
 
 
@@ -3055,6 +3067,7 @@ int main(int argc, char** argv) {
     ARIADNE_TESTING_ADD_TEST(TestPavingBackends, test_subpaving_move_assignment_preserves_the_view);
     ARIADNE_TESTING_ADD_TEST(TestPavingBackends, test_parallel_one_dimensional_frontier);
     ARIADNE_TESTING_ADD_TEST(TestPavingBackends, test_outer_union_with_complete_search_root);
+    ARIADNE_TESTING_ADD_TEST(TestPavingBackends, test_prepared_solver_dispatch);
     ARIADNE_TESTING_ADD_TEST(TestPavingBackends, test_generic_approximations_between_backends);
     ARIADNE_TESTING_ADD_TEST(TestPavingBackends, test_polymorphic_paving_handle_and_subpaving_views);
     ARIADNE_TESTING_ADD_TEST(TestPavingBackends, test_polymorphic_sequences_backend_isolation);

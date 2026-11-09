@@ -35,6 +35,7 @@
 #include "set/function_set.hpp"
 #include "set/list_set.hpp"
 #include "paving/binary_tree_paving.hpp"
+#include "prepared_separation.hpp"
 #include "paving/grid_cell_alignment.hpp"
 #include "paving/paving_cell_operations.hpp"
 #include <limits>
@@ -2192,31 +2193,26 @@ Void BinaryTreePaving::_adjoin_outer_approximation( const Grid & theGrid, Binary
     } else if( pOpenSet && definitely( pOpenSet->covers( theCurrentCell.box() ) ) ) {
         pBinaryTreeNode->make_leaf(true);
     } else {
-        //This node's cell is not disjoint from theSet, thus it is possible to adjoin elements
-        //of its outer approximation, unless this node is already and enabled leaf node.
-        if( pBinaryTreeNode->is_enabled() ){ //NOTE: A non-leaf node can not be enabled so this check suffices
-            //DO NOTHING: If it is enabled, then we can not add anything new to it.
+        // The enabled-leaf case returned before geometry classification.
+        //If the node is not enabled, so may be we can add something from the outer approximation of theSet.
+        if( pPath->size() < max_mince_tree_depth ){
+            //Since we still do not have the finest cells for the outer approximation of theSet, we split
+            pBinaryTreeNode->split(); //NOTE: splitting a non-leaf node does not do any harm
+            //Check the left branch
+            pPath->push_back(false);
+            _adjoin_outer_approximation( theGrid, pBinaryTreeNode->left_node(), primary_cell_extent, max_mince_tree_depth, theSet, pPath, prepared );
+            //Check the right branch
+            pPath->push_back(true);
+            _adjoin_outer_approximation( theGrid, pBinaryTreeNode->right_node(), primary_cell_extent, max_mince_tree_depth, theSet, pPath, prepared );
         } else {
-            //If the node is not enabled, so may be we can add something from the outer approximation of theSet.
-            if( pPath->size() < max_mince_tree_depth ){
-                //Since we still do not have the finest cells for the outer approximation of theSet, we split
-                pBinaryTreeNode->split(); //NOTE: splitting a non-leaf node does not do any harm
-                //Check the left branch
-                pPath->push_back(false);
-                _adjoin_outer_approximation( theGrid, pBinaryTreeNode->left_node(), primary_cell_extent, max_mince_tree_depth, theSet, pPath, prepared );
-                //Check the right branch
-                pPath->push_back(true);
-                _adjoin_outer_approximation( theGrid, pBinaryTreeNode->right_node(), primary_cell_extent, max_mince_tree_depth, theSet, pPath, prepared );
+            //We should not mince any further, so since the node is a leaf and
+            //it's cell is not disjoint from theSet, we mark the node as enabled.
+            if( !pBinaryTreeNode->is_leaf() ){
+                //If the node is not leaf, then we make it an enabled one
+                pBinaryTreeNode->make_leaf(true);
             } else {
-                //We should not mince any further, so since the node is a leaf and
-                //it's cell is not disjoint from theSet, we mark the node as enabled.
-                if( !pBinaryTreeNode->is_leaf() ){
-                    //If the node is not leaf, then we make it an enabled one
-                    pBinaryTreeNode->make_leaf(true);
-                } else {
-                    //Just make the node enabled
-                    pBinaryTreeNode->set_enabled();
-                }
+                //Just make the node enabled
+                pBinaryTreeNode->set_enabled();
             }
         }
     }
@@ -2246,31 +2242,26 @@ Void BinaryTreePaving::_adjoin_outer_approximation( const Grid & theGrid, Binary
     } else if( pOpenSet && definitely( pOpenSet->covers( theCurrentCell.box() ) ) ) {
         pBinaryTreeNode->make_leaf(true);
     } else {
-        //This node's cell is not disjoint from theSet, thus it is possible to adjoin elements
-        //of its outer approximation, unless this node is already and enabled leaf node.
-        if( pBinaryTreeNode->is_enabled() ){ //NOTE: A non-leaf node can not be enabled so this check suffices
-            //DO NOTHING: If it is enabled, then we can not add anything new to it.
+        // The enabled-leaf case returned before geometry classification.
+        //If the node is not enabled, so may be we can add something from the outer approximation of theSet.
+        if( pPath->size() < max_mince_tree_depth ){
+            //Since we still do not have the finest cells for the outer approximation of theSet, we split
+            pBinaryTreeNode->split(); //NOTE: splitting a non-leaf node does not do any harm
+            //Check the left branch
+            pPath->push_back(false);
+            _adjoin_outer_approximation( theGrid, pBinaryTreeNode->left_node(), primary_cell_extent, max_mince_tree_depth, theSet, pPath );
+            //Check the right branch
+            pPath->push_back(true);
+            _adjoin_outer_approximation( theGrid, pBinaryTreeNode->right_node(), primary_cell_extent, max_mince_tree_depth, theSet, pPath );
         } else {
-            //If the node is not enabled, so may be we can add something from the outer approximation of theSet.
-            if( pPath->size() < max_mince_tree_depth ){
-                //Since we still do not have the finest cells for the outer approximation of theSet, we split
-                pBinaryTreeNode->split(); //NOTE: splitting a non-leaf node does not do any harm
-                //Check the left branch
-                pPath->push_back(false);
-                _adjoin_outer_approximation( theGrid, pBinaryTreeNode->left_node(), primary_cell_extent, max_mince_tree_depth, theSet, pPath );
-                //Check the right branch
-                pPath->push_back(true);
-                _adjoin_outer_approximation( theGrid, pBinaryTreeNode->right_node(), primary_cell_extent, max_mince_tree_depth, theSet, pPath );
+            //We should not mince any further, so since the node is a leaf and
+            //it's cell is not disjoint from theSet, we mark the node as enabled.
+            if( !pBinaryTreeNode->is_leaf() ){
+                //If the node is not leaf, then we make it an enabled one
+                pBinaryTreeNode->make_leaf(true);
             } else {
-                //We should not mince any further, so since the node is a leaf and
-                //it's cell is not disjoint from theSet, we mark the node as enabled.
-                if( !pBinaryTreeNode->is_leaf() ){
-                    //If the node is not leaf, then we make it an enabled one
-                    pBinaryTreeNode->make_leaf(true);
-                } else {
-                    //Just make the node enabled
-                    pBinaryTreeNode->set_enabled();
-                }
+                //Just make the node enabled
+                pBinaryTreeNode->set_enabled();
             }
         }
     }
@@ -2390,9 +2381,7 @@ Void BinaryTreePaving::adjoin_outer_approximation( const EffectiveEuclideanCompa
     // already enabled. Do this before constructing a specialized solver
     // and before align_with_cell can mutate the explicit tree.
     std::optional<PreparedConstrainedImageSetSeparation> prepared;
-    if(auto const* constrained=dynamic_cast<ConstrainedImageSet const*>(&theSet);
-       constrained and typeid(*constrained)==typeid(ConstrainedImageSet)
-       and constrained->dimension()!=0u) {
+    if(auto const* constrained=PavingDetail::prepared_separation_source(theSet)) {
         BinaryTreeSubpaving view(_theGridCell.grid(),_theGridCell.root_extent(),
                                  _theGridCell.word(),_pRootTreeNode);
         if(view.superset(GridCell(theGrid,outer_approx_primary_cell_extent,BinaryWord{})))
