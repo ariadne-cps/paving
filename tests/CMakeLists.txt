@@ -9,7 +9,7 @@ set(UNIT_TESTS
     test_paving_concurrent_adjoin
     test_paving_lock_reentrancy
     test_robdd_paving
-    test_hybrid_paving
+    test_cached_binary_tree_paving
     test_paver
     test_paving
     test_augmented_paving

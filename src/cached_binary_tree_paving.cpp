@@ -1,10 +1,10 @@
 /***************************************************************************
- *            hybrid_paving.cpp
+ *            cached_binary_tree_paving.cpp
  *
  *  Explicit Tree -> ROBDD query-cache prototype.
  *  Part of Ariadne Paving, GPL-3.0-or-later.
  ****************************************************************************/
-#include "paving/hybrid_paving.hpp"
+#include "paving/cached_binary_tree_paving.hpp"
 
 #include <limits>
 #include <stdexcept>
@@ -15,7 +15,7 @@ namespace Ariadne {
 // The manager MUST precede the paving: reverse member destruction destroys
 // the handles before their manager. Publishing const Compiled prevents
 // mutation of its ROBDD after construction.
-struct HybridPaving::Compiled {
+struct CachedBinaryTreePaving::Compiled {
     RobddManager manager;
     RobddPaving paving;
     std::uint64_t version;
@@ -26,50 +26,50 @@ struct HybridPaving::Compiled {
           version(revision) { }
 };
 
-HybridPaving::HybridPaving(Grid const& grid,Bool enabled)
+CachedBinaryTreePaving::CachedBinaryTreePaving(Grid const& grid,Bool enabled)
     : _tree(grid,enabled) { }
 
-HybridPaving::HybridPaving(BinaryTreePaving const& source)
+CachedBinaryTreePaving::CachedBinaryTreePaving(BinaryTreePaving const& source)
     : _tree(source) { }
 
-Void HybridPaving::invalidate_unlocked() {
+Void CachedBinaryTreePaving::invalidate_unlocked() {
     if(_version==std::numeric_limits<std::uint64_t>::max())
-        throw std::overflow_error("HybridPaving revision counter exhausted");
+        throw std::overflow_error("CachedBinaryTreePaving revision counter exhausted");
     ++_version;
     _compiled.reset();
 }
 
-Void HybridPaving::adjoin(GridCell const& cell) {
+Void CachedBinaryTreePaving::adjoin(GridCell const& cell) {
     std::lock_guard<std::mutex> lock(_mutex);
     invalidate_unlocked();
     _tree.adjoin(cell);
 }
 
-Void HybridPaving::adjoin(std::vector<GridCell> const& cells) {
+Void CachedBinaryTreePaving::adjoin(std::vector<GridCell> const& cells) {
     std::lock_guard<std::mutex> lock(_mutex);
     invalidate_unlocked();
     _tree.adjoin(cells);
 }
 
-Void HybridPaving::remove(GridCell const& cell) {
+Void CachedBinaryTreePaving::remove(GridCell const& cell) {
     std::lock_guard<std::mutex> lock(_mutex);
     invalidate_unlocked();
     _tree.remove(cell);
 }
 
-Void HybridPaving::recombine() {
+Void CachedBinaryTreePaving::recombine() {
     std::lock_guard<std::mutex> lock(_mutex);
     invalidate_unlocked();
     _tree.recombine();
 }
 
-Void HybridPaving::clear() {
+Void CachedBinaryTreePaving::clear() {
     std::lock_guard<std::mutex> lock(_mutex);
     invalidate_unlocked();
     _tree.clear();
 }
 
-Bool HybridPaving::compile_cache() {
+Bool CachedBinaryTreePaving::compile_cache() {
     // Only one compilation per instance; mutations do not acquire this
     // lock and remain free to proceed while ROBDD construction is running.
     std::lock_guard<std::mutex> compiling(_compile_mutex);
@@ -95,7 +95,7 @@ Bool HybridPaving::compile_cache() {
     }
 }
 
-Bool HybridPaving::superset(GridCell const& cell) const {
+Bool CachedBinaryTreePaving::superset(GridCell const& cell) const {
     std::shared_ptr<Compiled const> compiled;
     {
         std::lock_guard<std::mutex> lock(_mutex);
@@ -111,22 +111,22 @@ Bool HybridPaving::superset(GridCell const& cell) const {
     return compiled->paving.superset(cell);
 }
 
-std::unique_ptr<BinaryTreePaving> HybridPaving::tree_snapshot() const {
+std::unique_ptr<BinaryTreePaving> CachedBinaryTreePaving::tree_snapshot() const {
     std::lock_guard<std::mutex> lock(_mutex);
     return std::make_unique<BinaryTreePaving>(_tree);
 }
 
-Bool HybridPaving::has_cache() const {
+Bool CachedBinaryTreePaving::has_cache() const {
     std::lock_guard<std::mutex> lock(_mutex);
     return static_cast<Bool>(_compiled!=nullptr);
 }
 
-std::uint64_t HybridPaving::version() const {
+std::uint64_t CachedBinaryTreePaving::version() const {
     std::lock_guard<std::mutex> lock(_mutex);
     return _version;
 }
 
-SizeType HybridPaving::cached_nodes() const {
+SizeType CachedBinaryTreePaving::cached_nodes() const {
     std::shared_ptr<Compiled const> compiled;
     {
         std::lock_guard<std::mutex> lock(_mutex);

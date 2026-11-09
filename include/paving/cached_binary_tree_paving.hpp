@@ -1,11 +1,11 @@
 /***************************************************************************
- *            hybrid_paving.hpp
+ *            cached_binary_tree_paving.hpp
  *
  *  Explicit, thread-safe Tree -> ROBDD query cache for Ariadne Paving.
  *  Part of Ariadne Paving, GPL-3.0-or-later.
  ****************************************************************************/
-#ifndef ARIADNE_PAVING_HYBRID_PAVING_HPP
-#define ARIADNE_PAVING_HYBRID_PAVING_HPP
+#ifndef ARIADNE_PAVING_CACHED_BINARY_TREE_PAVING_HPP
+#define ARIADNE_PAVING_CACHED_BINARY_TREE_PAVING_HPP
 
 #include <cstdint>
 #include <memory>
@@ -32,10 +32,10 @@ namespace Ariadne {
 //! No mutable tree reference escapes this type. All mutation MUST go through
 //! its methods; externally mutating an earlier source tree is independent.
 //! Do not destroy the wrapper while another thread is accessing it.
-class HybridPaving {
+class CachedBinaryTreePaving {
   public:
-    explicit HybridPaving(Grid const& grid,Bool enabled=false);
-    explicit HybridPaving(BinaryTreePaving const& source);
+    explicit CachedBinaryTreePaving(Grid const& grid,Bool enabled=false);
+    explicit CachedBinaryTreePaving(BinaryTreePaving const& source);
 
     //! \brief Return whether a cell is fully contained (Tree fallback).
     Bool superset(GridCell const& cell) const;
@@ -73,4 +73,4 @@ class HybridPaving {
 
 } // namespace Ariadne
 
-#endif // ARIADNE_PAVING_HYBRID_PAVING_HPP
+#endif // ARIADNE_PAVING_CACHED_BINARY_TREE_PAVING_HPP

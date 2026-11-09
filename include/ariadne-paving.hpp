@@ -35,7 +35,7 @@
 #include "paving/binary_tree_paving.hpp"
 #include "paving/augmented_paving.hpp"
 #include "paving/robdd_paving.hpp"
-#include "paving/hybrid_paving.hpp"
+#include "paving/cached_binary_tree_paving.hpp"
 #include "paving/paver.hpp"
 #include "paving/paver_interface.hpp"
 #include "paving/paving_interface.hpp"

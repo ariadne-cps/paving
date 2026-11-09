@@ -1,5 +1,5 @@
 /***************************************************************************
- *            test_hybrid_paving.cpp
+ *            test_cached_binary_tree_paving.cpp
  *
  *  Explicit Tree-to-ROBDD query cache, invalidation and concurrency.
  *  Part of Ariadne Paving, GPL-3.0-or-later.
@@ -9,7 +9,7 @@
 #include <vector>
 
 #include "ariadne-testing.hpp"
-#include "paving/hybrid_paving.hpp"
+#include "paving/cached_binary_tree_paving.hpp"
 
 using namespace Ariadne;
 
@@ -24,14 +24,14 @@ GridCell cell_at(GridCell const& root,unsigned value,unsigned depth) {
 
 } // namespace
 
-class TestHybridPaving : public Ariadne::Testing::ContextFixture {
+class TestCachedBinaryTreePaving : public Ariadne::Testing::ContextFixture {
   public:
     using ContextFixture::ContextFixture;
 
     Void test_compile_equivalence_and_version_invalidation() {
         Grid grid(2u);
         GridCell root(grid,0u,BinaryWord{});
-        HybridPaving hybrid(grid);
+        CachedBinaryTreePaving hybrid(grid);
         ARIADNE_TESTING_PROVE(not hybrid.has_cache());
         ARIADNE_TESTING_EXPECT_EQUAL(hybrid.cached_nodes(),0u);
         for(unsigned i=0u;i<64u;++i)
@@ -87,7 +87,7 @@ class TestHybridPaving : public Ariadne::Testing::ContextFixture {
     Void test_wrong_grid_and_snapshot_detachment() {
         Grid grid(2u);
         GridCell root(grid,0u,BinaryWord{});
-        HybridPaving hybrid(grid);
+        CachedBinaryTreePaving hybrid(grid);
         hybrid.adjoin(root.split(false));
         auto detached=hybrid.tree_snapshot();
         ARIADNE_TESTING_PROVE(hybrid.compile_cache());
@@ -104,7 +104,7 @@ class TestHybridPaving : public Ariadne::Testing::ContextFixture {
     Void test_concurrent_queries_mutations_and_compilation() {
         Grid grid(2u);
         GridCell root(grid,0u,BinaryWord{});
-        HybridPaving hybrid(grid);
+        CachedBinaryTreePaving hybrid(grid);
         GridCell const sentinel=cell_at(root,0u,7u);
         hybrid.adjoin(sentinel);
         for(unsigned i=1u;i<128u;++i)
@@ -147,9 +147,9 @@ class TestHybridPaving : public Ariadne::Testing::ContextFixture {
 };
 
 int main(int argc,char** argv) {
-    ARIADNE_TESTING_SUITE("test_hybrid_paving");
-    ARIADNE_TESTING_ADD_TEST(TestHybridPaving,test_compile_equivalence_and_version_invalidation);
-    ARIADNE_TESTING_ADD_TEST(TestHybridPaving,test_wrong_grid_and_snapshot_detachment);
-    ARIADNE_TESTING_ADD_TEST(TestHybridPaving,test_concurrent_queries_mutations_and_compilation);
+    ARIADNE_TESTING_SUITE("test_cached_binary_tree_paving");
+    ARIADNE_TESTING_ADD_TEST(TestCachedBinaryTreePaving,test_compile_equivalence_and_version_invalidation);
+    ARIADNE_TESTING_ADD_TEST(TestCachedBinaryTreePaving,test_wrong_grid_and_snapshot_detachment);
+    ARIADNE_TESTING_ADD_TEST(TestCachedBinaryTreePaving,test_concurrent_queries_mutations_and_compilation);
     return ARIADNE_TESTING_RUN_TESTS_WITH_ARGS(argc,argv);
 }
