@@ -202,9 +202,10 @@ ROBDD-backed pavings share one manager. The backend is selected only at
 construction, not in the algorithm.
 
 - C++: `tutorials/tutorial_paving/tutorial_paving.cpp`, built separately
-  against an installed `ariadne-paving` and checked in CTest.
-- Python: `python/tutorials/tutorial_paving.py`, exercised from the
-  Python paving regression test.
+  against an installed `ariadne-paving`.
+- Python: `python/tutorials/tutorial_paving.py`.
+- Both tutorials are executed in the Release workflow; they are not registered
+  as additional CTest or pytest cases in this repository.
 - Python uses `Paving.tree(grid)` and `Paving.robdd(grid, manager)`
   factory methods; the underlying C++ polymorphic value has the same semantics.
   The BDD Python `RobddManager` binding uses shared ownership to permit

@@ -32,10 +32,3 @@ add_dependencies(tests ${UNIT_TESTS})
 # rather than consuming the entire CI job timeout.
 set_tests_properties(test_paving_lock_reentrancy PROPERTIES TIMEOUT 20)
 set_tests_properties(test_paving_concurrent_adjoin PROPERTIES TIMEOUT 60)
-
-# Run the standalone C++ tutorial as a smoke/regression test.
-add_executable(test_paving_tutorial ../tutorials/tutorial_paving/tutorial_paving.cpp)
-target_link_libraries(test_paving_tutorial PRIVATE ariadne-paving paving)
-add_test(NAME test_paving_tutorial COMMAND $<TARGET_FILE:test_paving_tutorial>)
-set_property(TEST test_paving_tutorial PROPERTY LABELS "paving")
-add_dependencies(tests test_paving_tutorial)
