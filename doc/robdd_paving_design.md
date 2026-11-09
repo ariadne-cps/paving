@@ -3238,3 +3238,19 @@ adapters. Also fixed duplicate `mince`/`recombine` method declarations
 accidentally introduced into the subpaving wrapper in the generic-forwarding
 commit: those new forwarders belong to `Paving` while `SubPaving` already
 has them. Compilation must be verified through the paving PR's CI.
+
+## 2026-11-09 - Move-aware SubPaving transport through Python
+
+A Python Release tutorial exposed a lifetime/value-category bug: returning
+`SubPaving` by value across pybind11 invoked the copy constructor, which
+calls `clone()` and produces a detached snapshot (for tree subpavings a
+new `BinaryTreePaving`). Consequently nested Python `branch()` mutations
+did not modify the original paving. Added explicit move construction and
+move assignment to `SubPaving`, transferring its owned interface pointer
+without cloning, while preserving copy-by-clone semantics for explicit
+copies. Python `Paving.branch()` and `SubPaving.branch()` now request
+move return policy and retain their Python parent with `keep_alive`.
+Added a **binding API regression** for both backends, without registering
+or importing any tutorial as a test. C++ view semantics are unchanged:
+copies are detached, branches are live, and a moved-from wrapper is only
+destructible or assignable. CI/Release verification is pending.

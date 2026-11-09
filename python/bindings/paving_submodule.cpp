@@ -168,8 +168,8 @@ Void export_polymorphic_paving(pybind11::module& module) {
         .def("superset",&SubPaving::superset)
         .def("set_root_cell",&SubPaving::set_root_cell)
         .def("branch",[](SubPaving const& self, Bool right) {
-            return static_cast<SubPavingInterface const&>(self).branch(right);
-        },pybind11::keep_alive<0,1>())
+            return self.branch(right);
+        },pybind11::return_value_policy::move,pybind11::keep_alive<0,1>())
         .def("__iter__",[](SubPaving const& self) {
             return pybind11::make_iterator<pybind11::return_value_policy::copy>(
                 self.begin(),self.end());
@@ -216,7 +216,7 @@ Void export_polymorphic_paving(pybind11::module& module) {
         })
         .def("branch",[](Paving const& self, Bool right) {
             return as_subpaving(self).branch(right);
-        },pybind11::keep_alive<0,1>())
+        },pybind11::return_value_policy::move,pybind11::keep_alive<0,1>())
         .def("__len__",&Paving::size)
         .def("__iter__",[](Paving const& self) {
             return pybind11::make_iterator<pybind11::return_value_policy::copy>(

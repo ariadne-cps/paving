@@ -313,9 +313,17 @@ class SubPaving
     ~SubPaving() { delete _ptr; }
     SubPaving(SubPavingInterface* p) : _ptr(p) { }
     SubPaving(const SubPavingInterface& p) : _ptr(p.clone()) { }
+    // Copying snapshots a subpaving; moving transfers the live view.
+    // This matters for Python value returns: copying would detach the view
+    // from its original paving when crossing the binding boundary.
     SubPaving(const SubPaving& other) : _ptr(other._ptr->clone()) { }
+    SubPaving(SubPaving&& other) noexcept : _ptr(std::exchange(other._ptr,nullptr)) { }
     SubPaving& operator=(const SubPaving& other) {
         if(_ptr!=other._ptr) { auto* copied=other._ptr->clone(); delete _ptr; _ptr=copied; } return *this; }
+    SubPaving& operator=(SubPaving&& other) noexcept {
+        if(this!=&other) { delete _ptr; _ptr=std::exchange(other._ptr,nullptr); }
+        return *this;
+    }
     operator SubPavingInterface& () { return *this->_ptr; }
     operator const SubPavingInterface& () const { return *this->_ptr; }
 
