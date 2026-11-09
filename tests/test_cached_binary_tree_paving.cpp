@@ -10,6 +10,9 @@
 
 #include "ariadne-testing.hpp"
 #include "paving/cached_binary_tree_paving.hpp"
+#include "paving/augmented_paving.hpp"
+#include "set/function_set.hpp"
+#include "geometry/set_wrapper.hpp"
 
 using namespace Ariadne;
 
@@ -66,6 +69,51 @@ class TestCachedBinaryTreePaving : public Ariadne::Testing::ContextFixture {
         abstract.set_root_cell(false);
         ARIADNE_TESTING_PROVE(not cached.has_cache());
         ARIADNE_TESTING_PROVE(handle.is_empty());
+    }
+
+    Void test_augmented_reachability_storage_approximations() {
+        Grid grid(1u);
+        Mapping mapping=Mapping::identity(1u);
+        AugmentedPaving storage(
+            Paving(new CachedBinaryTreePaving(grid,false,true)),mapping);
+        auto& backend=dynamic_cast<CachedBinaryTreePaving&>(
+            static_cast<PavingInterface&>(storage.state_paving()));
+        ARIADNE_TESTING_PROVE(backend.automatic_cache());
+        ARIADNE_TESTING_PROVE(not backend.has_cache());
+
+        ExactBoxType box{{0.125_x,0.875_x}};
+        OvertSet<EffectiveTag,RealVector> overt(box);
+        CompactSet<EffectiveTag,RealVector> compact(box);
+        BinaryTreePaving expected(grid);
+
+        storage.adjoin_lower_approximation(overt.reference(),0u,3u);
+        expected.adjoin_lower_approximation(overt.reference(),0u,3u);
+        ARIADNE_TESTING_PROVE(subset(storage.state_paving(),expected));
+        ARIADNE_TESTING_PROVE(subset(expected,storage.state_paving()));
+        (void)storage.state_paving().superset(GridCell(grid,0u,BinaryWord{}));
+        ARIADNE_TESTING_PROVE(backend.has_cache());
+
+        storage.adjoin_outer_approximation(compact.reference(),2u);
+        expected.adjoin_outer_approximation(compact.reference(),2u);
+        ARIADNE_TESTING_PROVE(not backend.has_cache());
+        ARIADNE_TESTING_PROVE(subset(storage.state_paving(),expected));
+        ARIADNE_TESTING_PROVE(subset(expected,storage.state_paving()));
+        (void)storage.state_paving().superset(GridCell(grid,0u,BinaryWord{}));
+        ARIADNE_TESTING_PROVE(backend.has_cache());
+
+        storage.restrict_to_extent(0u);
+        expected.restrict_to_extent(0u);
+        ARIADNE_TESTING_PROVE(not backend.has_cache());
+        ARIADNE_TESTING_PROVE(subset(storage.state_paving(),expected));
+        ARIADNE_TESTING_PROVE(subset(expected,storage.state_paving()));
+
+        AugmentedPaving copy(storage);
+        auto& cloned=dynamic_cast<CachedBinaryTreePaving&>(
+            static_cast<PavingInterface&>(copy.state_paving()));
+        ARIADNE_TESTING_PROVE(cloned.automatic_cache());
+        storage.clear();
+        ARIADNE_TESTING_PROVE(storage.is_empty());
+        ARIADNE_TESTING_PROVE(not copy.is_empty());
     }
 
     Void test_compile_equivalence_and_version_invalidation() {
@@ -191,6 +239,7 @@ int main(int argc,char** argv) {
     ARIADNE_TESTING_ADD_TEST(TestCachedBinaryTreePaving,test_compile_equivalence_and_version_invalidation);
     ARIADNE_TESTING_ADD_TEST(TestCachedBinaryTreePaving,test_wrong_grid_and_snapshot_detachment);
     ARIADNE_TESTING_ADD_TEST(TestCachedBinaryTreePaving,test_polymorphic_backend_and_automatic_cache);
+    ARIADNE_TESTING_ADD_TEST(TestCachedBinaryTreePaving,test_augmented_reachability_storage_approximations);
     ARIADNE_TESTING_ADD_TEST(TestCachedBinaryTreePaving,test_concurrent_queries_mutations_and_compilation);
     return ARIADNE_TESTING_RUN_TESTS_WITH_ARGS(argc,argv);
 }
