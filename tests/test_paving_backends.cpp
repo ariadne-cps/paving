@@ -100,6 +100,43 @@ class TestPavingBackends : public Ariadne::Testing::ContextFixture {
         }
     }
 
+    Void test_outer_union_with_complete_search_root() {
+        Grid grid(1u);
+        CountingConstrainedImageSet effective(RealBox({{0.125_dec,0.875_dec}}));
+        ValidatedConstrainedImageSet validated(ExactBoxType({{0.125_x,0.875_x}}));
+        Nat extent=GridCell::smallest_enclosing_primary_cell_extent(
+            effective.bounding_box(),grid)+1u;
+        GridCell search_root(grid,extent,BinaryWord{});
+        BinaryTreePaving tree(grid,extent,new BinaryTreeNode(true));
+        tree.adjoin_outer_approximation(
+            static_cast<EffectiveEuclideanCompactSetInterface const&>(effective),2u);
+        ARIADNE_TESTING_EXPECT_EQUAL(effective.separated_calls,0u);
+        tree.adjoin_outer_approximation(
+            static_cast<ValidatedEuclideanCompactSetInterface const&>(validated),2u);
+        ARIADNE_TESTING_PROVE(tree.superset(search_root));
+        ARIADNE_TESTING_EXPECT_EQUAL(tree.size(),1u);
+
+        auto& threading=ThreadManager::instance();
+        struct Restore {
+            ThreadManager& manager;
+            SizeType previous;
+            ~Restore() { manager.set_concurrency(previous); }
+        } restore{threading,threading.concurrency()};
+        threading.set_concurrency(std::min<SizeType>(2u,threading.maximum_concurrency()));
+        ConstrainedImageSet set(RealBox({{0.125_dec,0.875_dec}}));
+        RobddManager manager;
+        RobddPaving full(manager,search_root,manager.constant(true),0u);
+        full.adjoin_outer_approximation_parallel(set,2u);
+        ARIADNE_TESTING_PROVE(full.superset(search_root));
+        ARIADNE_TESTING_EXPECT_EQUAL(full.size(),1u);
+
+        // A query crossing an absent left child fails before visiting right.
+        GridCell root(grid,0u,BinaryWord{});
+        RobddPaving right_only(manager,root,manager.constant(false),0u);
+        right_only.adjoin(root.split(true));
+        ARIADNE_TESTING_PROVE(not right_only.superset(root.box()));
+    }
+
 
     Void test_parallel_outer_classification_equivalence_and_fallback() {
         ThreadManager& threading=ThreadManager::instance();
@@ -3017,6 +3054,7 @@ int main(int argc, char** argv) {
     ARIADNE_TESTING_ADD_TEST(TestPavingBackends, test_parallel_outer_classification_equivalence_and_fallback);
     ARIADNE_TESTING_ADD_TEST(TestPavingBackends, test_subpaving_move_assignment_preserves_the_view);
     ARIADNE_TESTING_ADD_TEST(TestPavingBackends, test_parallel_one_dimensional_frontier);
+    ARIADNE_TESTING_ADD_TEST(TestPavingBackends, test_outer_union_with_complete_search_root);
     ARIADNE_TESTING_ADD_TEST(TestPavingBackends, test_generic_approximations_between_backends);
     ARIADNE_TESTING_ADD_TEST(TestPavingBackends, test_polymorphic_paving_handle_and_subpaving_views);
     ARIADNE_TESTING_ADD_TEST(TestPavingBackends, test_polymorphic_sequences_backend_isolation);
