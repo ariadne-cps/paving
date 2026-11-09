@@ -42,6 +42,21 @@ EffectiveConstrainedImageSet make_set(unsigned dimension) {
     return set;
 }
 
+// Compare geometric coverage without assuming the two ROBDDs share a manager.
+// Checking every enabled leaf in both directions is exact even if their
+// canonical subdivisions differ. Validation runs outside measured regions.
+Bool same_geometry(RobddPaving const& first,RobddPaving const& second) {
+    auto contained=[](RobddPaving const& candidate,
+                      RobddPaving const& container) {
+        Bool covered=true;
+        candidate.for_each_enabled_leaf([&](GridCell const& cell) {
+            if(covered and not container.superset(cell)) covered=false;
+        });
+        return covered;
+    };
+    return contained(first,second) and contained(second,first);
+}
+
 void run(Bench::CommandLine const& cli,Bench::Matrix const& matrix,
          Bench::Parameter<unsigned> const& dims,
          Bench::Parameter<unsigned> const& fineness,
@@ -93,8 +108,7 @@ void run(Bench::CommandLine const& cli,Bench::Matrix const& matrix,
                         paving->adjoin_outer_approximation(source,f);
                 },
                 [&] {
-                    if(not paving->subset(oracle)
-                       or not oracle.subset(*paving))
+                    if(not same_geometry(*paving,oracle))
                         throw std::runtime_error(
                             "Parallel and serial outer geometries differ");
                     Bench::keep_alive(paving->size());
