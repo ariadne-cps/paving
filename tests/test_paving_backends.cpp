@@ -44,6 +44,18 @@ class CountingConstrainedImageSet : public ConstrainedImageSet {
     }
 };
 
+// Cross-manager comparison must use geometry: ROBDD subset() is intentionally
+// manager-local. Each enabled candidate leaf must be covered by the other
+// paving; this remains exact when canonical subdivisions are different.
+Bool geometrically_contained(RobddPaving const& candidate,
+                             RobddPaving const& container) {
+    Bool contained=true;
+    candidate.for_each_enabled_leaf([&](GridCell const& cell) {
+        if(contained and not container.superset(cell)) contained=false;
+    });
+    return contained;
+}
+
 class TestPavingBackends : public Ariadne::Testing::ContextFixture {
   public:
     using ContextFixture::ContextFixture;
@@ -93,8 +105,8 @@ class TestPavingBackends : public Ariadne::Testing::ContextFixture {
                     }
                     expected.adjoin_outer_approximation(source,fineness);
                     actual.adjoin_outer_approximation_parallel(source,fineness);
-                    ARIADNE_TESTING_PROVE(actual.subset(expected));
-                    ARIADNE_TESTING_PROVE(expected.subset(actual));
+                    ARIADNE_TESTING_PROVE(geometrically_contained(actual,expected));
+                    ARIADNE_TESTING_PROVE(geometrically_contained(expected,actual));
                     ARIADNE_TESTING_EXPECT_EQUAL(actual.size(),expected.size());
                 }
             }
@@ -128,8 +140,8 @@ class TestPavingBackends : public Ariadne::Testing::ContextFixture {
             actual.adjoin_outer_approximation_parallel(polymorphic,1u);
             expected.adjoin_outer_approximation(polymorphic,1u);
             ARIADNE_TESTING_PROVE(derived.separated_calls>0u);
-            ARIADNE_TESTING_PROVE(actual.subset(expected));
-            ARIADNE_TESTING_PROVE(expected.subset(actual));
+            ARIADNE_TESTING_PROVE(geometrically_contained(actual,expected));
+            ARIADNE_TESTING_PROVE(geometrically_contained(expected,actual));
         }
     }
 
