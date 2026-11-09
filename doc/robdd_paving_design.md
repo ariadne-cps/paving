@@ -3227,3 +3227,14 @@ does not yet migrate the old `LabelledBinaryTreePaving`,
 types; those require replacing calls to tree-specific operations and
 updating all nested repository pins. The shared-manager regressions
 were added but not executed in the connector environment.
+
+## 2026-11-09 - Normalize SubPaving handle naming and repair forwarding
+
+The owning, value-like wrapper is `Paving`; the mutable subpaving-view wrapper
+is now `SubPaving` (renamed from `SubPavingHandle`). Its live borrowed-view
+semantics have not changed: references into a parent require that parent to
+outlive the view. Updated library API, support comments, tests and drawing
+adapters. Also fixed duplicate `mince`/`recombine` method declarations
+accidentally introduced into the subpaving wrapper in the generic-forwarding
+commit: those new forwarders belong to `Paving` while `SubPaving` already
+has them. Compilation must be verified through the paving PR's CI.

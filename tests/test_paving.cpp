@@ -131,14 +131,14 @@ Void TestPaving::test_branch() {
     ARIADNE_TESTING_PROVE(direct_branch0.size()==2);
     ARIADNE_TESTING_NOTE("direct_branch0.root_cell() = " << (direct_branch0.root_cell()));
 
-    SubPavingHandle branch0 = paving.branch(0);
+    SubPaving branch0 = paving.branch(0);
     ARIADNE_TESTING_PROVE(branch0.size()==2);
     ARIADNE_TESTING_NOTE("branch0.root_cell() = " << (branch0.root_cell()));
     ARIADNE_TESTING_NOTE("branch0 = " << (branch0));
     ARIADNE_TESTING_PROVE(branch0.begin()->word()==word1);
     ARIADNE_TESTING_PROVE((++branch0.begin())->word()==word2);
 
-    SubPavingHandle branch1 = paving.branch(1);
+    SubPaving branch1 = paving.branch(1);
     ARIADNE_TESTING_PROVE(branch1.size()==2);
     ARIADNE_TESTING_NOTE("branch1.root_cell() = " << (branch1.root_cell()));
     ARIADNE_TESTING_NOTE("branch1 = " << (branch1));
@@ -335,13 +335,13 @@ Void TestPaving::test_paving_handle_forwarding() {
     std::ostringstream repr;
     repr<<adapted<<old<<const_owned;
     auto& mutable_interface=static_cast<PavingInterface&>(paving);
-    SubPavingHandle sub=mutable_interface.branch(false);
-    SubPavingHandle sub_copy(sub);
-    SubPavingHandle from_interface(static_cast<const SubPavingInterface&>(sub));
+    SubPaving sub=mutable_interface.branch(false);
+    SubPaving sub_copy(sub);
+    SubPaving from_interface(static_cast<const SubPavingInterface&>(sub));
     sub_copy=from_interface;
-    const SubPavingHandle& sub_alias=sub_copy;
+    const SubPaving& sub_alias=sub_copy;
     sub_copy=sub_alias;
-    const SubPavingHandle& const_sub=sub;
+    const SubPaving& const_sub=sub;
     const SubPavingInterface& const_sub_interface=const_sub;
     ARIADNE_TESTING_EXPECT_EQUAL(const_sub_interface.size(),1u);
     ARIADNE_TESTING_EXPECT_EQUAL(const_sub.grid(),grid);

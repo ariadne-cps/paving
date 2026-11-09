@@ -2912,14 +2912,14 @@ void test_products() {
         // materialize a mutable child without changing its geometry.
         ARIADNE_TESTING_PROVE(enabled.superset(root));
         {
-            SubPavingHandle left_view=as_interface.branch(false);
+            SubPaving left_view=as_interface.branch(false);
             ARIADNE_TESTING_PROVE(left_view.root_cell()==left);
             ARIADNE_TESTING_PROVE(left_view.superset(left));
             ARIADNE_TESTING_PROVE(enabled.superset(root));
 
             // A second branch must also split an enabled leaf.
             {
-                SubPavingHandle grandchild=
+                SubPaving grandchild=
                     static_cast<SubPavingInterface const&>(left_view).branch(true);
                 ARIADNE_TESTING_PROVE(grandchild.root_cell()==left_right);
                 ARIADNE_TESTING_PROVE(grandchild.superset(left_right));
@@ -2937,7 +2937,7 @@ void test_products() {
         // locally without changing its sibling.
         BinaryTreePaving disabled(grid,false);
         {
-            SubPavingHandle right_view=
+            SubPaving right_view=
                 static_cast<SubPavingInterface const&>(disabled).branch(true);
             ARIADNE_TESTING_PROVE(not right_view.superset(right));
             right_view.set_root_cell(true);

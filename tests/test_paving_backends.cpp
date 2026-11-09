@@ -1629,10 +1629,10 @@ class TestPavingBackends : public Ariadne::Testing::ContextFixture {
             GridCell left=root.split(false);
             GridCell right=root.split(true);
             {
-                SubPavingHandle tree_view=
+                SubPaving tree_view=
                     static_cast<SubPavingInterface const&>(full_tree)
                         .branch(false);
-                SubPavingHandle robdd_view=
+                SubPaving robdd_view=
                     static_cast<SubPavingInterface const&>(full_robdd)
                         .branch(false);
                 SubPavingInterface const& tv=tree_view;
@@ -1758,10 +1758,10 @@ class TestPavingBackends : public Ariadne::Testing::ContextFixture {
                 // Both child views remain live; their handle copies are
                 // detached snapshots of the selected geometric region.
                 {
-                    SubPavingHandle tree_left=tree.branch(false);
-                    SubPavingHandle robdd_left=robdd.branch(false);
-                    SubPavingHandle tree_snapshot(tree_left);
-                    SubPavingHandle robdd_snapshot(robdd_left);
+                    SubPaving tree_left=tree.branch(false);
+                    SubPaving robdd_left=robdd.branch(false);
+                    SubPaving tree_snapshot(tree_left);
+                    SubPaving robdd_snapshot(robdd_left);
                     ARIADNE_TESTING_PROVE(tree_left.superset(left));
                     ARIADNE_TESTING_PROVE(robdd_left.superset(left));
                     ARIADNE_TESTING_PROVE(tree_snapshot.superset(left));
@@ -1946,15 +1946,15 @@ class TestPavingBackends : public Ariadne::Testing::ContextFixture {
                 tree_handle.remove(right.split(true));
                 robdd_handle.remove(right.split(true));
                 {
-                    SubPavingHandle tree_left=tree.branch(false);
-                    SubPavingHandle robdd_left=robdd.branch(false);
+                    SubPaving tree_left=tree.branch(false);
+                    SubPaving robdd_left=robdd.branch(false);
                     ARIADNE_TESTING_PROVE(tree_left.root_cell()==left);
                     ARIADNE_TESTING_PROVE(robdd_left.root_cell()==left);
                     ARIADNE_TESTING_PROVE(tree_left.superset(left));
                     ARIADNE_TESTING_PROVE(robdd_left.superset(left));
 
-                    SubPavingHandle tree_snapshot(tree_left);
-                    SubPavingHandle robdd_snapshot(robdd_left);
+                    SubPaving tree_snapshot(tree_left);
+                    SubPaving robdd_snapshot(robdd_left);
                     tree_snapshot.set_root_cell(false);
                     robdd_snapshot.set_root_cell(false);
                     ARIADNE_TESTING_PROVE(tree_left.superset(left));
@@ -2025,8 +2025,8 @@ class TestPavingBackends : public Ariadne::Testing::ContextFixture {
         ARIADNE_TESTING_PROVE(robdd.superset(right));
 
         // Child interfaces are live views and modify their owning paving.
-        SubPavingHandle tree_left=tree.branch(false);
-        SubPavingHandle robdd_left=robdd.branch(false);
+        SubPaving tree_left=tree.branch(false);
+        SubPaving robdd_left=robdd.branch(false);
         ARIADNE_TESTING_PROVE(tree_left.root_cell()==left);
         ARIADNE_TESTING_PROVE(robdd_left.root_cell()==left);
         ARIADNE_TESTING_PROVE(tree_left.superset(left_right));
@@ -2039,7 +2039,7 @@ class TestPavingBackends : public Ariadne::Testing::ContextFixture {
 
         // Clone the view via both handle constructors. Mutating either
         // independent clone must not change the original parent.
-        SubPavingHandle robdd_left_copy(robdd_left);
+        SubPaving robdd_left_copy(robdd_left);
         Paving independent_left(
             static_cast<SubPavingInterface const&>(robdd_left));
         ARIADNE_TESTING_PROVE(robdd_left_copy.superset(left_right));
@@ -2052,9 +2052,9 @@ class TestPavingBackends : public Ariadne::Testing::ContextFixture {
         ARIADNE_TESTING_PROVE(not independent_left.superset(left_right));
 
         // A grandchild returned through the interface is another live view.
-        SubPavingHandle tree_left_right=
+        SubPaving tree_left_right=
             static_cast<SubPavingInterface const&>(tree_left).branch(true);
-        SubPavingHandle robdd_left_right=
+        SubPaving robdd_left_right=
             static_cast<SubPavingInterface const&>(robdd_left).branch(true);
         ARIADNE_TESTING_PROVE(tree_left_right.root_cell()==left_right);
         ARIADNE_TESTING_PROVE(robdd_left_right.root_cell()==left_right);
@@ -2154,10 +2154,10 @@ class TestPavingBackends : public Ariadne::Testing::ContextFixture {
             PavingInterface& a=tree;
             PavingInterface& b=robdd;
             {
-                SubPavingHandle al=a.branch(false);
-                SubPavingHandle ar=a.branch(true);
-                SubPavingHandle bl=b.branch(false);
-                SubPavingHandle br=b.branch(true);
+                SubPaving al=a.branch(false);
+                SubPaving ar=a.branch(true);
+                SubPaving bl=b.branch(false);
+                SubPaving br=b.branch(true);
                 ARIADNE_TESTING_PROVE(al.root_cell()==left);
                 ARIADNE_TESTING_PROVE(bl.root_cell()==left);
                 ARIADNE_TESTING_PROVE(ar.root_cell()==right);
@@ -2433,8 +2433,8 @@ class TestPavingBackends : public Ariadne::Testing::ContextFixture {
 
             // A non-primary view cannot be represented exactly by
             // cells wider than the view root unless it is empty.
-            SubPavingHandle t_child=partial_tree_interface.branch(false);
-            SubPavingHandle r_child=ri.branch(false);
+            SubPaving t_child=partial_tree_interface.branch(false);
+            SubPaving r_child=ri.branch(false);
             SubPavingInterface const& tv=t_child;
             SubPavingInterface const& rv=r_child;
             ARIADNE_TESTING_EXPECT_EXCEPTION(
@@ -2490,8 +2490,8 @@ class TestPavingBackends : public Ariadne::Testing::ContextFixture {
             // borrowed child. Its sibling and owning paving remain enabled.
             PavingInterface const& tree_interface=tree_handle;
             PavingInterface const& robdd_interface=robdd_handle;
-            SubPavingHandle tree_left=tree_interface.branch(false);
-            SubPavingHandle robdd_left=robdd_interface.branch(false);
+            SubPaving tree_left=tree_interface.branch(false);
+            SubPaving robdd_left=robdd_interface.branch(false);
             tree_cells.clear();
             robdd_cells.clear();
             tree_left.for_each_enabled_cell_at_exact_fineness(

@@ -110,7 +110,7 @@ template<class BS> class DenotableSetInterface
 };
 
 class Paving;
-class SubPavingHandle;
+class SubPaving;
 
 class PavingInterface;
 class SubPavingInterface;
@@ -131,7 +131,7 @@ class SubPavingInterface;
 class SubPavingInterface
     : public virtual LocatedSetInterface<ValidatedTag,RealVector>
 {
-    friend class SubPavingHandle;
+    friend class SubPaving;
     friend class Paving;
   public:
     typedef ForwardConstantIteratorHandle<GridCell> ConstIterator;
@@ -140,7 +140,7 @@ class SubPavingInterface
     inline ForwardConstantIteratorHandle<GridCell> begin() const { return this->_begin(); }
     inline ForwardConstantIteratorHandle<GridCell> end() const { return this->_end(); }
     //! \brief A sub-paving obtained by considering one of the immediate subcells of the root cell.
-    inline SubPavingHandle branch(Bool left_or_right) const;
+    inline SubPaving branch(Bool left_or_right) const;
 
     //! \brief Visit enabled cells at exactly the requested grid-relative fineness.
     //! \details Each emitted GridCell has word length
@@ -304,27 +304,22 @@ inline Bool intersect(const SubPavingInterface& p1, const SubPavingInterface& p2
 //! \brief A generic forward Iterator through constant data.
 //! \details Since the Iterator is through constant data, the data may be safely be returned by value rather than by reference,
 //! though this is not strictly standards-conforming, and means that operator->() cannot be provided.
-class SubPavingHandle
+class SubPaving
 {
     SubPavingInterface* _ptr;
   public:
     typedef ForwardConstantIteratorHandle<GridCell> ConstIterator;
   public:
-    ~SubPavingHandle() { delete _ptr; }
-    SubPavingHandle(SubPavingInterface* p) : _ptr(p) { }
-    SubPavingHandle(const SubPavingInterface& p) : _ptr(p.clone()) { }
-    SubPavingHandle(const SubPavingHandle& other) : _ptr(other._ptr->clone()) { }
-    SubPavingHandle& operator=(const SubPavingHandle& other) {
+    ~SubPaving() { delete _ptr; }
+    SubPaving(SubPavingInterface* p) : _ptr(p) { }
+    SubPaving(const SubPavingInterface& p) : _ptr(p.clone()) { }
+    SubPaving(const SubPaving& other) : _ptr(other._ptr->clone()) { }
+    SubPaving& operator=(const SubPaving& other) {
         if(_ptr!=other._ptr) { auto* copied=other._ptr->clone(); delete _ptr; _ptr=copied; } return *this; }
     operator SubPavingInterface& () { return *this->_ptr; }
     operator const SubPavingInterface& () const { return *this->_ptr; }
 
     const Grid& grid() const { return this->_ptr->grid(); }
-    DimensionType dimension() const { return this->_ptr->dimension(); }
-    Bool is_empty() const { return this->_ptr->size()==0u; }
-    Void clear() { this->_ptr->set_root_cell(false); }
-    Void mince(Nat fineness) { this->_ptr->mince(fineness); }
-    Void recombine() { this->_ptr->recombine(); }
     SizeType size() const { return this->_ptr->size(); }
     GridCell root_cell() const { return this->_ptr->root_cell(); };
     Bool superset(const GridCell& c) const { return this->_ptr->superset(c); }
@@ -352,10 +347,10 @@ class SubPavingHandle
   private:
     OutputStream& _write(OutputStream& os) const { return this->_ptr->_write(os); }
   public:
-    friend OutputStream& operator<<(OutputStream& os, const SubPavingHandle& self) { return self._write(os); }
+    friend OutputStream& operator<<(OutputStream& os, const SubPaving& self) { return self._write(os); }
 };
 
-inline SubPavingHandle SubPavingInterface::branch(Bool left_or_right) const { return this->_branch(left_or_right); }
+inline SubPaving SubPavingInterface::branch(Bool left_or_right) const { return this->_branch(left_or_right); }
 
 
 
@@ -403,6 +398,11 @@ class Paving
     operator const PavingInterface& () const { return *this->_ptr; }
 
     const Grid& grid() const { return this->_ptr->grid(); }
+    DimensionType dimension() const { return this->_ptr->dimension(); }
+    Bool is_empty() const { return this->_ptr->size()==0u; }
+    Void clear() { this->_ptr->set_root_cell(false); }
+    Void mince(Nat fineness) { this->_ptr->mince(fineness); }
+    Void recombine() { this->_ptr->recombine(); }
     SizeType size() const { return this->_ptr->size(); }
     GridCell root_cell() const { return this->_ptr->root_cell(); }
     Bool superset(const GridCell& c) const { return this->_ptr->superset(c); }
@@ -443,7 +443,7 @@ class Paving
     friend OutputStream& operator<<(OutputStream& os, const Paving& self) { return os << *self._ptr; }
 };
 
-inline Paving SubPavingHandle::uniform_cell_paving(Nat fineness) const {
+inline Paving SubPaving::uniform_cell_paving(Nat fineness) const {
     return this->_ptr->uniform_cell_paving(fineness);
 }
 
