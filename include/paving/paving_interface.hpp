@@ -326,6 +326,8 @@ class SubPaving
     Bool subset(const SubPavingInterface& p) const { return this->_ptr->subset(p); }
     Bool intersects(const SubPavingInterface& p) const { return this->_ptr->intersects(p); }
     Void set_root_cell(Bool onoff) { return this->_ptr->set_root_cell(onoff); }
+    //! \brief Create a live child view of the underlying paving.
+    SubPaving branch(Bool right) const;
 
     ForwardConstantIteratorHandle<GridCell> begin() const { return this->_ptr->_begin(); }
     ForwardConstantIteratorHandle<GridCell> end() const { return this->_ptr->_end(); }
@@ -351,6 +353,7 @@ class SubPaving
 };
 
 inline SubPaving SubPavingInterface::branch(Bool left_or_right) const { return this->_branch(left_or_right); }
+inline SubPaving SubPaving::branch(Bool right) const { return this->_ptr->branch(right); }
 
 
 
