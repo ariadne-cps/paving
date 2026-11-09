@@ -24,6 +24,7 @@
 #include "paving/robdd_paving.hpp"
 #include "paving/paving_cell_operations.hpp"
 #include "geometry/set_wrapper.hpp"
+#include "set/function_set.hpp"
 #include "ariadne-testing.hpp"
 
 using namespace Ariadne;
@@ -34,6 +35,78 @@ static_assert(std::is_base_of_v<PavingInterface,BinaryTreePaving>);
 class TestRobddPaving : public Ariadne::Testing::ContextFixture {
   public:
     using ContextFixture::ContextFixture;
+
+    Void test_shared_import_and_geometric_box_queries() {
+        Grid grid(1u);
+        GridCell root(grid,0u,BinaryWord{});
+        auto manager=std::make_shared<RobddManager>();
+        BinaryTreePaving source(grid);
+        source.adjoin(root.split(false));
+        SubPavingInterface const& neutral=source;
+        RobddPaving imported(manager,neutral);
+        RobddPaving borrowed(*manager,neutral);
+        RobddPaving empty(manager,root,manager->constant(false),0u);
+        auto united=RobddPaving::from_cells(manager,root,
+            std::vector<GridCell>{root.split(false),root.split(true)});
+        ARIADNE_TESTING_PROVE(imported.superset(root.split(false)));
+        ARIADNE_TESTING_PROVE(borrowed.superset(root.split(false)));
+        ARIADNE_TESTING_PROVE(united.superset(root));
+        ARIADNE_TESTING_PROVE(empty.is_empty());
+        ARIADNE_TESTING_PROVE(imported.superset(root.split(false).box()));
+        ARIADNE_TESTING_PROVE(imported.superset(root.split(false).split(true).box()));
+        ARIADNE_TESTING_PROVE(!imported.superset(root.box()));
+        ARIADNE_TESTING_PROVE(!imported.superset(root.split(true).box()));
+        ARIADNE_TESTING_PROVE(!empty.superset(root.box()));
+        ARIADNE_TESTING_PROVE(!imported.superset(GridCell(grid,1u,BinaryWord{}).box()));
+        ARIADNE_TESTING_EXPECT_EXCEPTION(imported.superset(ExactBoxType({{0,1},{0,1}})));
+        ARIADNE_TESTING_EXPECT_EXCEPTION((RobddPaving(std::shared_ptr<RobddManager>{},neutral)));
+    }
+
+    Void test_validated_and_overt_approximation_paths() {
+        Grid grid(1u);
+        GridCell root(grid,0u,BinaryWord{});
+        RobddManager manager;
+        ExactBoxType box{{0.125_x,0.875_x}};
+        ValidatedConstrainedImageSet validated(box);
+        RobddPaving outer(manager,root,manager.constant(false),0u);
+        BinaryTreePaving expected(grid);
+        outer.adjoin_outer_approximation(validated,3u);
+        expected.adjoin_outer_approximation(validated,3u);
+        ARIADNE_TESTING_PROVE(!outer.is_empty());
+        for(auto it=outer.begin();it!=outer.end();++it)
+            ARIADNE_TESTING_PROVE(expected.superset(*it));
+        for(auto it=expected.begin();it!=expected.end();++it)
+            ARIADNE_TESTING_PROVE(outer.superset(*it));
+        auto previous=outer.size();
+        outer.adjoin_outer_approximation(validated,3u);
+        ARIADNE_TESTING_EXPECT_EQUAL(outer.size(),previous);
+
+        OvertSet<EffectiveTag,RealVector> overt(box);
+        ExactBoxSetType regular(box);
+        for(auto const* input:std::vector<EffectiveEuclideanOvertSetInterface const*>{
+                &overt.reference(),&regular}) {
+            RobddPaving lower(manager,root,manager.constant(false),0u);
+            BinaryTreePaving reference(grid);
+            lower.adjoin_lower_approximation(*input,0u,3u);
+            reference.adjoin_lower_approximation(*input,0u,3u);
+            ARIADNE_TESTING_PROVE(!lower.is_empty());
+            for(auto it=lower.begin();it!=lower.end();++it)
+                ARIADNE_TESTING_PROVE(reference.superset(*it));
+            for(auto it=reference.begin();it!=reference.end();++it)
+                ARIADNE_TESTING_PROVE(lower.superset(*it));
+            auto count=lower.size();
+            lower.adjoin_lower_approximation(*input,0u,3u);
+            ARIADNE_TESTING_EXPECT_EQUAL(lower.size(),count);
+        }
+        ExactBoxSetType enclosing(ExactBoxType({{-2,2}}));
+        RobddPaving covered(manager,root,manager.constant(false),0u);
+        covered.adjoin_lower_approximation(enclosing,0u,3u);
+        ARIADNE_TESTING_PROVE(covered.superset(root));
+        ValidatedConstrainedImageSet wrong(ExactBoxType({{0,1},{0,1}}));
+        ARIADNE_TESTING_EXPECT_EXCEPTION(outer.adjoin_outer_approximation(wrong,1u));
+        OvertSet<EffectiveTag,RealVector> wrong_overt(ExactBoxType({{0,1},{0,1}}));
+        ARIADNE_TESTING_EXPECT_EXCEPTION(outer.adjoin_lower_approximation(wrong_overt.reference(),0u,1u));
+    }
 
 
     Void test_shared_manager_lifetime_and_interoperability() {
@@ -551,6 +624,8 @@ int main(int argc, char** argv) {
     ARIADNE_TESTING_SUITE("test_robdd_paving");
 
     ARIADNE_TESTING_ADD_TEST(TestRobddPaving, test_shared_manager_lifetime_and_interoperability);
+    ARIADNE_TESTING_ADD_TEST(TestRobddPaving, test_shared_import_and_geometric_box_queries);
+    ARIADNE_TESTING_ADD_TEST(TestRobddPaving, test_validated_and_overt_approximation_paths);
     ARIADNE_TESTING_ADD_TEST(TestRobddPaving, test_iterator_identity_end_contracts_and_display);
     ARIADNE_TESTING_ADD_TEST(TestRobddPaving, test_public_depth_geometry_and_assignment_contracts);
     ARIADNE_TESTING_ADD_TEST(TestRobddPaving, test_optional_set_capabilities_and_minced_empty_batch);
