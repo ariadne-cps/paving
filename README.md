@@ -525,3 +525,33 @@ or executed in CI. Inspect absolute times separately for
 `superset_16`. The full outer-approximation workloads
 also include geometric classification and may dilute
 dependency-level improvements.
+
+
+### Manual four-way BDD/Tree dependency comparison
+
+The executable script at benchmarks/run_dependency_ab.sh creates four
+detached worktrees with identical Paving sources and isolated Release
+builds. Only the BDD and Tree gitlinks vary: old-old, bdd-only,
+tree-only and new-new. Every variant runs its normal CTest suite
+before benchmarking. The benchmark suite is executed twice per
+variant in forward/reverse order and saves absolute operation
+timings for both Paving backends. No benchmark runs in CI.
+
+Run from the Paving repository root:
+
+    git pull --ff-only
+    git submodule update --init --recursive
+    bash benchmarks/run_dependency_ab.sh
+
+The default workloads reproduce the 4D/f3 five-shape structural
+comparison, with seven samples, calibration floor of 12 ms,
+max iterations 8192, a depth budget of 28 and concurrency zero.
+The script writes a manifest, four CTest logs and eight benchmark
+logs in an isolated folder outside the checkout.
+Environment overrides: RESULT_DIR, DIMENSIONS, FINENESSES, SHAPES,
+SAMPLES, MIN_SAMPLE_MS, MAX_ITERATIONS, MAX_DEPTH_BITS, CONCURRENCY.
+
+Interpret using absolute times for the same operation/backend
+between dependency variants. Default Paving remains sequential;
+the new opt-in parallel BDD/Tree functions are not enabled by
+advancing the submodule gitlinks.

@@ -3067,3 +3067,38 @@ Build, Foundation, Threading, PythonCommon and
 Benchmarking gitlink compatibility was checked against
 the existing Set dependency chain; no other Paving
 gitlinks are changed.
+
+
+## 2026-11-09 - Factorial performance experiment for upgraded BDD and Tree
+
+Added the manual benchmarks/run_dependency_ab.sh driver to test the
+effects of updating both direct dependencies. It creates four
+isolated detached worktrees from the very same Paving source revision;
+changes only their index gitlinks, checks that submodules have been
+checked out at the requested SHA, and builds each in its own Release
+directory. A complete CTest pass is required for every variant
+before performance measurements are permitted.
+
+| Variant | BDD pin | Tree pin |
+| --- | --- | --- |
+| old-old | 3b6c918 | 7166244 |
+| bdd-only | 378d16e | 7166244 |
+| tree-only | 3b6c918 | ba055ee |
+| new-new | 378d16e | ba055ee |
+
+Eight benchmark passes are performed in order old-old, bdd-only,
+tree-only, new-new, new-new, tree-only, bdd-only, old-old.
+The preexisting benchmark_paving_backends program measures both
+structural backends with identical exact geometry, fineness and
+calibration. Defaults reproduce the five-shape 4D/f3 experiment at
+concurrency 0 and leave manager retention disabled. The original
+working tree is never checked out, reset or mutated by the driver.
+
+Compare absolute per-operation timings across dependency variants,
+not only the ROBDD/Tree ratio within one version. The factorial
+contrasts can identify dependency-level effects and interactions,
+not isolate every individual source edit inside BDD or Tree. Neither
+opt-in internal parallel algorithm is activated from Paving by this
+dependency-only update; the results therefore measure the existing
+sequential paths. The benchmark remains manual and is not added
+to CI/CTest. No timing results are claimed yet.
