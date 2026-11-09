@@ -371,6 +371,7 @@ class PavingInterface
     : public virtual SubPavingInterface
 {
   public:
+    using SubPavingInterface::superset;
     virtual GridCell smallest_enclosing_primary_cell(const UpperBoxType& bx) const = 0; // Useful query, but can also be implemented at the Grid level.
     virtual Void adjoin_cells(const PredicateInterface<ExactBoxType>&, const Nat) { ARIADNE_ABSTRACT_METHOD; }
     //! Full geometric box coverage, including adjacent enabled cells.
