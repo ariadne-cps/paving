@@ -34,6 +34,11 @@ namespace Ariadne {
 
 namespace {
 
+RobddManager& checked_manager(std::shared_ptr<RobddManager> const& manager) {
+    ARIADNE_PRECONDITION_MSG(manager != nullptr,
+        "A shared ROBDD paving requires a non-null manager");
+    return *manager;
+}
 
 // Dense Boolean prefix trie with stable integer indices. This avoids
 // allocating a separate heap node for every path bit. Vector growth never
@@ -168,6 +173,7 @@ class RobddPavingLeafIterator final
         SizeType level;
     };
 
+    std::shared_ptr<RobddManager> _manager_owner;
     RobddManager* _manager;
     GridCell _root_cell;
     Robdd _root;
@@ -177,9 +183,11 @@ class RobddPavingLeafIterator final
 
   public:
     RobddPavingLeafIterator(
+            std::shared_ptr<RobddManager> manager_owner,
             RobddManager& manager, GridCell const& cell,
             Robdd const& root, SizeType depth, Bool past_end)
-        : _manager(&manager), _root_cell(cell), _root(root), _depth(depth) {
+        : _manager_owner(std::move(manager_owner)),
+          _manager(&manager), _root_cell(cell), _root(root), _depth(depth) {
         if (not past_end) {
             _pending.push_back(Pending{root,BinaryWord{},0u});
             _advance();
@@ -300,13 +308,13 @@ SubPavingInterface* RobddPaving::_branch(Bool right) const {
 ForwardConstantIteratorInterface<GridCell>* RobddPaving::_begin() const {
     CopyState state=_snapshot_copy(*this);
     return new RobddPavingLeafIterator(
-        *state.manager,state.root_cell,state.root,state.depth,false);
+        state.manager_owner,*state.manager,state.root_cell,state.root,state.depth,false);
 }
 
 ForwardConstantIteratorInterface<GridCell>* RobddPaving::_end() const {
     CopyState state=_snapshot_copy(*this);
     return new RobddPavingLeafIterator(
-        *state.manager,state.root_cell,state.root,state.depth,true);
+        state.manager_owner,*state.manager,state.root_cell,state.root,state.depth,true);
 }
 
 OutputStream& RobddPaving::_write(OutputStream& os) const {
@@ -318,11 +326,13 @@ OutputStream& RobddPaving::_write(OutputStream& os) const {
 RobddPaving::CopyState RobddPaving::_snapshot_copy(
         RobddPaving const& source) {
     std::lock_guard<std::mutex> lock(source._adjoin_mutex);
-    return CopyState{source._manager,source._root_cell,source._root,source._depth};
+    return CopyState{source._manager_owner,source._manager,
+                     source._root_cell,source._root,source._depth};
 }
 
 RobddPaving::RobddPaving(CopyState state)
-    : _manager(state.manager),_root_cell(std::move(state.root_cell)),
+    : _manager_owner(std::move(state.manager_owner)),
+      _manager(state.manager),_root_cell(std::move(state.root_cell)),
       _root(state.root),_depth(state.depth) { }
 
 RobddPaving::RobddPaving(RobddPaving const& other)
@@ -334,12 +344,21 @@ RobddPaving& RobddPaving::operator=(RobddPaving const& other) {
         std::lock_guard<std::mutex> lock(_adjoin_mutex);
         ARIADNE_PRECONDITION_MSG(_root_cell.grid()==state.root_cell.grid(),
             "Cannot assign a paving from a different grid");
+        _manager_owner=std::move(state.manager_owner);
         _manager=state.manager;
         _root_cell=std::move(state.root_cell);
         _root=state.root;
         _depth=state.depth;
     }
     return *this;
+}
+
+RobddPaving::RobddPaving(std::shared_ptr<RobddManager> manager,
+                             Grid const& grid)
+    : RobddPaving(checked_manager(manager),
+                  GridCell(grid,0u,BinaryWord()),
+                  checked_manager(manager).constant(false),0u) {
+    _manager_owner=std::move(manager);
 }
 
 RobddPaving::RobddPaving(
@@ -362,6 +381,13 @@ RobddPaving::RobddPaving(
 }
 
 RobddPaving::RobddPaving(
+        std::shared_ptr<RobddManager> manager,
+        SubPavingInterface const& source)
+    : RobddPaving(checked_manager(manager),source) {
+    _manager_owner=std::move(manager);
+}
+
+RobddPaving::RobddPaving(
         RobddManager& manager, GridCell const& root_cell,
         Robdd const& root, SizeType depth)
     : _manager(&manager), _root_cell(root_cell), _root(root), _depth(PavingDetail::checked_decision_depth(depth)) {
@@ -371,6 +397,13 @@ RobddPaving::RobddPaving(
         "ROBDD root refers to a subdivision outside the declared depth");
 }
 
+
+RobddPaving::RobddPaving(
+        std::shared_ptr<RobddManager> manager,
+        GridCell const& root_cell, Robdd const& root, SizeType depth)
+    : RobddPaving(checked_manager(manager),root_cell,root,depth) {
+    _manager_owner=std::move(manager);
+}
 
 RobddPaving RobddPaving::from_cells(
         RobddManager& manager,GridCell const& root_cell,
@@ -393,6 +426,14 @@ RobddPaving RobddPaving::from_cells(
     }
     Robdd root=encode_cell_trie(manager,trie,0u,0u);
     return RobddPaving(manager,root_cell,root,maximum_depth);
+}
+
+RobddPaving RobddPaving::from_cells(
+        std::shared_ptr<RobddManager> manager, GridCell const& root_cell,
+        std::vector<GridCell> const& cells) {
+    RobddPaving result=from_cells(checked_manager(manager),root_cell,cells);
+    result._manager_owner=std::move(manager);
+    return result;
 }
 
 Bool RobddPaving::is_enabled(BinaryWord const& path) const {
@@ -845,9 +886,11 @@ RobddPaving RobddPaving::_join_unlocked(
     GridCell common = _common_root(other);
     auto first = _lift_to(common);
     auto second = other._lift_to(common);
-    return RobddPaving(
+    RobddPaving result(
         *_manager,common,_manager->disjunction(first.first,second.first),
         std::max(first.second,second.second));
+    result._manager_owner=_manager_owner ? _manager_owner : other._manager_owner;
+    return result;
 }
 
 RobddPaving RobddPaving::intersection(
@@ -864,9 +907,11 @@ RobddPaving RobddPaving::_intersection_unlocked(
     GridCell common = _common_root(other);
     auto first = _lift_to(common);
     auto second = other._lift_to(common);
-    return RobddPaving(
+    RobddPaving result(
         *_manager,common,_manager->conjunction(first.first,second.first),
         std::max(first.second,second.second));
+    result._manager_owner=_manager_owner ? _manager_owner : other._manager_owner;
+    return result;
 }
 
 RobddPaving RobddPaving::difference(
@@ -887,10 +932,12 @@ RobddPaving RobddPaving::_difference_unlocked(
     GridCell common = _common_root(other);
     auto first = _lift_to(common);
     auto second = other._lift_to(common);
-    return RobddPaving(
+    RobddPaving result(
         *_manager,common,
         _manager->conjunction(first.first,_manager->negation(second.first)),
         std::max(first.second,second.second));
+    result._manager_owner=_manager_owner ? _manager_owner : other._manager_owner;
+    return result;
 }
 
 Bool RobddPaving::subset(
@@ -1017,8 +1064,10 @@ RobddPaving RobddPaving::branch(Bool right) const {
         restricted=source._manager->shift(restricted,-1);
         child_depth=source._depth-1u;
     }
-    return RobddPaving(*source._manager,source._root_cell.split(right),
+    RobddPaving result(*source._manager,source._root_cell.split(right),
         restricted,child_depth);
+    result._manager_owner=source._manager_owner;
+    return result;
 }
 
 } // namespace Ariadne

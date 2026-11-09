@@ -37,7 +37,9 @@ class SubPavingInterface;
 //! membership as a Boolean function of successive binary subdivision bits.
 //! Copies share immutable canonical ROBDD nodes, but changing one paving's
 //! root leaves other copies unchanged. BinaryTreePaving/BinaryTreePavingCursor semantics
-//! are unaffected. A shared RobddManager must outlive pavings and iterators.
+//! are unaffected. Borrowed managers must outlive pavings and iterators.
+//! Shared-owner constructors retain a common manager across copies, results,
+//! polymorphic Paving clones and detached iterators.
 class RobddPaving : public virtual PavingInterface {
   public:
     //! Snapshot copies and assignments synchronize with concurrent adjoin.
@@ -48,6 +50,11 @@ class RobddPaving : public virtual PavingInterface {
     //! \details The copy shares only immutable manager-owned BDD nodes.
     RobddPaving* clone() const override;
 
+    //! \brief Create an empty canonical paving sharing a manager with other pavings.
+    //! \details The manager remains alive for this paving's copies and
+    //! detached iterators; reuse the same shared_ptr for interoperable sets.
+    RobddPaving(std::shared_ptr<RobddManager> manager, Grid const& grid);
+
     //! \brief Encode an existing explicit tree without retaining its node pointers.
     //! \details The root cell and maximal tree depth are copied.
     RobddPaving(RobddManager& manager, BinaryTreeSubpaving const& source);
@@ -56,11 +63,18 @@ class RobddPaving : public virtual PavingInterface {
     //! \details Iterates its enabled cells into this manager; no explicit-tree
     //! conversion is required, but import cost depends on the cell count.
     RobddPaving(RobddManager& manager, SubPavingInterface const& source);
+    //! \brief Import an arbitrary paving into an owned shared manager.
+    RobddPaving(std::shared_ptr<RobddManager> manager,
+                SubPavingInterface const& source);
 
     //! \brief Construct a snapshot from a Boolean root and grid metadata.
     //! \pre root belongs to manager, and its support lies in [0, depth).
     RobddPaving(
         RobddManager& manager, GridCell const& root_cell,
+        Robdd const& root, SizeType depth);
+    //! \brief Construct a paving retaining the common manager's lifetime.
+    RobddPaving(
+        std::shared_ptr<RobddManager> manager, GridCell const& root_cell,
         Robdd const& root, SizeType depth);
 
     //! \brief Build the exact union of arbitrary cells in one bottom-up pass.
@@ -72,6 +86,10 @@ class RobddPaving : public virtual PavingInterface {
     //! \pre All cells belong to root_cell.grid() and lie inside root_cell.
     static RobddPaving from_cells(
         RobddManager& manager, GridCell const& root_cell,
+        std::vector<GridCell> const& cells);
+    //! \brief Bulk import retaining a shared canonical manager.
+    static RobddPaving from_cells(
+        std::shared_ptr<RobddManager> manager, GridCell const& root_cell,
         std::vector<GridCell> const& cells);
 
     //! \brief Geometric root of the represented subpaving.
@@ -304,6 +322,7 @@ class RobddPaving : public virtual PavingInterface {
 
   private:
     struct CopyState {
+        std::shared_ptr<RobddManager> manager_owner;
         RobddManager* manager;
         GridCell root_cell;
         Robdd root;
@@ -324,6 +343,9 @@ class RobddPaving : public virtual PavingInterface {
     GridCell _common_root(RobddPaving const& other) const;
     std::pair<Robdd,SizeType> _lift_to(GridCell const& ancestor) const;
 
+    // Keep this before the borrowed pointer: a shared manager must outlive
+    // the canonical node refs and every detached iterator using it.
+    std::shared_ptr<RobddManager> _manager_owner;
     RobddManager* _manager;
     GridCell _root_cell;
     Robdd _root;
