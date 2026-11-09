@@ -3191,3 +3191,39 @@ connector-only increment. Validate both dependency pins and build/test
 matrices before expanding the migration or benchmarking infinite-time
 reachability; do not silently materialize an explicit tree for the ROBDD
 path.
+
+## 2026-11-09 - Shared ROBDD manager lifetime for generic paving values
+
+Introduced opt-in `std::shared_ptr<RobddManager>` constructors for
+`RobddPaving` (empty on `Grid`, arbitrary `SubPavingInterface` import,
+and canonical root/depth construction), plus a shared-owner
+`from_cells` overload. The old `RobddManager&` constructors intentionally
+remain borrowed for existing benchmarks and regression cases. Callers
+wishing to share ROBDD nodes must explicitly pass the same manager
+instance to every paving; a fresh manager per paving still prevents
+native ROBDD set operations.
+
+Owner state now survives `RobddPaving` copies/assignments, virtual
+`clone()` through the public `Paving` value handle, ROBDD union,
+intersection and difference, detached child/subpaving snapshots,
+and immutable leaf iterators. The iterator retains its own shared
+owner, so it remains usable after the originating paving has been
+destroyed. All manager-identity preconditions for native set algebra
+are unchanged: different managers never trigger implicit import.
+
+The public `Paving` now forwards `dimension()`, `is_empty()`,
+`clear()`, `mince()`, and `recombine()` without binding callers to
+an explicit tree. `clear()` disables its whole root via the
+`SubPavingInterface` method; `is_empty()` uses the interface's
+enabled-leaf count. The representation-dependent semantics of
+`size()` and `mince()` remain documented.
+
+New downstream `LabelledPaving` and `HybridPaving` wrappers own
+`Paving` values. `HybridPaving` holds a backend factory (including an
+overload capturing a shared ROBDD manager) so newly materialized
+locations retain the selected representation. Their introduction
+does not yet migrate the old `LabelledBinaryTreePaving`,
+`HybridBinaryTreePaving`, `AugmentedPaving`, or reasoning storage
+types; those require replacing calls to tree-specific operations and
+updating all nested repository pins. The shared-manager regressions
+were added but not executed in the connector environment.
