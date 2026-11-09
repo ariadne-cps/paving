@@ -5,6 +5,7 @@
  *  Part of Ariadne Paving, GPL-3.0-or-later.
  ****************************************************************************/
 #include <atomic>
+#include <barrier>
 #include <thread>
 #include <vector>
 
@@ -101,6 +102,9 @@ class TestCachedBinaryTreePaving : public Ariadne::Testing::ContextFixture {
         ARIADNE_TESTING_EXPECT_EQUAL(manual.superset(box),source.superset(box));
         ARIADNE_TESTING_EXPECT_EQUAL(automatic.superset(box),source.superset(box));
         ARIADNE_TESTING_PROVE(automatic.has_cache());
+        ARIADNE_TESTING_EXPECT_EQUAL(automatic.superset(box),source.superset(box));
+        ARIADNE_TESTING_PROVE(automatic.superset(root.split(false)));
+        ARIADNE_TESTING_PROVE(automatic.superset(root.split(false)));
         auto branch=manual.branch(false);
         ARIADNE_TESTING_PROVE(!manual.has_cache());
         ARIADNE_TESTING_PROVE(branch.superset(root.split(false)));
@@ -108,6 +112,32 @@ class TestCachedBinaryTreePaving : public Ariadne::Testing::ContextFixture {
         SubPaving abstract=static_cast<SubPavingInterface const&>(manual).branch(true);
         ARIADNE_TESTING_PROVE(!manual.has_cache());
         ARIADNE_TESTING_PROVE(abstract.begin()==abstract.end());
+    }
+
+    Void test_mutation_during_cache_compilation() {
+        Grid grid(1u);
+        GridCell root(grid,0u,BinaryWord{});
+        std::vector<GridCell> cells;
+        for(unsigned index=0u;index<8192u;index+=2u)
+            cells.push_back(cell_at(root,index,13u));
+        BinaryTreePaving source(grid);
+        source.adjoin(cells);
+        CachedBinaryTreePaving cached(source);
+        std::atomic<bool> finished{false};
+        std::barrier start(2);
+        std::thread writer([&] {
+            start.arrive_and_wait();
+            while(!finished.load(std::memory_order_acquire))
+                cached.adjoin(cells.front());
+        });
+        start.arrive_and_wait();
+        (void)cached.compile_cache();
+        finished.store(true,std::memory_order_release);
+        writer.join();
+        ARIADNE_TESTING_PROVE(cached.compile_cache());
+        ARIADNE_TESTING_PROVE(cached.has_cache());
+        for(unsigned index=0u;index<16u;++index)
+            ARIADNE_TESTING_EXPECT_EQUAL(cached.superset(cell_at(root,index,13u)),index%2u==0u);
     }
 
     Void test_polymorphic_backend_and_automatic_cache() {
@@ -322,5 +352,6 @@ int main(int argc,char** argv) {
     ARIADNE_TESTING_ADD_TEST(TestCachedBinaryTreePaving,test_concurrent_queries_mutations_and_compilation);
     ARIADNE_TESTING_ADD_TEST(TestCachedBinaryTreePaving,test_every_mutation_invalidates_the_query_index);
     ARIADNE_TESTING_ADD_TEST(TestCachedBinaryTreePaving,test_box_queries_and_borrowed_branches);
+    ARIADNE_TESTING_ADD_TEST(TestCachedBinaryTreePaving,test_mutation_during_cache_compilation);
     return ARIADNE_TESTING_RUN_TESTS_WITH_ARGS(argc,argv);
 }

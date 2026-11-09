@@ -10,6 +10,10 @@ class TestPavingArithmetic : public Testing::ContextFixture {
     using ContextFixture::ContextFixture;
 
     Void test_size_and_index_boundaries() {
+        constexpr auto revision_limit=std::numeric_limits<std::uint64_t>::max();
+        ARIADNE_TESTING_EXPECT_EQUAL(PavingDetail::checked_next_revision(0u),1u);
+        ARIADNE_TESTING_EXPECT_EQUAL(PavingDetail::checked_next_revision(revision_limit-1u),revision_limit);
+        ARIADNE_TESTING_EXPECT_THROWS(std::overflow_error,PavingDetail::checked_next_revision(revision_limit));
         constexpr SizeType limit=std::numeric_limits<SizeType>::max();
         ARIADNE_TESTING_EXPECT_EQUAL(PavingDetail::checked_add(0u,0u),0u);
         ARIADNE_TESTING_EXPECT_EQUAL(PavingDetail::checked_add(limit-1u,1u),limit);

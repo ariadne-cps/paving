@@ -40,9 +40,7 @@ CachedBinaryTreePaving* CachedBinaryTreePaving::clone() const {
 }
 
 Void CachedBinaryTreePaving::invalidate_unlocked() const {
-    if(_version==std::numeric_limits<std::uint64_t>::max())
-        throw std::overflow_error("CachedBinaryTreePaving revision counter exhausted");
-    ++_version;
+    _version=PavingDetail::checked_next_revision(_version);
     _compiled.reset();
 }
 
@@ -228,23 +226,18 @@ SubPavingInterface* CachedBinaryTreePaving::_branch(Bool right) const {
 
 Bool CachedBinaryTreePaving::compile_cache() {
     std::lock_guard<std::mutex> compiling(_compile_mutex);
-    std::unique_ptr<BinaryTreePaving> snapshot;
-    std::uint64_t revision;
-    {
-        std::lock_guard<std::recursive_mutex> lock(_mutex);
-        if(_compiled) return true;
-        revision=_version;
-        snapshot=std::make_unique<BinaryTreePaving>(
-            static_cast<BinaryTreePaving const&>(*this));
-    }
+    std::unique_lock<std::recursive_mutex> lock(_mutex);
+    if(_compiled) return true;
+    std::uint64_t const revision=_version;
+    auto snapshot=std::make_unique<BinaryTreePaving>(
+        static_cast<BinaryTreePaving const&>(*this));
+    lock.unlock();
     // Never hold _mutex while building canonical ROBDD nodes.
     auto candidate=std::make_shared<Compiled const>(*snapshot,revision);
-    {
-        std::lock_guard<std::recursive_mutex> lock(_mutex);
-        if(_version!=revision) return false;
-        _compiled=std::move(candidate);
-        return true;
-    }
+    lock.lock();
+    if(_version!=revision) return false;
+    _compiled=std::move(candidate);
+    return true;
 }
 
 Bool CachedBinaryTreePaving::superset(GridCell const& cell) const {

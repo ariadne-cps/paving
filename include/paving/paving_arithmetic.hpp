@@ -9,10 +9,18 @@
 #define ARIADNE_PAVING_ARITHMETIC_HPP
 
 #include <limits>
+#include <cstdint>
+#include <stdexcept>
 #include "utility/typedefs.hpp"
 #include "utility/macros.hpp"
 
 namespace Ariadne::PavingDetail {
+
+inline std::uint64_t checked_next_revision(std::uint64_t revision) {
+    if(revision==std::numeric_limits<std::uint64_t>::max())
+        throw std::overflow_error("CachedBinaryTreePaving revision counter exhausted");
+    return revision+1u;
+}
 
 // Keep arithmetic on logical metadata separate from allocation/traversal.
 // The explicit limit also covers Nat, cell-word and BDD index domains.
