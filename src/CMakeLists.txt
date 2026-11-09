@@ -3,6 +3,7 @@ add_library(PAVING_SRC OBJECT
     binary_tree_paving.cpp
     grid_cell_alignment.cpp
     robdd_paving.cpp
+    parallel_classification.cpp
     cached_binary_tree_paving.cpp
     paver.cpp
     set_approximation.cpp

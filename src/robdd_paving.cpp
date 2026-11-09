@@ -32,6 +32,7 @@
 #include "paving/grid_cell_alignment.hpp"
 #include "paving/paving_cell_operations.hpp"
 #include "paving/robdd_paving.hpp"
+#include "parallel_classification.hpp"
 #include "threading/floating_point_environment.hpp"
 #include "threading/task_group.hpp"
 #include "threading/thread_manager.hpp"
@@ -841,9 +842,7 @@ Void RobddPaving::adjoin_outer_approximation_parallel(
     // Each task owns an output buffer and a separate rounding environment.
     // Read-only sharing is restricted to the immutable prepared snapshot
     // and an independent, stable paving snapshot.
-    int const caller_rounding=std::fegetround();
-    if(caller_rounding==-1)
-        throw std::runtime_error("Unable to read floating-point rounding mode");
+    int const caller_rounding=PavingDetail::require_rounding_mode(std::fegetround());
     std::vector<std::vector<GridCell>> buffers(frontier.size());
     auto classify=[&](SizeType index) {
         ScopedRoundingMode rounding(std::optional<int>{caller_rounding});
@@ -866,19 +865,7 @@ Void RobddPaving::adjoin_outer_approximation_parallel(
         visit(root.split(true),partition_depth+1u);
     };
 
-    if(not frontier.empty()) {
-        TaskGroup<ThreadManager> tasks(threading);
-        for(SizeType i=1u;i<frontier.size();++i)
-            tasks.fork([&,i] { classify(i); });
-        std::exception_ptr failure;
-        try { classify(0u); }
-        catch(...) { failure=std::current_exception(); }
-        try { tasks.join(); }
-        catch(...) {
-            if(not failure) failure=std::current_exception();
-        }
-        if(failure) std::rethrow_exception(failure);
-    }
+    PavingDetail::run_parallel_classification(frontier.size(),classify,threading);
 
     // No mutation or partial publication occurs before *all* workers join.
     // Merge in the serial left-to-right subtree order, with one atomic batch

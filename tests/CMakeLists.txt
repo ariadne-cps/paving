@@ -6,6 +6,7 @@ set(UNIT_TESTS
     test_binary_tree_paving
     test_paving_backends
     test_paving_arithmetic
+    test_parallel_classification
     test_paving_concurrent_adjoin
     test_paving_lock_reentrancy
     test_robdd_paving

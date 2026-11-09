@@ -60,6 +60,46 @@ class TestPavingBackends : public Ariadne::Testing::ContextFixture {
   public:
     using ContextFixture::ContextFixture;
 
+    Void test_subpaving_move_assignment_preserves_the_view() {
+        Grid grid(1u);
+        BinaryTreePaving paving(grid);
+        GridCell root(grid,0u,BinaryWord{});
+        paving.adjoin(root.split(false));
+        SubPaving left=static_cast<SubPavingInterface const&>(paving).branch(false);
+        SubPaving right=static_cast<SubPavingInterface const&>(paving).branch(true);
+        right=std::move(left);
+        ARIADNE_TESTING_PROVE(right.superset(root.split(false)));
+        auto& alias=right;
+        right=std::move(alias);
+        ARIADNE_TESTING_PROVE(right.superset(root.split(false)));
+    }
+
+    Void test_parallel_one_dimensional_frontier() {
+        auto& threading=ThreadManager::instance();
+        struct Restore {
+            ThreadManager& manager;
+            SizeType previous;
+            ~Restore() { manager.set_concurrency(previous); }
+        } restore{threading,threading.concurrency()};
+        Grid grid(1u);
+        GridCell root(grid,0u,BinaryWord{});
+        ConstrainedImageSet set(RealBox({{0.125_dec,0.875_dec}}));
+        for(SizeType workers:std::initializer_list<SizeType>{0u,std::min<SizeType>(4u,threading.maximum_concurrency())}) {
+            threading.set_concurrency(workers);
+            for(Nat fineness:{0u,2u}) {
+                RobddManager manager;
+                RobddPaving actual(manager,root,manager.constant(false),0u);
+                RobddPaving expected(manager,root,manager.constant(false),0u);
+                expected.adjoin_outer_approximation(set,fineness);
+                actual.adjoin_outer_approximation_parallel(set,fineness);
+                ARIADNE_TESTING_PROVE(actual.subset(expected));
+                ARIADNE_TESTING_PROVE(expected.subset(actual));
+                actual.adjoin_outer_approximation_parallel(set,fineness);
+                ARIADNE_TESTING_PROVE(actual.subset(expected));
+            }
+        }
+    }
+
 
     Void test_parallel_outer_classification_equivalence_and_fallback() {
         ThreadManager& threading=ThreadManager::instance();
@@ -2975,6 +3015,8 @@ int main(int argc, char** argv) {
     ARIADNE_TESTING_ADD_TEST(TestPavingBackends, test_prepared_constrained_outer_geometry);
     ARIADNE_TESTING_ADD_TEST(TestPavingBackends, test_outer_approximation_skips_covered_cell_predicates);
     ARIADNE_TESTING_ADD_TEST(TestPavingBackends, test_parallel_outer_classification_equivalence_and_fallback);
+    ARIADNE_TESTING_ADD_TEST(TestPavingBackends, test_subpaving_move_assignment_preserves_the_view);
+    ARIADNE_TESTING_ADD_TEST(TestPavingBackends, test_parallel_one_dimensional_frontier);
     ARIADNE_TESTING_ADD_TEST(TestPavingBackends, test_generic_approximations_between_backends);
     ARIADNE_TESTING_ADD_TEST(TestPavingBackends, test_polymorphic_paving_handle_and_subpaving_views);
     ARIADNE_TESTING_ADD_TEST(TestPavingBackends, test_polymorphic_sequences_backend_isolation);

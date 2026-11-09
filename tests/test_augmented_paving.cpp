@@ -13,6 +13,12 @@ using namespace Ariadne;
 class TestAugmentedPaving : public Ariadne::Testing::ContextFixture {
   public:
     using ContextFixture::ContextFixture;
+
+    Void test_rejects_incompatible_mapping_arguments() {
+        Paving state(new BinaryTreePaving(Grid(1u)));
+        Mapping mapping=Mapping::identity(2u);
+        ARIADNE_TESTING_EXPECT_EXCEPTION((AugmentedPaving(state,mapping)));
+    }
     Void test_mapping_and_compatibility() {
         Grid grid(2);
         EffectiveVectorMultivariateFunction f=EffectiveVectorMultivariateFunction::identity(2);
@@ -162,6 +168,7 @@ class TestAugmentedPaving : public Ariadne::Testing::ContextFixture {
 int main(int argc, char** argv) {
     ARIADNE_TESTING_SUITE("test_augmented_paving");
     ARIADNE_TESTING_ADD_TEST(TestAugmentedPaving,test_mapping_and_compatibility);
+    ARIADNE_TESTING_ADD_TEST(TestAugmentedPaving,test_rejects_incompatible_mapping_arguments);
     ARIADNE_TESTING_ADD_TEST(TestAugmentedPaving,test_state_operations);
     ARIADNE_TESTING_ADD_TEST(TestAugmentedPaving,test_polymorphic_robdd_state_operations);
     ARIADNE_TESTING_ADD_TEST(TestAugmentedPaving,test_approximation_forwarding);
