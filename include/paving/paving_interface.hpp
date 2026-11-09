@@ -320,6 +320,11 @@ class SubPavingHandle
     operator const SubPavingInterface& () const { return *this->_ptr; }
 
     const Grid& grid() const { return this->_ptr->grid(); }
+    DimensionType dimension() const { return this->_ptr->dimension(); }
+    Bool is_empty() const { return this->_ptr->size()==0u; }
+    Void clear() { this->_ptr->set_root_cell(false); }
+    Void mince(Nat fineness) { this->_ptr->mince(fineness); }
+    Void recombine() { this->_ptr->recombine(); }
     SizeType size() const { return this->_ptr->size(); }
     GridCell root_cell() const { return this->_ptr->root_cell(); };
     Bool superset(const GridCell& c) const { return this->_ptr->superset(c); }
