@@ -783,7 +783,7 @@ Void RobddPaving::adjoin_outer_approximation_parallel(
         adjoin_outer_approximation(set,fineness);
         return;
     }
-    auto const& constrained=static_cast<ConstrainedImageSet const&>(set);
+    auto const& constrained=dynamic_cast<ConstrainedImageSet const&>(set);
     RobddPaving const existing(*this);
     GridCell const geometric_root=existing.root_cell();
     Grid const grid_value=geometric_root.grid();
