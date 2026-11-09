@@ -71,7 +71,7 @@ Void TestPaving::test_constructors() {
     ARIADNE_TESTING_NOTE("paving = " << (paving));
     ARIADNE_TESTING_EXPECT_EQUAL(paving.size(),2);
 
-    PavingHandle paving_copy = paving;
+    Paving paving_copy = paving;
     ARIADNE_TESTING_EXPECT_EQUAL(paving_copy.grid(),grid);
     ARIADNE_TESTING_EXPECT_EQUAL(paving_copy.size(),2);
 
@@ -151,7 +151,7 @@ Void TestPaving::test_clone() {
     BinaryWord word1("0001");
     BinaryWord word2("0010");
     BinaryWord word3("1100");
-    std::unique_ptr<PavingHandle> cloned_branch;
+    std::unique_ptr<Paving> cloned_branch;
 
     {
         BinaryTreePaving grid_set(grid);
@@ -164,7 +164,7 @@ Void TestPaving::test_clone() {
             static_cast<BinaryTreeSubpaving const&>(grid_set).branch(0);
         ARIADNE_TESTING_EXPECT_EQUAL(branch0.size(),2);
 
-        cloned_branch = std::make_unique<PavingHandle>(branch0);
+        cloned_branch = std::make_unique<Paving>(branch0);
         const PavingInterface& cloned_paving = *cloned_branch;
         const SubPavingInterface& original_interface = branch0;
         const SubPavingInterface& cloned_interface = cloned_paving;
@@ -175,7 +175,7 @@ Void TestPaving::test_clone() {
     }
 
     ARIADNE_TESTING_EXPECT_EQUAL(cloned_branch->size(),2);
-    PavingHandle::ConstIterator iter=cloned_branch->begin();
+    Paving::ConstIterator iter=cloned_branch->begin();
     ARIADNE_TESTING_EXPECT_EQUAL(*iter,GridCell(grid,0,word1));
     ++iter;
     ARIADNE_TESTING_EXPECT_EQUAL(*iter,GridCell(grid,0,word2));
@@ -189,13 +189,13 @@ Void TestPaving::test_geometry() {
     BinaryTreePaving grid_tree_set(grid);
     Nat height(0);
 
-    PavingHandle paving_handle1(grid_tree_set);
+    Paving paving_handle1(grid_tree_set);
     PavingInterface& paving_interface1 = paving_handle1;
     paving_handle1.adjoin(GridCell(grid,height,BinaryWord("10")));
-    PavingHandle paving_handle2(grid_tree_set);
+    Paving paving_handle2(grid_tree_set);
     PavingInterface& paving_interface2 = paving_handle2;
     paving_handle2.adjoin(GridCell(grid,height,BinaryWord("1")));
-    PavingHandle paving_handle3(grid_tree_set);
+    Paving paving_handle3(grid_tree_set);
     PavingInterface& paving_interface3 = paving_handle3;
     paving_handle3.adjoin(GridCell(grid,height,BinaryWord("0110")));
 
@@ -239,7 +239,7 @@ Void TestPaving::test_geometry() {
     ARIADNE_TESTING_EXPECT_EQUAL(difference(paving_handle1,paving_handle2).size(),0);
     ARIADNE_TESTING_EXPECT_EQUAL(difference(paving_handle2,paving_handle1).size(),1);
 
-    PavingHandle paving_handle4(grid_tree_set);
+    Paving paving_handle4(grid_tree_set);
     paving_handle4.adjoin(GridCell(grid,height,BinaryWord("11")));
     ARIADNE_TESTING_EXPECT_EQUAL(intersection(paving_handle1,paving_handle2),paving_handle1);
     ARIADNE_TESTING_EXPECT_EQUAL(difference(paving_handle2,paving_handle1),paving_handle4);
@@ -282,7 +282,7 @@ Void TestPaving::test_approximation() {
 
     ARIADNE_TESTING_EXPECT_BINARY_PREDICATE(subset, expected_paving, paving);
 
-    PavingHandle error_paving = expected_paving;
+    Paving error_paving = expected_paving;
     error_paving.remove(paving);
 }
 
@@ -301,13 +301,13 @@ Void TestPaving::test_paving_handle_forwarding() {
     native.adjoin(root);
     native.mince(1u);
     const SubPavingInterface& native_interface=native;
-    PavingHandle paving(native_interface);
-    PavingHandle copied(paving);
-    PavingHandle owned(new BinaryTreePaving(grid));
+    Paving paving(native_interface);
+    Paving copied(paving);
+    Paving owned(new BinaryTreePaving(grid));
     owned=copied;
-    const PavingHandle& alias=owned;
+    const Paving& alias=owned;
     owned=alias;
-    const PavingHandle& const_owned=owned;
+    const Paving& const_owned=owned;
     const PavingInterface& const_interface=const_owned;
     ARIADNE_TESTING_EXPECT_EQUAL(const_owned.grid(),grid);
     ARIADNE_TESTING_EXPECT_EQUAL(const_owned.size(),2u);

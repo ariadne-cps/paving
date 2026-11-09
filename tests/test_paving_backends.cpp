@@ -470,7 +470,7 @@ class TestPavingBackends : public Ariadne::Testing::ContextFixture {
         ARIADNE_TESTING_PROVE(via_base.superset(cells[0]));
         ARIADNE_TESTING_PROVE(via_base.superset(cells[1]));
 
-        PavingHandle tree_handle(new BinaryTreePaving(grid));
+        Paving tree_handle(new BinaryTreePaving(grid));
         tree_handle.adjoin(cells);
         ARIADNE_TESTING_PROVE(tree_handle.superset(cells[0]));
         ARIADNE_TESTING_PROVE(tree_handle.superset(cells[1]));
@@ -487,7 +487,7 @@ class TestPavingBackends : public Ariadne::Testing::ContextFixture {
             manager.statistics().ite_cache_entries,0u);
 
         RobddManager handle_manager;
-        PavingHandle handle(new RobddPaving(
+        Paving handle(new RobddPaving(
             handle_manager,root,handle_manager.constant(false),0u));
         handle.adjoin(cells);
         ARIADNE_TESTING_PROVE(handle.superset(cells[0]));
@@ -1557,8 +1557,8 @@ class TestPavingBackends : public Ariadne::Testing::ContextFixture {
                 cells.emplace_back(grid,0u,word);
             }
 
-            auto check_mask=[&](PavingHandle const& tree,
-                                PavingHandle const& robdd,
+            auto check_mask=[&](Paving const& tree,
+                                Paving const& robdd,
                                 unsigned expected) {
                 for (unsigned bit=0u; bit<8u; ++bit) {
                     Bool enabled=(expected & (1u<<bit))!=0u;
@@ -1572,11 +1572,11 @@ class TestPavingBackends : public Ariadne::Testing::ContextFixture {
             for (unsigned lhs : {0u,1u,0x0Fu,0x33u,
                                  0x5Au,0xA5u,0xF0u,0xFFu}) {
                 for (unsigned rhs : {0u,0x0Fu,0x55u,0xA6u,0xFFu}) {
-                    PavingHandle tree_left(new BinaryTreePaving(grid));
-                    PavingHandle tree_right(new BinaryTreePaving(grid));
-                    PavingHandle robdd_left(new RobddPaving(
+                    Paving tree_left(new BinaryTreePaving(grid));
+                    Paving tree_right(new BinaryTreePaving(grid));
+                    Paving robdd_left(new RobddPaving(
                         manager,root,manager.constant(false),0u));
-                    PavingHandle robdd_right(new RobddPaving(
+                    Paving robdd_right(new RobddPaving(
                         manager,root,manager.constant(false),0u));
 
                     for (unsigned bit=0u; bit<8u; ++bit) {
@@ -1596,14 +1596,14 @@ class TestPavingBackends : public Ariadne::Testing::ContextFixture {
 
                     // Free operations preserve backend identity: neither
                     // operand comes from another backend or is converted.
-                    PavingHandle tree_join=Ariadne::join(tl,tr);
-                    PavingHandle robdd_join=Ariadne::join(rl,rr);
-                    PavingHandle tree_union=Ariadne::geometric_union(tl,tr);
-                    PavingHandle robdd_union=Ariadne::geometric_union(rl,rr);
-                    PavingHandle tree_intersection=Ariadne::intersection(tl,tr);
-                    PavingHandle robdd_intersection=Ariadne::intersection(rl,rr);
-                    PavingHandle tree_difference=Ariadne::difference(tl,tr);
-                    PavingHandle robdd_difference=Ariadne::difference(rl,rr);
+                    Paving tree_join=Ariadne::join(tl,tr);
+                    Paving robdd_join=Ariadne::join(rl,rr);
+                    Paving tree_union=Ariadne::geometric_union(tl,tr);
+                    Paving robdd_union=Ariadne::geometric_union(rl,rr);
+                    Paving tree_intersection=Ariadne::intersection(tl,tr);
+                    Paving robdd_intersection=Ariadne::intersection(rl,rr);
+                    Paving tree_difference=Ariadne::difference(tl,tr);
+                    Paving robdd_difference=Ariadne::difference(rl,rr);
 
                     check_mask(tree_join,robdd_join,lhs|rhs);
                     check_mask(tree_union,robdd_union,lhs|rhs);
@@ -1640,12 +1640,12 @@ class TestPavingBackends : public Ariadne::Testing::ContextFixture {
                 PavingInterface const& ft=full_tree;
                 PavingInterface const& fr=full_robdd;
 
-                PavingHandle tree_union=Ariadne::join(tv,ft);
-                PavingHandle robdd_union=Ariadne::join(rv,fr);
-                PavingHandle tree_intersection=Ariadne::intersection(ft,tv);
-                PavingHandle robdd_intersection=Ariadne::intersection(fr,rv);
-                PavingHandle tree_difference=Ariadne::difference(ft,tv);
-                PavingHandle robdd_difference=Ariadne::difference(fr,rv);
+                Paving tree_union=Ariadne::join(tv,ft);
+                Paving robdd_union=Ariadne::join(rv,fr);
+                Paving tree_intersection=Ariadne::intersection(ft,tv);
+                Paving robdd_intersection=Ariadne::intersection(fr,rv);
+                Paving tree_difference=Ariadne::difference(ft,tv);
+                Paving robdd_difference=Ariadne::difference(fr,rv);
                 ARIADNE_TESTING_PROVE(tree_union.superset(root));
                 ARIADNE_TESTING_PROVE(robdd_union.superset(root));
                 ARIADNE_TESTING_PROVE(
@@ -1703,9 +1703,9 @@ class TestPavingBackends : public Ariadne::Testing::ContextFixture {
                 // Both backends start at the same nonzero primary extent.
                 // Lower-extent updates must be aligned without importing
                 // the other backend's internal representation.
-                PavingHandle tree_handle(new BinaryTreePaving(
+                Paving tree_handle(new BinaryTreePaving(
                     grid,extent,new BinaryTreeNode(false)));
-                PavingHandle robdd_handle(new RobddPaving(
+                Paving robdd_handle(new RobddPaving(
                     manager,root,manager.constant(false),0u));
                 PavingInterface& tree=tree_handle;
                 PavingInterface& robdd=robdd_handle;
@@ -1752,8 +1752,8 @@ class TestPavingBackends : public Ariadne::Testing::ContextFixture {
                 robdd.recombine();
                 check_observations();
 
-                PavingHandle saved_tree(tree_handle);
-                PavingHandle saved_robdd(robdd_handle);
+                Paving saved_tree(tree_handle);
+                Paving saved_robdd(robdd_handle);
 
                 // Both child views remain live; their handle copies are
                 // detached snapshots of the selected geometric region.
@@ -1871,8 +1871,8 @@ class TestPavingBackends : public Ariadne::Testing::ContextFixture {
             };
 
             for (unsigned table=0u; table<256u; ++table) {
-                PavingHandle tree_handle(new BinaryTreePaving(grid));
-                PavingHandle robdd_handle(new RobddPaving(
+                Paving tree_handle(new BinaryTreePaving(grid));
+                Paving robdd_handle(new RobddPaving(
                     manager,root,manager.constant(false),0u));
                 PavingInterface& tree=tree_handle;
                 PavingInterface& robdd=robdd_handle;
@@ -1886,8 +1886,8 @@ class TestPavingBackends : public Ariadne::Testing::ContextFixture {
                 verify_outputs(tree,robdd);
 
                 // Polymorphic cloning yields independent owners.
-                PavingHandle original_tree(tree_handle);
-                PavingHandle original_robdd(robdd_handle);
+                Paving original_tree(tree_handle);
+                Paving original_robdd(robdd_handle);
 
                 // Intersect only with an operand of the same backend.
                 BinaryTreePaving tree_mask(grid);
@@ -1986,8 +1986,8 @@ class TestPavingBackends : public Ariadne::Testing::ContextFixture {
         GridCell right=root.split(true);
         GridCell left_right=left.split(true);
 
-        PavingHandle tree_handle(new BinaryTreePaving(grid));
-        PavingHandle robdd_handle(new RobddPaving(
+        Paving tree_handle(new BinaryTreePaving(grid));
+        Paving robdd_handle(new RobddPaving(
             manager,root,manager.constant(false),0u));
         PavingInterface& tree=tree_handle;
         PavingInterface& robdd=robdd_handle;
@@ -2017,8 +2017,8 @@ class TestPavingBackends : public Ariadne::Testing::ContextFixture {
             cast_exact_box(tree.bounding_box()),
             cast_exact_box(robdd.bounding_box())));
 
-        // The root paving is cloned independently through PavingHandle.
-        PavingHandle copied(robdd_handle);
+        // The root paving is cloned independently through Paving.
+        Paving copied(robdd_handle);
         ARIADNE_TESTING_PROVE(copied.superset(right));
         copied.remove(right);
         ARIADNE_TESTING_PROVE(not copied.superset(right));
@@ -2040,7 +2040,7 @@ class TestPavingBackends : public Ariadne::Testing::ContextFixture {
         // Clone the view via both handle constructors. Mutating either
         // independent clone must not change the original parent.
         SubPavingHandle robdd_left_copy(robdd_left);
-        PavingHandle independent_left(
+        Paving independent_left(
             static_cast<SubPavingInterface const&>(robdd_left));
         ARIADNE_TESTING_PROVE(robdd_left_copy.superset(left_right));
         ARIADNE_TESTING_PROVE(independent_left.superset(left_right));
@@ -2086,7 +2086,7 @@ class TestPavingBackends : public Ariadne::Testing::ContextFixture {
 
         // Constructing a handle from a detached ROBDD paving remains valid
         // when the source object goes out of scope.
-        PavingHandle independent_full(
+        Paving independent_full(
             static_cast<SubPavingInterface const&>(robdd));
         ARIADNE_TESTING_PROVE(independent_full.superset(right));
         independent_full.set_root_cell(false);
@@ -2369,8 +2369,8 @@ class TestPavingBackends : public Ariadne::Testing::ContextFixture {
                 for (GridCell const& cell : from_tree) {
                     ARIADNE_TESTING_EXPECT_EQUAL(cell.word().size(),target);
                 }
-                PavingHandle tree_uniform=t.uniform_cell_paving(fineness);
-                PavingHandle robdd_uniform=r.uniform_cell_paving(fineness);
+                Paving tree_uniform=t.uniform_cell_paving(fineness);
+                Paving robdd_uniform=r.uniform_cell_paving(fineness);
                 ARIADNE_TESTING_EXPECT_EQUAL(tree_uniform.size(),count);
                 ARIADNE_TESTING_EXPECT_EQUAL(robdd_uniform.size(),count);
                 auto actual_tree=tree_uniform.begin();
@@ -2395,7 +2395,7 @@ class TestPavingBackends : public Ariadne::Testing::ContextFixture {
             // An intentionally refined tree can be coarsened exactly
             // when the enabled descendants cover the whole target cell.
             tree.mince(3u);
-            PavingHandle coarsened=t.uniform_cell_paving(1u);
+            Paving coarsened=t.uniform_cell_paving(1u);
             ARIADNE_TESTING_EXPECT_EQUAL(
                 coarsened.size(),SizeType{1u}<<dimensions);
             ARIADNE_TESTING_EXPECT_EQUAL(
@@ -2423,8 +2423,8 @@ class TestPavingBackends : public Ariadne::Testing::ContextFixture {
             ARIADNE_TESTING_EXPECT_EQUAL(visited,0u);
             ARIADNE_TESTING_EXPECT_EXCEPTION(partial_tree_interface.uniform_cell_paving(0u));
             ARIADNE_TESTING_EXPECT_EXCEPTION(ri.uniform_cell_paving(0u));
-            PavingHandle p_exact=partial_tree_interface.uniform_cell_paving(2u);
-            PavingHandle r_exact=ri.uniform_cell_paving(2u);
+            Paving p_exact=partial_tree_interface.uniform_cell_paving(2u);
+            Paving r_exact=ri.uniform_cell_paving(2u);
             SizeType refined_count=SizeType{1u}<<(2u*dimensions-2u);
             ARIADNE_TESTING_EXPECT_EQUAL(p_exact.size(),refined_count);
             ARIADNE_TESTING_EXPECT_EQUAL(r_exact.size(),refined_count);
@@ -2441,8 +2441,8 @@ class TestPavingBackends : public Ariadne::Testing::ContextFixture {
                 tv.uniform_cell_paving(0u));
             ARIADNE_TESTING_EXPECT_EXCEPTION(
                 rv.uniform_cell_paving(0u));
-            PavingHandle t_child_uniform=tv.uniform_cell_paving(2u);
-            PavingHandle r_child_uniform=rv.uniform_cell_paving(2u);
+            Paving t_child_uniform=tv.uniform_cell_paving(2u);
+            Paving r_child_uniform=rv.uniform_cell_paving(2u);
             ARIADNE_TESTING_EXPECT_EQUAL(t_child_uniform.size(),refined_count);
             ARIADNE_TESTING_EXPECT_EQUAL(r_child_uniform.size(),refined_count);
             ARIADNE_TESTING_PROVE(t_child_uniform.superset(fine));
@@ -2455,8 +2455,8 @@ class TestPavingBackends : public Ariadne::Testing::ContextFixture {
         for (Nat dimension : {1u,2u}) {
             Grid grid(dimension);
             GridCell root(grid,0u,BinaryWord{});
-            PavingHandle tree_handle(new BinaryTreePaving(grid,true));
-            PavingHandle robdd_handle(new RobddPaving(
+            Paving tree_handle(new BinaryTreePaving(grid,true));
+            Paving robdd_handle(new RobddPaving(
                 manager,root,manager.constant(true),0u));
 
             std::vector<GridCell> tree_cells;
@@ -2479,8 +2479,8 @@ class TestPavingBackends : public Ariadne::Testing::ContextFixture {
             ARIADNE_TESTING_EXPECT_EQUAL(tree_handle.size(),1u);
             ARIADNE_TESTING_EXPECT_EQUAL(robdd_handle.size(),1u);
 
-            PavingHandle uniform_from_tree=tree_handle.uniform_cell_paving(2u);
-            PavingHandle uniform_from_robdd=robdd_handle.uniform_cell_paving(2u);
+            Paving uniform_from_tree=tree_handle.uniform_cell_paving(2u);
+            Paving uniform_from_robdd=robdd_handle.uniform_cell_paving(2u);
             ARIADNE_TESTING_EXPECT_EQUAL(uniform_from_tree.size(),full_count);
             ARIADNE_TESTING_EXPECT_EQUAL(uniform_from_robdd.size(),full_count);
             ARIADNE_TESTING_PROVE(uniform_from_tree.superset(root));
@@ -2505,8 +2505,8 @@ class TestPavingBackends : public Ariadne::Testing::ContextFixture {
             ARIADNE_TESTING_PROVE(tree_cells==robdd_cells);
             ARIADNE_TESTING_EXPECT_EQUAL(
                 tree_cells.size(),full_count/2u);
-            PavingHandle tree_left_uniform=tree_left.uniform_cell_paving(2u);
-            PavingHandle robdd_left_uniform=robdd_left.uniform_cell_paving(2u);
+            Paving tree_left_uniform=tree_left.uniform_cell_paving(2u);
+            Paving robdd_left_uniform=robdd_left.uniform_cell_paving(2u);
             ARIADNE_TESTING_EXPECT_EQUAL(
                 tree_left_uniform.size(),full_count/2u);
             ARIADNE_TESTING_EXPECT_EQUAL(
@@ -2659,9 +2659,9 @@ class TestPavingBackends : public Ariadne::Testing::ContextFixture {
                                 ARIADNE_TESTING_PROVE(observed_tree==expected);
                                 ARIADNE_TESTING_PROVE(observed_robdd==expected);
 
-                                PavingHandle tree_uniform=
+                                Paving tree_uniform=
                                     tree_view.uniform_cell_paving(fineness);
-                                PavingHandle robdd_uniform=
+                                Paving robdd_uniform=
                                     robdd_view.uniform_cell_paving(fineness);
                                 ARIADNE_TESTING_EXPECT_EQUAL(
                                     tree_uniform.size(),expected.size());

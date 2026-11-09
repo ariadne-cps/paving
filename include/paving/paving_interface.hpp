@@ -109,7 +109,7 @@ template<class BS> class DenotableSetInterface
     virtual ForwardConstantIteratorInterface<BS>* _end() const = 0;
 };
 
-class PavingHandle;
+class Paving;
 class SubPavingHandle;
 
 class PavingInterface;
@@ -132,7 +132,7 @@ class SubPavingInterface
     : public virtual LocatedSetInterface<ValidatedTag,RealVector>
 {
     friend class SubPavingHandle;
-    friend class PavingHandle;
+    friend class Paving;
   public:
     typedef ForwardConstantIteratorHandle<GridCell> ConstIterator;
   public:
@@ -160,12 +160,12 @@ class SubPavingInterface
 
     //! \brief Materialize a detached paving with enabled leaves at one
     //! exact grid-relative fineness.
-    //! \details Returns a PavingHandle owning an explicit binary-tree
+    //! \details Returns a Paving owning an explicit binary-tree
     //! snapshot, even when the source is an ROBDD; the source is unmodified.
     //! The returned root is the primary cell of the source's root extent,
     //! which may be larger than a child-view root. Throws if exact
     //! coarsening would alter the set.
-    PavingHandle uniform_cell_paving(Nat fineness) const;
+    Paving uniform_cell_paving(Nat fineness) const;
   public:
     //! \brief A dynamically-allocated copy.
     virtual SubPavingInterface* clone() const = 0;
@@ -343,7 +343,7 @@ class SubPavingHandle
         this->_ptr->for_each_enabled_cell_at_exact_fineness(
             fineness,std::forward<Visitor>(visitor));
     }
-    PavingHandle uniform_cell_paving(Nat fineness) const;
+    Paving uniform_cell_paving(Nat fineness) const;
   private:
     OutputStream& _write(OutputStream& os) const { return this->_ptr->_write(os); }
   public:
@@ -382,17 +382,17 @@ class PavingInterface
 };
 
 //! \ingroup DiscretisedSetSubModule
-class PavingHandle
+class Paving
 {
     PavingInterface* _ptr;
   public:
     typedef ForwardConstantIteratorHandle<GridCell> ConstIterator;
   public:
-    ~PavingHandle() { delete _ptr; }
-    PavingHandle(PavingInterface* p) : _ptr(p) { }
-    PavingHandle(const SubPavingInterface& p) : _ptr(&dynamic_cast<PavingInterface&>(*p.clone())) { }
-    PavingHandle(const PavingHandle& other) : _ptr(&dynamic_cast<PavingInterface&>(*other._ptr->clone())) { }
-    PavingHandle& operator=(const PavingHandle& other) {
+    ~Paving() { delete _ptr; }
+    Paving(PavingInterface* p) : _ptr(p) { }
+    Paving(const SubPavingInterface& p) : _ptr(&dynamic_cast<PavingInterface&>(*p.clone())) { }
+    Paving(const Paving& other) : _ptr(&dynamic_cast<PavingInterface&>(*other._ptr->clone())) { }
+    Paving& operator=(const Paving& other) {
         if(_ptr!=other._ptr) { auto* copied=&dynamic_cast<PavingInterface&>(*other._ptr->clone()); delete _ptr; _ptr=copied; } return *this; }
     operator PavingInterface& () { return *this->_ptr; }
     operator const PavingInterface& () const { return *this->_ptr; }
@@ -431,25 +431,25 @@ class PavingHandle
         this->_ptr->for_each_enabled_cell_at_exact_fineness(
             fineness,std::forward<Visitor>(visitor));
     }
-    PavingHandle uniform_cell_paving(Nat fineness) const {
+    Paving uniform_cell_paving(Nat fineness) const {
         return this->_ptr->uniform_cell_paving(fineness);
     }
 
-    friend OutputStream& operator<<(OutputStream& os, const PavingHandle& self) { return os << *self._ptr; }
+    friend OutputStream& operator<<(OutputStream& os, const Paving& self) { return os << *self._ptr; }
 };
 
-inline PavingHandle SubPavingHandle::uniform_cell_paving(Nat fineness) const {
+inline Paving SubPavingHandle::uniform_cell_paving(Nat fineness) const {
     return this->_ptr->uniform_cell_paving(fineness);
 }
 
-inline PavingHandle join(const SubPavingInterface& p1, const SubPavingInterface& p2) {
-    PavingHandle r(p1); r.adjoin(p2); return r; }
-inline PavingHandle geometric_union(const SubPavingInterface& p1, const SubPavingInterface& p2) {
-    PavingHandle r(p1); r.adjoin(p2); return r; }
-inline PavingHandle intersection(const SubPavingInterface& p1, const SubPavingInterface& p2) {
-    PavingHandle r(p1); r.restrict(p2); return r; }
-inline PavingHandle difference(const SubPavingInterface& p1, const SubPavingInterface& p2) {
-    PavingHandle r(p1); r.remove(p2); return r; }
+inline Paving join(const SubPavingInterface& p1, const SubPavingInterface& p2) {
+    Paving r(p1); r.adjoin(p2); return r; }
+inline Paving geometric_union(const SubPavingInterface& p1, const SubPavingInterface& p2) {
+    Paving r(p1); r.adjoin(p2); return r; }
+inline Paving intersection(const SubPavingInterface& p1, const SubPavingInterface& p2) {
+    Paving r(p1); r.restrict(p2); return r; }
+inline Paving difference(const SubPavingInterface& p1, const SubPavingInterface& p2) {
+    Paving r(p1); r.remove(p2); return r; }
 
 
 

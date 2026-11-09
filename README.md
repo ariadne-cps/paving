@@ -117,7 +117,7 @@ therefore need not match between backends before tree recombination.
 
 For exact, homogeneous cells the polymorphic SubPavingInterface exposes
 `for_each_enabled_cell_at_exact_fineness(fineness,visitor)`, and
-`uniform_cell_paving(fineness)` returns an independent PavingHandle with
+`uniform_cell_paving(fineness)` returns an independent Paving with
 those cells materialized as an explicit binary-tree paving. This works for
 both binary-tree and ROBDD sources and does not change either source.
 In contrast to minimum-fineness enumeration, every returned enabled
@@ -346,7 +346,7 @@ capacity, unique entries and ITE cache entries do not increase.
 ### Polymorphic batch insertion and explicit subpaving import
 
 The virtual `PavingInterface::adjoin(std::vector<GridCell> const&)` allows
-callers using `PavingInterface&` or `PavingHandle` to request cell-batch
+callers using `PavingInterface&` or `Paving` to request cell-batch
 insertion. The default implementation forwards each cell to the
 single-cell overload, which preserves the existing binary-tree
 semantics without requiring an additional concrete override.
