@@ -14,3 +14,9 @@ add_executable(benchmark_cached_binary_tree_paving benchmark_cached_binary_tree_
 target_link_libraries(benchmark_cached_binary_tree_paving PRIVATE
     ariadne-paving paving ariadne-benchmarking)
 add_dependencies(benchmarks benchmark_cached_binary_tree_paving)
+
+# Manual-only serial vs parallel certified outer classification.
+add_executable(benchmark_parallel_outer_paving benchmark_parallel_outer_paving.cpp)
+target_link_libraries(benchmark_parallel_outer_paving PRIVATE
+    ariadne-paving paving ariadne-benchmarking)
+add_dependencies(benchmarks benchmark_parallel_outer_paving)

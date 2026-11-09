@@ -586,3 +586,21 @@ empty, partially populated and fully covered pavings.
 
 This is a correctness milestone. No speedup is claimed without Release
 measurements comparing identical inputs at concurrency 0, 2, 4 and 8.
+
+### Manual serial/parallel ROBDD outer-approximation benchmark
+
+Build Release explicitly and run the manual benchmark:
+
+```bash
+cmake --build build-release --target benchmark_parallel_outer_paving
+./build-release/benchmarks/benchmark_parallel_outer_paving \\
+  --dimension 2 --fineness 1,2 --concurrency 0,2,4,8 --samples 5
+```
+
+The report uses milliseconds. The benchmark prepares a fresh destination
+outside the timed callback for every sample, measures the complete certified
+outer-approximation call and verifies exact geometric agreement with an
+independent sequential oracle after each call. The worker count comes from
+Benchmarking::Matrix and is applied through the shared ThreadManager before
+timing; unsupported values are skipped. It is not a CTest workload and never
+runs automatically in GitHub Actions.
