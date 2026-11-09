@@ -1048,6 +1048,25 @@ Bool RobddPaving::equals(SubPavingInterface const& other) const {
     return lhs.subset(rhs) and rhs.subset(lhs);
 }
 
+Bool RobddPaving::superset(ExactBoxType const& box) const {
+    // Follow canonical ROBDD decisions without materializing a tree.
+    RobddPaving snapshot(*this);
+    GridCell root=snapshot.root_cell();
+    ARIADNE_PRECONDITION_MSG(box.dimension()==root.dimension(),
+        "Cannot query a box of another dimension");
+    if(not box.subset(root.box())) { return false; }
+    SizeType depth=snapshot.depth();
+    std::function<Bool(GridCell const&,SizeType)> visit=
+        [&](GridCell const& cell,SizeType level)->Bool {
+            if(not cell.box().overlaps(box)) { return true; }
+            if(snapshot.superset(cell)) { return true; }
+            if(level==depth) { return false; }
+            return visit(cell.split(false),level+1u)
+               and visit(cell.split(true),level+1u);
+        };
+    return visit(root,0u);
+}
+
 Bool RobddPaving::superset(GridCell const& cell) const {
     std::lock_guard<std::mutex> lock(_adjoin_mutex);
     ARIADNE_PRECONDITION_MSG(grid() == cell.grid(),

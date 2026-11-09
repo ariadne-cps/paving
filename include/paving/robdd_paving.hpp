@@ -305,6 +305,7 @@ class RobddPaving : public virtual PavingInterface {
 
     //! \brief Test whether the paving covers a geometric cell completely.
     Bool superset(GridCell const& cell) const override;
+    Bool superset(ExactBoxType const& box) const override;
 
     //! \brief Return a detached subpaving restricted to a descendant cell.
     //! \details Repeatedly cofactoring each binary subdivision bit avoids

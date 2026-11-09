@@ -646,6 +646,9 @@ class BinaryTreePaving
     Bool subset(const SubPavingInterface& paving) const override;
     Bool intersects(const SubPavingInterface& paving) const override;
     Bool superset(const GridCell& cell) const override;
+    Bool superset(ExactBoxType const& box) const override {
+        return BinaryTreeSubpaving::superset(box);
+    }
     Void set_root_cell(Bool enabled) override;
     Void mince(Nat fineness) override;
     Void recombine() override;

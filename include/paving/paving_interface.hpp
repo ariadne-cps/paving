@@ -373,6 +373,8 @@ class PavingInterface
   public:
     virtual GridCell smallest_enclosing_primary_cell(const UpperBoxType& bx) const = 0; // Useful query, but can also be implemented at the Grid level.
     virtual Void adjoin_cells(const PredicateInterface<ExactBoxType>&, const Nat) { ARIADNE_ABSTRACT_METHOD; }
+    //! Full geometric box coverage, including adjacent enabled cells.
+    virtual Bool superset(ExactBoxType const& box) const = 0;
     virtual Void adjoin_outer_approximation(const EffectiveEuclideanCompactSetInterface& set, const Nat fineness) = 0;
     virtual Void adjoin_outer_approximation(const UpperBoxType& set, const Nat fineness) = 0;
     virtual Void adjoin_outer_approximation(const ValidatedEuclideanCompactSetInterface& set, Nat fineness) = 0;
@@ -420,6 +422,7 @@ class Paving
     SizeType size() const { return this->_ptr->size(); }
     GridCell root_cell() const { return this->_ptr->root_cell(); }
     Bool superset(const GridCell& c) const { return this->_ptr->superset(c); }
+    Bool superset(ExactBoxType const& box) const { return this->_ptr->superset(box); }
     Bool subset(const SubPavingInterface& p) const { return this->_ptr->subset(p); }
     Bool intersects(const SubPavingInterface& p) const { return this->_ptr->intersects(p); }
     Void set_root_cell(Bool onoff) { return this->_ptr->set_root_cell(onoff); }
