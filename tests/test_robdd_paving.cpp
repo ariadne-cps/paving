@@ -73,8 +73,8 @@ class TestRobddPaving : public Ariadne::Testing::ContextFixture {
         auto other_manager=std::make_shared<RobddManager>();
         auto manager=std::make_shared<RobddManager>();
         RobddPaving one(manager,grid);
-        RobddPaving two(other_manager,grid);
-        ARIADNE_TESTING_EXPECT_EXCEPTION(one.join(two));
+        RobddPaving different_manager_paving(other_manager,grid);
+        ARIADNE_TESTING_EXPECT_EXCEPTION(one.join(different_manager_paving));
         ARIADNE_TESTING_EXPECT_EXCEPTION(
             RobddPaving(std::shared_ptr<RobddManager>{},grid));
     }
