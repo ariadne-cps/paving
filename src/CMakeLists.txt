@@ -3,6 +3,7 @@ add_library(PAVING_SRC OBJECT
     binary_tree_paving.cpp
     grid_cell_alignment.cpp
     robdd_paving.cpp
+    hybrid_paving.cpp
     paver.cpp
     set_approximation.cpp
 )
