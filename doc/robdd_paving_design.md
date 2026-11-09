@@ -3132,3 +3132,34 @@ Tree-to-BDD encoding time and query savings separately. Automatic
 background compilation is not justified before that break-even
 is established. Test/CI runs verify correctness only; performance
 benchmarks are never executed in CI.
+
+### 2026-11-09 - Dedicated cached-tree compilation break-even benchmark
+
+`benchmark_cached_binary_tree_paving` measures:
+
+- an independent coherent BinaryTreePaving copy via its locked constructor;
+- direct Tree-to-ROBDD encoding against a fresh canonical RobddManager,
+  with the Tree snapshot prepared outside the timed region;
+- identical read-only GridCell containment workloads through Tree
+  and the compiled CachedBinaryTreePaving cache.
+
+All compiled results are checked against the Tree on the identical
+prepared probe set. The reported `CACHED_TREE_BDD` record contains
+`snapshot_ns`, `encoding_ns`, `compile_total_ns`, `tree_query_ns`,
+`bdd_query_ns`, `savings_ns`, `break_even_queries` and the number
+of manager-owned BDD nodes. Break-even is the ceiling of
+`(snapshot_ns + encoding_ns)/(tree_query_ns - bdd_query_ns)`
+when query savings are positive, otherwise -1.
+
+The experiment is manual, using the Ariadne Benchmarking runner:
+
+    cmake --build build-release --target benchmark_cached_binary_tree_paving
+    ./build-release/benchmarks/benchmark_cached_binary_tree_paving \
+      --depth 9 --queries 128 --samples 7 --iterations 256
+
+Independent diagnostic compilations do not share a manager across
+samples, avoiding accidental reuse of a warm canonical table.
+Actual asynchronous compilation, version-dependent activation
+thresholds and effects of CPU interference are not measured here.
+Correctness validation is still required on the benchmark commit.
+Performance benchmarks remain absent from CI and CTest.

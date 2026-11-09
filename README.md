@@ -508,3 +508,31 @@ The earlier BDD/Tree 2x2 factorial benchmark has been completed.
 The script `benchmarks/run_dependency_ab.sh` was removed from main.
 Its original code remains in Git history; methodology, selected pins and
 results remain documented in `doc/robdd_paving_design.md`.
+
+### Manual benchmark for the compiled Tree query cache
+
+The dedicated executable `benchmark_cached_binary_tree_paving` uses
+Ariadne Benchmarking to measure three independent costs:
+copying an authoritative Tree snapshot; encoding that snapshot
+into a new-manager ROBDD; and querying equivalent Tree and
+compiled-ROBDD representations. It prints `CACHED_TREE_BDD`
+records with absolute costs and the estimated number of queries
+needed to amortize snapshot plus BDD encoding.
+
+```bash
+git pull --ff-only
+git submodule update --init --recursive
+cmake --build build-release --target benchmark_cached_binary_tree_paving
+./build-release/benchmarks/benchmark_cached_binary_tree_paving \
+  --depth 9 --queries 128 --samples 7 --iterations 256
+```
+
+Queries are checked for semantic equivalence against the Tree.
+Compilation and Tree copies are excluded from the per-query timer.
+The break-even figure excludes memory overhead, CPU interference
+and the likelihood of invalidation between queries. A nonpositive
+query saving produces -1 rather than a claimed crossover.
+
+The benchmark runs **manually only** and is not registered with
+CTest or executed in GitHub Actions. No automatic ThreadManager
+cache-compilation tasks have yet been added.
