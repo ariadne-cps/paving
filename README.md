@@ -138,6 +138,8 @@ cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
 cmake --build build --target benchmark_paving_backends
 ./build/benchmarks/benchmark_paving_backends --help
 ./build/benchmarks/benchmark_paving_backends --dimensions 2,3 --finenesses 1,2 --shapes aligned-box,rotated-box,aligned-ellipsoid,rotated-ellipsoid,ball --iterations 1 --samples 5 --concurrency 0
+# To add CachedTree:
+./build/benchmarks/benchmark_paving_backends --include-cached-tree --dimensions 2 --finenesses 2 --shapes aligned-box --samples 5 --concurrency 0
 ```
 
 The CLI, logger, fixed-width result table, median timing and
@@ -155,6 +157,15 @@ combinations with an excessive theoretical subdivision depth. Manager
 nodes are shared and must not be read as exclusive ROBDD memory use.
 The first version measures warmed manager behavior, not manager startup,
 and refuses to compare approximations that disagree geometrically.
+The optional `--include-cached-tree` flag adds a third backend column,
+plus a CachedTree/Tree ratio table, without changing the default Tree/ROBDD
+baseline. CachedTree `superset_16` uses a verified, precompiled index;
+its compilation cost is measured separately by
+`benchmark_cached_binary_tree_paving`. Other workloads exercise the
+authoritative Tree and its cache-invalidation overhead rather than a
+cached-query optimization. CachedTree's displayed node count excludes
+its additional ROBDD-cache memory. For the isolated mutation workload,
+cache preparation occurs outside the timed interval.
 For each geometry/dimension/fineness case, an independent memory
 table estimates physical node payload: BinaryTreeNode count multiplied
 by sizeof(BinaryTreeNode), and reachable distinct ROBDD decision nodes

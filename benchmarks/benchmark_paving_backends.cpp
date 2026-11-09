@@ -9,6 +9,7 @@
 #include "function/procedure.hpp"
 #include "constraint-solving/constraint_solver.hpp"
 #include "paving/binary_tree_paving.hpp"
+#include "paving/cached_binary_tree_paving.hpp"
 #include "paving/robdd_paving.hpp"
 #include "paving/paving_cell_operations.hpp"
 #include "set/function_set.hpp"
@@ -64,6 +65,7 @@ struct Selection {
         "aligned-box","rotated-box","aligned-ellipsoid",
         "rotated-ellipsoid","ball"};
     bool summary_only=false;
+    bool include_cached_tree=false;
     bool run_retention=true;
     bool tree_iterator_cost=false;
     bool outer_phases=false;
@@ -186,6 +188,9 @@ List<ArgumentParser> parsers(Selection& selection) {
     result.append(make_unvalued_argument_parser(
         "","summary-only","Suppress per-operation table; show speed ratios only",
         [&selection] { selection.summary_only=true; }));
+    result.append(make_unvalued_argument_parser(
+        "","include-cached-tree","Add CachedTree as third backend",
+        [&selection] { selection.include_cached_tree=true; }));
     result.append(make_unvalued_argument_parser(
         "","no-retention","Skip shared-manager post-root-destruction experiment",
         [&selection] { selection.run_retention=false; }));
@@ -1574,6 +1579,13 @@ void append_case(std::vector<Datum>& data,std::vector<MemoryDatum>& memory,
         manager_nodes,manager.statistics(),manager.statistics()});
 
     validate_geometry(tree,robdd);
+    std::unique_ptr<CachedBinaryTreePaving> cached;
+    if(selection.include_cached_tree) {
+        cached=std::make_unique<CachedBinaryTreePaving>(tree);
+        if(not cached->compile_cache() or not cached->has_cache())
+            throw std::runtime_error("Unable to compile CachedTree cache");
+        validate_geometry(tree,*cached);
+    }
     SizeType tree_leaves=tree.size();
     SizeType robdd_leaves=robdd.size();
     if(tree_leaves<selection.min_leaves) {
@@ -1591,7 +1603,7 @@ void append_case(std::vector<Datum>& data,std::vector<MemoryDatum>& memory,
     auto probes=make_probes(grid,dimension,fineness);
 
     auto record=[&](char const* name,auto&& tree_operation,
-                    auto&& robdd_operation) {
+                    auto&& robdd_operation,auto&& cached_operation) {
         Timing tree_time=median_ms(tree_operation,selection.iterations,
             selection.samples,selection.min_sample_ms,selection.max_iterations,selection.warmups);
         Timing robdd_time=median_ms(robdd_operation,selection.iterations,
@@ -1602,6 +1614,14 @@ void append_case(std::vector<Datum>& data,std::vector<MemoryDatum>& memory,
         data.push_back({shape,name,"robdd",dimension,fineness,
                         robdd_time.milliseconds,robdd_leaves,reachable_nodes,
                         robdd_time.iterations,robdd_time.statistics});
+        if(selection.include_cached_tree) {
+            Timing cached_time=median_ms(cached_operation,selection.iterations,
+                selection.samples,selection.min_sample_ms,
+                selection.max_iterations,selection.warmups);
+            data.push_back({shape,name,"cached-tree",dimension,fineness,
+                cached_time.milliseconds,tree_leaves,tree_nodes,
+                cached_time.iterations,cached_time.statistics});
+        }
     };
     // The BDD manager is reused for all timed operations in this case.
     // In particular, repeated construction benefits from its unique table;
@@ -1619,6 +1639,12 @@ void append_case(std::vector<Datum>& data,std::vector<MemoryDatum>& memory,
             fresh.adjoin_outer_approximation(set,fineness);
             fresh.recombine();
             return fresh;
+        },
+        [&](unsigned) {
+            CachedBinaryTreePaving fresh(grid);
+            fresh.adjoin_outer_approximation(set,fineness);
+            fresh.recombine();
+            return fresh;
         });
 
     record("outer_cold",
@@ -1632,6 +1658,12 @@ void append_case(std::vector<Datum>& data,std::vector<MemoryDatum>& memory,
             RobddManager cold_manager;
             RobddPaving fresh(cold_manager,primary,
                 cold_manager.constant(false),0u);
+            fresh.adjoin_outer_approximation(set,fineness);
+            fresh.recombine();
+            return fresh.size();
+        },
+        [&](unsigned) {
+            CachedBinaryTreePaving fresh(grid);
             fresh.adjoin_outer_approximation(set,fineness);
             fresh.recombine();
             return fresh.size();
@@ -1679,6 +1711,12 @@ void append_case(std::vector<Datum>& data,std::vector<MemoryDatum>& memory,
                 rebuilt.adjoin(prepared);
                 rebuilt.recombine();
                 return rebuilt;
+            },
+            [&](unsigned) {
+                CachedBinaryTreePaving rebuilt(grid);
+                rebuilt.adjoin(prepared);
+                rebuilt.recombine();
+                return rebuilt;
             });
     } else {
         LOGGING_PRINTLN("SKIP replay_bulk: "<<shape
@@ -1689,15 +1727,18 @@ void append_case(std::vector<Datum>& data,std::vector<MemoryDatum>& memory,
 
     record("copy",
         [&](unsigned) { return BinaryTreePaving(tree); },
-        [&](unsigned) { return RobddPaving(robdd); });
+        [&](unsigned) { return RobddPaving(robdd); },
+        [&](unsigned) { return CachedBinaryTreePaving(*cached); });
 
     record("iterate_leaves",
         [&](unsigned) { return visit_leaves(tree); },
-        [&](unsigned) { return visit_leaves(robdd); });
+        [&](unsigned) { return visit_leaves(robdd); },
+        [&](unsigned) { return visit_leaves(*cached); });
 
     record("iterate_min",
         [&](unsigned) { return visit_minimum(tree,fineness); },
-        [&](unsigned) { return visit_minimum(robdd,fineness); });
+        [&](unsigned) { return visit_minimum(robdd,fineness); },
+        [&](unsigned) { return visit_minimum(*cached,fineness); });
 
     if(selection.tree_iterator_cost) {
         // Compare only representations of the same immutable tree. Ordinary
@@ -1743,7 +1784,8 @@ void append_case(std::vector<Datum>& data,std::vector<MemoryDatum>& memory,
 
     record("superset_16",
         [&](unsigned) { return probe_coverage(tree,probes); },
-        [&](unsigned) { return probe_coverage(robdd,probes); });
+        [&](unsigned) { return probe_coverage(robdd,probes); },
+        [&](unsigned) { return probe_coverage(*cached,probes); });
 
     GridCell right_half=primary.split(true);
     Timing tree_adjoin=median_mutation_ms(
@@ -1766,6 +1808,23 @@ void append_case(std::vector<Datum>& data,std::vector<MemoryDatum>& memory,
     data.push_back({shape,"adjoin_recombine","robdd",dimension,fineness,
         robdd_adjoin.milliseconds,robdd_leaves,reachable_nodes,
         robdd_adjoin.iterations,robdd_adjoin.statistics});
+    if(selection.include_cached_tree) {
+        Timing cached_adjoin=median_mutation_ms(
+            [&] {
+                auto snapshot=std::make_unique<CachedBinaryTreePaving>(*cached);
+                if(not snapshot->compile_cache())
+                    throw std::runtime_error("Failed preparing CachedTree mutation");
+                return snapshot;
+            },
+            [&](CachedBinaryTreePaving& copy) {
+                copy.adjoin(right_half);
+                copy.recombine();
+            },selection.iterations,selection.samples,selection.min_sample_ms,
+            selection.max_iterations,selection.warmups);
+        data.push_back({shape,"adjoin_recombine","cached-tree",
+            dimension,fineness,cached_adjoin.milliseconds,tree_leaves,tree_nodes,
+            cached_adjoin.iterations,cached_adjoin.statistics});
+    }
     memory.back().robdd_manager_after_nodes=manager.node_count();
     memory.back().after_warm=manager.statistics();
 }
@@ -1774,7 +1833,9 @@ void report(std::vector<Datum> const& data,
             std::vector<MemoryDatum> const& memory,
             Selection const& selection,unsigned skipped,
             Bench::SummaryFields const& fields) {
-    LOGGING_PRINTLN("BinaryTree / ROBDD compact-set benchmark")
+    LOGGING_PRINTLN("BinaryTree / ROBDD"
+        <<(selection.include_cached_tree?" / CachedTree":"")
+        <<" compact-set benchmark")
     LOGGING_PRINTLN("Minimum iterations="<<selection.iterations
         <<"  samples="<<selection.samples
         <<"  min_sample_ms="<<selection.min_sample_ms
@@ -1817,7 +1878,11 @@ void report(std::vector<Datum> const& data,
     std::map<std::string,Aggregate> by_operation;
     std::map<std::string,Aggregate> by_shape;
     Aggregate overall;
-    for (std::size_t i=0u;i<data.size();i+=2u) {
+    std::map<std::string,Aggregate> cached_by_operation;
+    std::map<std::string,Aggregate> cached_by_shape;
+    Aggregate cached_overall;
+    std::size_t stride=selection.include_cached_tree?3u:2u;
+    for (std::size_t i=0u;i<data.size();i+=stride) {
         if (i+1u==data.size() or data[i].backend!="tree"
                 or data[i+1u].backend!="robdd"
                 or data[i].operation!=data[i+1u].operation
@@ -1833,6 +1898,18 @@ void report(std::vector<Datum> const& data,
         by_operation[data[i].operation].add(ratio,case_name);
         by_shape[data[i].shape].add(ratio,case_name);
         overall.add(ratio,case_name);
+        if(selection.include_cached_tree) {
+            if(i+2u>=data.size() or data[i+2u].backend!="cached-tree"
+                or data[i+2u].operation!=data[i].operation
+                or data[i+2u].shape!=data[i].shape
+                or data[i+2u].dimension!=data[i].dimension
+                or data[i+2u].fineness!=data[i].fineness)
+                throw std::runtime_error("unpaired CachedTree benchmark row");
+            double cache_ratio=data[i+2u].milliseconds/data[i].milliseconds;
+            cached_by_operation[data[i].operation].add(cache_ratio,case_name);
+            cached_by_shape[data[i].shape].add(cache_ratio,case_name);
+            cached_overall.add(cache_ratio,case_name);
+        }
     }
     LOGGING_PRINTLN("Speed ratios: ROBDD median / tree median"
         <<" (>1 means tree is faster; <1 means ROBDD is faster).")
@@ -1860,6 +1937,22 @@ void report(std::vector<Datum> const& data,
     LOGGING_PRINTLN(std::string(68,'='))
     LOGGING_PRINTLN("Each statistic is a geometric mean of paired ratios,"
         <<" not a sum of unrelated operation times.")
+    if(selection.include_cached_tree) {
+        LOGGING_PRINTLN("Speed ratios: CachedTree median / Tree median"
+            <<" (>1 means Tree is faster; <1 means CachedTree is faster).")
+        LOGGING_PRINTLN(std::string(68,'='))
+        for(auto const& entry:cached_by_operation) line(entry.first,entry.second);
+        LOGGING_PRINTLN(std::string(68,'-'))
+        for(auto const& entry:cached_by_shape) line(entry.first,entry.second);
+        LOGGING_PRINTLN(std::string(68,'-'))
+        if(cached_overall.count!=0u) {
+            line("ALL",cached_overall);
+            LOGGING_PRINTLN("Worst CachedTree case: "<<cached_overall.worst_case)
+        }
+        LOGGING_PRINTLN("CachedTree superset_16 uses a precompiled ROBDD index;"
+            <<" other operations use the authoritative Tree backend."
+            <<" CachedTree Nodes count excludes the separate ROBDD cache.")
+    }
 }
 
 } // namespace
