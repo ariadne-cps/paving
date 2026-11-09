@@ -486,72 +486,25 @@ Both `BinaryTreePaving` and `RobddPaving` serialize concurrent `adjoin(GridCell)
 **Scope limit:** This is an incremental thread-safety milestone, not a full `PavingInterface` guarantee. `superset(GridCell)`, `size()`, `root_cell()`, `clone()` and owning snapshot/copy construction can now run alongside `adjoin` on both backends. ROBDD additionally snapshots its Boolean root, depth, enabled-cell counts, compact iterators and enumeration. Other concurrent mutations, explicit tree iterators, borrowed views, generic multi-paving comparisons and reference-valued `grid()` are not yet protected. Do not invoke those APIs concurrently with adjoin on the same paving. `RobddManager` retains its separate synchronization. Regression tests exercise both backend read/write overlap.
 
 
-## Dependency update and Paving-level performance comparison (2026-11-09)
+## CachedBinaryTreePaving: explicit compiled ROBDD query cache
 
-Paving now pins `ariadne-cps/bdd` at `378d16e` (canonical
-unique-table hash as default, batched ITE snapshots, experimental
-parallel ITE) and `ariadne-cps/tree` at `ba055ee`
-(opt-in bounded parallel `BinaryTreeNode::recombine_parallel()`).
-The old pins were `3b6c918` and `7166244`, respectively.
-Build, Foundation, Threading, PythonCommon and Benchmarking
-dependency pins have been checked for compatibility; Paving's
-other gitlinks remain unchanged.
+`CachedBinaryTreePaving` owns the authoritative mutable BinaryTreePaving and
+optionally compiles an immutable RobddPaving query index. The class does
+not use the name *hybrid*: that term denotes hybrid systems in Ariadne.
 
-**Neither Paving's geometry algorithms nor its default mutation
-paths are made parallel by this dependency update.**
-In particular, the new Tree `recombine_parallel()` API is
-opt-in: an unchanged call to `recombine()` continues to use
-the sequential algorithm. BDD's default `ite()` also remains
-sequential. Do not attribute a performance change to
-parallelism without evidence that it was actually invoked.
+`compile_cache()` takes a coherent Tree snapshot under the owner mutex,
+constructs the BDD outside that lock, and publishes only if the revision
+has not changed. Mutations invalidate the index before changing the Tree.
+`superset()` uses the compiled index when available and falls back to
+the original Tree when the cache is absent. The index owns its manager
+and concurrent readers retain ownership while using it.
 
-Use the existing `benchmark_paving_backends` and
-`benchmark_paving_superset` executables for an
-application-level comparison of the previous pins versus
-the new pins. The separate manual driver in
-`benchmarks/run_dependency_ab.sh` creates isolated Paving
-checkouts with identical Paving sources and a full **2×2
-factorial** of old/new BDD and Tree dependencies. It
-builds and tests each configuration before manually running
-the structural benchmark at concurrency 0 in an order that
-revisits the baseline and fully updated variants.
+This initial prototype is explicit/synchronous; automatic activation and
+compilation tasks are deferred until the manual break-even measurement.
+Ordinary correctness tests include concurrent readers, writers and
+compilation. No performance benchmark is run in CI.
 
-To run the comparison from a fresh checkout, after obtaining
-all submodules, see `benchmarks/run_dependency_ab.sh`.
-Performance benchmarks are **never** registered with CTest
-or executed in CI. Inspect absolute times separately for
-`tree` and `robdd`, especially `replay_bulk`,
-`adjoin_recombine`, `copy`, `iterate_min` and
-`superset_16`. The full outer-approximation workloads
-also include geometric classification and may dilute
-dependency-level improvements.
-
-
-### Manual four-way BDD/Tree dependency comparison
-
-The executable script at benchmarks/run_dependency_ab.sh creates four
-detached worktrees with identical Paving sources and isolated Release
-builds. Only the BDD and Tree gitlinks vary: old-old, bdd-only,
-tree-only and new-new. Every variant runs its normal CTest suite
-before benchmarking. The benchmark suite is executed twice per
-variant in forward/reverse order and saves absolute operation
-timings for both Paving backends. No benchmark runs in CI.
-
-Run from the Paving repository root:
-
-    git pull --ff-only
-    git submodule update --init --recursive
-    bash benchmarks/run_dependency_ab.sh
-
-The default workloads reproduce the 4D/f3 five-shape structural
-comparison, with seven samples, calibration floor of 12 ms,
-max iterations 8192, a depth budget of 28 and concurrency zero.
-The script writes a manifest, four CTest logs and eight benchmark
-logs in an isolated folder outside the checkout.
-Environment overrides: RESULT_DIR, DIMENSIONS, FINENESSES, SHAPES,
-SAMPLES, MIN_SAMPLE_MS, MAX_ITERATIONS, MAX_DEPTH_BITS, CONCURRENCY.
-
-Interpret using absolute times for the same operation/backend
-between dependency variants. Default Paving remains sequential;
-the new opt-in parallel BDD/Tree functions are not enabled by
-advancing the submodule gitlinks.
+The earlier BDD/Tree 2x2 factorial benchmark has been completed.
+The script `benchmarks/run_dependency_ab.sh` was removed from main.
+Its original code remains in Git history; methodology, selected pins and
+results remain documented in `doc/robdd_paving_design.md`.

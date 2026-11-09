@@ -106,3 +106,14 @@ must not be credited for them without an explicit call.
 The existing single-owner/different-subtree concurrency
 contract remains unchanged. No performance benchmark
 runs in CI.
+
+
+## 2026-11-09 - CachedBinaryTreePaving naming and benchmark cleanup
+
+The explicit Tree-authoritative ROBDD query-cache prototype is named
+`CachedBinaryTreePaving`; 'hybrid' is reserved for Ariadne's hybrid
+systems terminology. The completed dependency A/B driver was removed
+from main, retaining the prior revision and results in Git history
+and the ROBDD Paving design journal. The next step is a dedicated
+snapshot/encoding/query break-even experiment, not a new concurrency
+policy. No benchmark runs in CI.

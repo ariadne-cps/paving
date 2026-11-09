@@ -3102,3 +3102,33 @@ opt-in internal parallel algorithm is activated from Paving by this
 dependency-only update; the results therefore measure the existing
 sequential paths. The benchmark remains manual and is not added
 to CI/CTest. No timing results are claimed yet.
+
+
+## 2026-11-09 - Explicit compiled Tree query cache and A/B script retirement
+
+The new prototype is named `CachedBinaryTreePaving`, not HybridPaving:
+'hybrid' already names a different class of system in Ariadne.
+The mutable Binary Tree remains authoritative. A detached coherent
+snapshot is compiled through the existing direct Tree-to-ROBDD
+constructor, outside the owner's lock; the result is published
+only if its captured revision still matches. The compiled BDD
+owns its manager and is retained via shared ownership across
+readers and invalidations. Every wrapper mutation invalidates
+the cache first. A second compilation is serialized rather
+than duplicated. No asynchronous compilation policy is enabled.
+
+The previous dependency A/B study is finished: four old/new BDD/Tree
+combinations, 13 tests passed per configuration and 640 measured
+observations. It found no compelling Paving-wide acceleration from
+the dependency upgrades (ROBDD replay_bulk approximately -0.2%,
+outer_warm -0.2%, outer_cold -0.5%). The completed driver
+`benchmarks/run_dependency_ab.sh` is deleted from main rather
+than kept as an obsolete active utility. The historical commit
+still contains it and these design-journal entries retain the
+experiment's source and interpretation.
+
+The next manual experiment needs to measure Tree snapshot cost,
+Tree-to-BDD encoding time and query savings separately. Automatic
+background compilation is not justified before that break-even
+is established. Test/CI runs verify correctness only; performance
+benchmarks are never executed in CI.
