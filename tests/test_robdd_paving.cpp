@@ -62,12 +62,12 @@ class TestRobddPaving : public Ariadne::Testing::ContextFixture {
             retained=std::make_unique<Paving>(united);
         }
         ARIADNE_TESTING_PROVE(!weak.expired());
-        {
-            auto iterator=retained->begin();
-            ARIADNE_TESTING_PROVE(iterator!=retained->end());
-            ARIADNE_TESTING_PROVE(retained->superset(root));
-        }
+        auto detached=std::make_unique<Paving::ConstIterator>(retained->begin());
+        ARIADNE_TESTING_PROVE(retained->superset(root));
         retained.reset();
+        ARIADNE_TESTING_PROVE(!weak.expired());
+        ARIADNE_TESTING_PROVE(detached->operator*().grid()==grid);
+        detached.reset();
         ARIADNE_TESTING_PROVE(weak.expired());
 
         auto other_manager=std::make_shared<RobddManager>();
