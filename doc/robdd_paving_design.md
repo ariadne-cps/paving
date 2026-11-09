@@ -3163,3 +3163,31 @@ Actual asynchronous compilation, version-dependent activation
 thresholds and effects of CPU interference are not measured here.
 Correctness validation is still required on the benchmark commit.
 Performance benchmarks remain absent from CI and CTest.
+
+
+## 2026-11-09 - Begin cross-repository value-type migration on paving branches
+
+Renamed the public polymorphic owning value type `PavingHandle` to
+`Paving` in `paving_interface.hpp`, its factory/helper return types,
+the exact-fineness materialization definition, C++ tests and the README.
+The unrelated `SubPavingHandle` type retains its name and live-view
+semantics. This remains a copy-by-clone owning wrapper around the chosen
+`PavingInterface` implementation, not a new backend or implicit conversion
+between backends. Backend-specific construction still uses an explicitly
+allocated `BinaryTreePaving` or `RobddPaving`.
+
+The associated `drawing` branch updates its generic drawing overloads and
+tests, and pins the new `paving` commit. The work is intentionally not
+represented as a completed downstream migration: `AugmentedPaving`,
+`LabelledBinaryTreePaving`, reasoning traits and hybrid storage still own
+concrete binary trees, and many algorithms use operations beyond
+`PavingInterface`. In particular, `RobddManager` ownership must be
+designed before using an ROBDD-backed `Paving` as long-lived reachability
+storage. The exact backend used by a run must be selected at construction
+and preserved through the reachability pipeline.
+
+No compilation or runtime performance numbers are claimed from this
+connector-only increment. Validate both dependency pins and build/test
+matrices before expanding the migration or benchmarking infinite-time
+reachability; do not silently materialize an explicit tree for the ROBDD
+path.
