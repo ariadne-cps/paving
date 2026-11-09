@@ -375,6 +375,9 @@ class PavingInterface
     virtual Void adjoin_cells(const PredicateInterface<ExactBoxType>&, const Nat) { ARIADNE_ABSTRACT_METHOD; }
     virtual Void adjoin_outer_approximation(const EffectiveEuclideanCompactSetInterface& set, const Nat fineness) = 0;
     virtual Void adjoin_outer_approximation(const UpperBoxType& set, const Nat fineness) = 0;
+    virtual Void adjoin_outer_approximation(const ValidatedEuclideanCompactSetInterface& set, Nat fineness) = 0;
+    virtual Void adjoin_lower_approximation(const EffectiveEuclideanOvertSetInterface& set, Nat extent, Nat fineness) = 0;
+    virtual Void restrict_to_extent(Nat extent) = 0;
     virtual Void adjoin_inner_approximation(const EffectiveEuclideanOpenSetInterface& set, const Nat extent, const Nat fineness) = 0;
     virtual Void adjoin_inner_approximation(const EffectiveEuclideanSetInterface& set, const Nat fineness) = 0;
     virtual Void adjoin(const SubPavingInterface& paving) = 0;
@@ -431,6 +434,10 @@ class Paving
     //GridCell smallest_enclosing_primary_cell(const ExactBoxType& bx) const { return this->_ptr->smallest_enclosing_primary_cell(); }
     Void adjoin_cells(const PredicateInterface<ExactBoxType>& predicate, const Nat fineness) { return this->_ptr->adjoin_cells(predicate,fineness); }
     Void adjoin_outer_approximation(const EffectiveEuclideanCompactSetInterface& set, const Nat fineness) { return this->_ptr->adjoin_outer_approximation(set,fineness); }
+    Void adjoin_outer_approximation(const UpperBoxType& set, Nat fineness) { this->_ptr->adjoin_outer_approximation(set,fineness); }
+    Void adjoin_outer_approximation(const ValidatedEuclideanCompactSetInterface& set, Nat fineness) { this->_ptr->adjoin_outer_approximation(set,fineness); }
+    Void adjoin_lower_approximation(const EffectiveEuclideanOvertSetInterface& set, Nat extent, Nat fineness) { this->_ptr->adjoin_lower_approximation(set,extent,fineness); }
+    Void restrict_to_extent(Nat extent) { this->_ptr->restrict_to_extent(extent); }
     Void adjoin_inner_approximation(const EffectiveEuclideanOpenSetInterface& set, const Nat extent, const Nat fineness) { return this->_ptr->adjoin_inner_approximation(set,extent,fineness); }
     Void adjoin_inner_approximation(const EffectiveEuclideanSetInterface& set, const Nat fineness) { return this->_ptr->adjoin_inner_approximation(set,fineness); }
     Void adjoin(const SubPavingInterface& paving) { return this->_ptr->adjoin(paving); }

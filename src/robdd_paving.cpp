@@ -766,6 +766,70 @@ Void RobddPaving::adjoin_outer_approximation(
 }
 
 Void RobddPaving::adjoin_outer_approximation(
+        ValidatedEuclideanCompactSetInterface const& set, Nat fineness) {
+    // Classify cells directly; never materialize an explicit binary tree.
+    Grid grid_value=root_cell().grid();
+    ARIADNE_PRECONDITION_MSG(set.dimension()==grid_value.dimension(),
+        "Validated compact set dimension differs from the paving grid");
+    Nat extent=GridCell::smallest_enclosing_primary_cell_extent(
+        set.bounding_box(),grid_value);
+    Nat dimensions=PavingDetail::checked_index<Nat>(grid_value.dimension());
+    Nat enclosing_extent=PavingDetail::checked_index<Nat>(
+        PavingDetail::checked_add(extent,dimensions));
+    SizeType levels=PavingDetail::checked_add(enclosing_extent,fineness,
+        std::numeric_limits<Nat>::max());
+    SizeType target_depth=PavingDetail::checked_product(levels,dimensions);
+    GridCell search_root(grid_value,enclosing_extent,BinaryWord{});
+    Bool existing=not is_empty();
+    std::vector<GridCell> selected;
+    std::function<Void(GridCell const&,SizeType)> visit=
+        [&](GridCell const& cell,SizeType depth) {
+            if(existing and superset(cell)) { return; }
+            if(definitely(set.separated(cell.box()))) { return; }
+            if(depth==target_depth) { selected.push_back(cell); return; }
+            visit(cell.split(false),depth+1u);
+            visit(cell.split(true),depth+1u);
+        };
+    visit(search_root,0u);
+    adjoin(selected);
+}
+
+Void RobddPaving::adjoin_lower_approximation(
+        EffectiveEuclideanOvertSetInterface const& set,
+        Nat extent, Nat fineness) {
+    Grid grid_value=root_cell().grid();
+    ARIADNE_PRECONDITION_MSG(set.dimension()==grid_value.dimension(),
+        "Overt set dimension differs from the paving grid");
+    SizeType levels=PavingDetail::checked_add(extent,fineness);
+    SizeType target_depth=PavingDetail::checked_product(
+        levels,grid_value.dimension());
+    GridCell search_root(grid_value,extent,BinaryWord{});
+    auto const* open_set=dynamic_cast<
+        EffectiveEuclideanOpenSetInterface const*>(&set);
+    Bool existing=not is_empty();
+    std::vector<GridCell> selected;
+    std::function<Void(GridCell const&,SizeType)> visit=
+        [&](GridCell const& cell,SizeType depth) {
+            if(existing and superset(cell)) { return; }
+            if(open_set and definitely(open_set->covers(cell.box()))) {
+                selected.push_back(cell); return;
+            }
+            if(not definitely(set.overlaps(cell.box()))) { return; }
+            if(depth==target_depth) { selected.push_back(cell); return; }
+            visit(cell.split(false),depth+1u);
+            visit(cell.split(true),depth+1u);
+        };
+    visit(search_root,0u);
+    adjoin(selected);
+}
+
+Void RobddPaving::restrict_to_extent(Nat extent) {
+    GridCell allowed_cell(root_cell().grid(),extent,BinaryWord{});
+    RobddPaving allowed(*_manager,allowed_cell,_manager->constant(true),0u);
+    restrict(allowed);
+}
+
+Void RobddPaving::adjoin_outer_approximation(
         UpperBoxType const& box, Nat fineness) {
     ARIADNE_PRECONDITION_MSG(box.dimension() == dimension(),
         "Cannot approximate a box of another dimension");

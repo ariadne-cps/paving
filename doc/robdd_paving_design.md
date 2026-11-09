@@ -3254,3 +3254,24 @@ Added a **binding API regression** for both backends, without registering
 or importing any tutorial as a test. C++ view semantics are unchanged:
 copies are detached, branches are live, and a moved-from wrapper is only
 destructible or assignable. CI/Release verification is pending.
+
+## 2026-11-09 - AugmentedPaving owns a polymorphic Paving on main
+
+Replaced the concrete `BinaryTreePaving` value in `AugmentedPaving` by the
+copy-by-clone `Paving` value. Its state accessors expose `Paving`; a
+constructor accepts a caller-selected `Paving` backend and retains that
+backend across copies and state operations. Existing grid/tree constructors
+continue to select BinaryTree explicitly as a compatibility default.
+
+Added `adjoin_lower_approximation`, `restrict_to_extent`, and validated
+compact outer approximation to the abstract interface. ROBDD implements lower
+and validated outer classification by certified cell traversal without a
+binary tree, and restriction by native ROBDD intersection with a primary
+cell. `state_auxiliary_paving()` still explicitly materializes a detached
+tree for its legacy geometric skew-product/drawing operation; it does not
+change the underlying state backend. This is not a performance benchmark.
+
+Consumers that explicitly bind `state_paving()` to a `BinaryTreePaving&`
+must migrate to `Paving&`. The hybrid augmented container remains a separate
+migration task. Compilation and downstream CI are required before considering
+this change complete.

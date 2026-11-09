@@ -704,7 +704,7 @@ class BinaryTreePaving
     Void remove( const SubPavingInterface& theOtherSubPaving ) override;
 
     //! \brief Restrict to cells rooted to the primary cell with the extent (at most) \a theExtent.
-    Void restrict_to_extent( const Nat theExtent );
+    Void restrict_to_extent( const Nat theExtent ) override;
 
     //! /brief Creates an over approximation for the \a theBoxType on \a theGrid. \a theBoxType
     //! is in the original space coordinates. We compute the over approximation as the
@@ -756,7 +756,7 @@ class BinaryTreePaving
     //!   3. Minces the paving to the level: depth + \<the primary cell extent\>
     //!   4. Iterates through the enabled leaf nodes of the paving (all the nodes are initially enabled)
     //!   5. Disables the cells that are disjoint with the \a theSet
-    Void adjoin_outer_approximation( const ValidatedEuclideanCompactSetInterface& theSet, const Nat numSubdivInDim );
+    Void adjoin_outer_approximation( const ValidatedEuclideanCompactSetInterface& theSet, const Nat numSubdivInDim ) override;
     Void adjoin_outer_approximation( const EffectiveEuclideanCompactSetInterface& theSet, const Nat numSubdivInDim ) override;
     Void adjoin_outer_approximation( const UpperBoxType& theBoxType, const Nat numSubdivInDim ) override;
 
@@ -764,7 +764,7 @@ class BinaryTreePaving
     //! \a numSubdivInDim -- defines, how many subdivisions in each dimension from the level of the
     //! zero cell we should make to get the proper cells for outer approximating \a theSet.
     //! A lower approximation comprises all cells intersecting a given set.
-    Void adjoin_lower_approximation( const EffectiveEuclideanOvertSetInterface& theSet, const Nat heightInDim, const Nat numSubdivInDim );
+    Void adjoin_lower_approximation( const EffectiveEuclideanOvertSetInterface& theSet, const Nat heightInDim, const Nat numSubdivInDim ) override;
 
     //! \brief Adjoin a lower approximation to a given set restricted to the given bounding box,
     //! computing to the given resolution: \a numSubdivInDim -- defines, how many subdivisions in each

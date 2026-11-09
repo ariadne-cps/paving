@@ -253,6 +253,12 @@ class RobddPaving : public virtual PavingInterface {
     //! \details Delegates through the compact-set overload, matching
     //! BinaryTreePaving's geometric and fineness conventions.
     Void adjoin_outer_approximation(UpperBoxType const& box, Nat fineness) override;
+    Void adjoin_outer_approximation(
+        ValidatedEuclideanCompactSetInterface const& set, Nat fineness) override;
+    Void adjoin_lower_approximation(
+        EffectiveEuclideanOvertSetInterface const& set,
+        Nat extent, Nat fineness) override;
+    Void restrict_to_extent(Nat extent) override;
 
     //! \brief Adjoin the certified inner approximation of an open set.
     //! \details The primary cell extent bounds the search; only cells
