@@ -24,6 +24,7 @@
 #include "set/function_set.hpp"
 #include "paving/paving_cell_operations.hpp"
 #include "ariadne-testing.hpp"
+#include "threading/thread_manager.hpp"
 
 using namespace Ariadne;
 
@@ -46,6 +47,91 @@ class CountingConstrainedImageSet : public ConstrainedImageSet {
 class TestPavingBackends : public Ariadne::Testing::ContextFixture {
   public:
     using ContextFixture::ContextFixture;
+
+
+    Void test_parallel_outer_classification_equivalence_and_fallback() {
+        ThreadManager& threading=ThreadManager::instance();
+        SizeType const previous=threading.concurrency();
+        struct Restore {
+            ThreadManager& manager;
+            SizeType previous;
+            ~Restore() { try { manager.set_concurrency(previous); } catch(...) { } }
+        } restore{threading,previous};
+
+        Grid grid(2u);
+        GridCell root(grid,0u,BinaryWord{});
+        RealBox domain({RealInterval(0,1),RealInterval(0,1)});
+        ConstrainedImageSet set(domain);
+        auto coords=EffectiveScalarMultivariateFunction::coordinates(2u);
+        set.new_parameter_constraint(
+            coords[0]*coords[0]+coords[1]*coords[1]<=0.5_x);
+        EffectiveEuclideanCompactSetInterface const& source=set;
+
+        for(Nat fineness : {0u,1u,2u}) {
+            RobddManager reference_manager;
+            RobddPaving reference(reference_manager,root,
+                reference_manager.constant(false),0u);
+            reference.adjoin_outer_approximation(source,fineness);
+            // Include already-covered and partially-covered starting states.
+            for(SizeType workers : {0u,2u,4u}) {
+                if(workers>threading.maximum_concurrency()) continue;
+                threading.set_concurrency(workers);
+                for(unsigned stage=0u;stage!=3u;++stage) {
+                    RobddManager manager;
+                    RobddPaving actual(manager,root,
+                        manager.constant(false),0u);
+                    RobddManager oracle_manager;
+                    RobddPaving expected(oracle_manager,root,
+                        oracle_manager.constant(false),0u);
+                    if(stage==1u) {
+                        auto sentinel=root.split(false).split(false);
+                        actual.adjoin(sentinel);
+                        expected.adjoin(sentinel);
+                    } else if(stage==2u) {
+                        actual.adjoin(reference.root_cell());
+                        expected.adjoin(reference.root_cell());
+                    }
+                    expected.adjoin_outer_approximation(source,fineness);
+                    actual.adjoin_outer_approximation_parallel(source,fineness);
+                    ARIADNE_TESTING_PROVE(actual.subset(expected));
+                    ARIADNE_TESTING_PROVE(expected.subset(actual));
+                    ARIADNE_TESTING_EXPECT_EQUAL(actual.size(),expected.size());
+                }
+            }
+        }
+
+        if(threading.maximum_concurrency()>=2u) {
+            threading.set_concurrency(2u);
+            RobddManager manager;
+            RobddPaving unchanged(manager,root,manager.constant(false),0u);
+            unchanged.adjoin(root.split(false));
+            ConstrainedImageSet wrong_dimension(
+                RealBox({RealInterval(0,1)}));
+            EffectiveEuclideanCompactSetInterface const& wrong=wrong_dimension;
+            ARIADNE_TESTING_EXPECT_EXCEPTION(
+                unchanged.adjoin_outer_approximation_parallel(wrong,1u));
+            ARIADNE_TESTING_PROVE(unchanged.superset(root.split(false)));
+            ARIADNE_TESTING_PROVE(not unchanged.superset(root));
+        }
+
+        // A subclass with virtual predicate dispatch must stay serial:
+        // its mutable call counter is deliberately not thread-safe.
+        if(threading.maximum_concurrency()>=2u) {
+            threading.set_concurrency(2u);
+            CountingConstrainedImageSet derived(domain);
+            EffectiveEuclideanCompactSetInterface const& polymorphic=derived;
+            RobddManager manager;
+            RobddPaving actual(manager,root,manager.constant(false),0u);
+            RobddManager oracle_manager;
+            RobddPaving expected(oracle_manager,root,
+                oracle_manager.constant(false),0u);
+            actual.adjoin_outer_approximation_parallel(polymorphic,1u);
+            expected.adjoin_outer_approximation(polymorphic,1u);
+            ARIADNE_TESTING_PROVE(derived.separated_calls>0u);
+            ARIADNE_TESTING_PROVE(actual.subset(expected));
+            ARIADNE_TESTING_PROVE(expected.subset(actual));
+        }
+    }
 
     Void test_outer_approximation_skips_covered_cell_predicates() {
         Grid grid(2u);
@@ -2876,6 +2962,7 @@ int main(int argc, char** argv) {
     ARIADNE_TESTING_ADD_TEST(TestPavingBackends, test_outer_box_approximation_between_backends);
     ARIADNE_TESTING_ADD_TEST(TestPavingBackends, test_prepared_constrained_outer_geometry);
     ARIADNE_TESTING_ADD_TEST(TestPavingBackends, test_outer_approximation_skips_covered_cell_predicates);
+    ARIADNE_TESTING_ADD_TEST(TestPavingBackends, test_parallel_outer_classification_equivalence_and_fallback);
     ARIADNE_TESTING_ADD_TEST(TestPavingBackends, test_generic_approximations_between_backends);
     ARIADNE_TESTING_ADD_TEST(TestPavingBackends, test_polymorphic_paving_handle_and_subpaving_views);
     ARIADNE_TESTING_ADD_TEST(TestPavingBackends, test_polymorphic_sequences_backend_isolation);

@@ -3298,3 +3298,26 @@ through `BinaryTreePaving&` remain unsafe for cache coherency; use the
 A dedicated regression checks dispatch through `Paving`, independent
 backend-preserving clones, lazy compilation, and invalidation from polymorphic
 modifications. Preserve the existing concurrency/invalidation regressions.
+
+## 2026-11-09 - Opt-in parallel certified outer approximation on ROBDD
+
+`RobddPaving::adjoin_outer_approximation_parallel` adds a deliberately
+non-default parallel classification of exact `ConstrainedImageSet` inputs.
+Its concurrency bound is eight partitions on the shared `ThreadManager`.
+Before partitioning, serial prefix checks preserve the original certified
+superset/separation pruning decisions; only independent undecided subtrees
+are scheduled. A single immutable prepared contractor is shared and each
+separation query uses its own `ConstraintSolver` and domain scratch.
+Each worker explicitly installs the caller's rounding mode via
+`ScopedRoundingMode`. Worker-local result vectors are merged deterministically
+and joined before one atomic ROBDD batch union. Failure leaves the paving
+unchanged, and the ordinary virtual overload stays sequential. Non-base
+compact sets, including derived types with mutable predicates, fall back
+to the serial path rather than being called concurrently.
+
+The regression covers serial-vs-parallel geometric equivalence with empty,
+partially covered and already covered initial pavings, several finenesses,
+multiple concurrency levels, wrong-dimension exception atomicity and
+virtual-derived-class fallback. Release measurements and an eventual Tree
+implementation are separate next steps; do not claim a speedup or turn
+performance benchmarks into CI tests.

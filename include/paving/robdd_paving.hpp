@@ -249,6 +249,18 @@ class RobddPaving : public virtual PavingInterface {
     Void adjoin_outer_approximation(
         EffectiveEuclideanCompactSetInterface const& set, Nat fineness) override;
 
+    //! \brief Opt-in parallel certified outer classification, then atomic batch union.
+    //! \details The exact ConstrainedImageSet implementation shares an
+    //! immutable prepared contractor, with independent solver scratch in
+    //! each worker. Candidate subtrees are partitioned only after their
+    //! ancestors' sequential certified checks, preserving the result.
+    //! Uses the shared ThreadManager; concurrency <2, non-constrained and
+    //! derived set types fall back to the original sequential algorithm.
+    //! If any worker throws, no selected cells are committed.
+    //! The source set must remain unchanged until this method returns.
+    Void adjoin_outer_approximation_parallel(
+        EffectiveEuclideanCompactSetInterface const& set,Nat fineness);
+
     //! \brief Adjoin a grid-aligned outer approximation of a box.
     //! \details Delegates through the compact-set overload, matching
     //! BinaryTreePaving's geometric and fineness conventions.

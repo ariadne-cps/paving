@@ -561,3 +561,28 @@ query saving produces -1 rather than a claimed crossover.
 The benchmark runs **manually only** and is not registered with
 CTest or executed in GitHub Actions. No automatic ThreadManager
 cache-compilation tasks have yet been added.
+
+### Experimental parallel certified outer classification
+
+`RobddPaving::adjoin_outer_approximation_parallel(set, fineness)` is an
+explicit opt-in path. It uses the configured shared `ThreadManager` (2-8
+bounded worker partitions), a detached ROBDD snapshot for containment
+checks, and an immutable prepared `ConstrainedImageSet` contractor.
+It classifies the ancestors before forming worker subtrees, ensuring the
+same certified pruning decisions as the sequential depth-first traversal.
+Each task collects its selected cells in a private vector; the paving is
+updated by a single batch union only after all tasks join successfully.
+Worker exceptions do not publish partial results. The caller's
+floating-point rounding mode is installed and restored on each worker.
+
+The parallel path currently applies only to the exact `ConstrainedImageSet`
+type. Derived sets, other compact-set implementations and fewer than two
+configured worker threads use the unmodified sequential algorithm; this
+avoids silently assuming that arbitrary virtual predicates are thread-safe.
+The ordinary `adjoin_outer_approximation` method remains sequential.
+The input set must not be mutated while the operation runs. Correctness is
+compared against the serial oracle across worker counts, fineness values,
+empty, partially populated and fully covered pavings.
+
+This is a correctness milestone. No speedup is claimed without Release
+measurements comparing identical inputs at concurrency 0, 2, 4 and 8.
