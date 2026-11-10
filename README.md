@@ -16,8 +16,8 @@ Although independently maintained and usable, this repository is also part of th
 - C++ implementations: `src/`.
 - Design journal: [`doc/robdd_paving_design.md`](doc/robdd_paving_design.md).
 - C++ tests: `tests/` (66 independently registered fixture cases across eight executables).
-- Python bindings, tests and tutorial: `python/bindings/`, `python/tests/` and `python/tutorials/`.
-- Standalone installed C++ example: `tutorials/tutorial_paving/`.
+- Python bindings, tests and tutorial: `python/bindings/`, `python/tests/` and `tutorial/`.
+- Standalone installed C++ example: `tutorial/`.
 
 ## Dependencies
 
@@ -212,9 +212,9 @@ workflow once with BinaryTreePaving and once with RobddPaving, where both
 ROBDD-backed pavings share one manager. The backend is selected only at
 construction, not in the algorithm.
 
-- C++: `tutorials/tutorial_paving/tutorial_paving.cpp`, built separately
+- C++: `tutorial/tutorial_paving.cpp`, built separately
   against an installed `ariadne-paving`.
-- Python: `python/tutorials/tutorial_paving.py`.
+- Python: `python/tutorial.py`.
 - Both tutorials are executed in the Release workflow; they are not registered
   as additional CTest or pytest cases in this repository.
 - Python uses `Paving.tree(grid)` and `Paving.robdd(grid, manager)`

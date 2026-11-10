@@ -92,7 +92,7 @@ jobs:
 
     - name: Prepare C++ Paving Tutorial
       if: matrix.build_type == 'Release'
-      run: cmake -E copy_directory $GITHUB_WORKSPACE/tutorials/tutorial_paving ${{ runner.workspace }}/tutorial_paving
+      run: cmake -E copy_directory $GITHUB_WORKSPACE/tutorial ${{ runner.workspace }}/tutorial_paving
 
     - name: Check C++ Paving Tutorial
       if: matrix.build_type == 'Release'
@@ -107,7 +107,7 @@ jobs:
 
     - name: Check Python Paving Tutorial
       if: matrix.build_type == 'Release'
-      working-directory: ${{ github.workspace }}/python/tutorials
+      working-directory: ${{ github.workspace }}/tutorial
       env:
         PYTHONPATH: ${{ runner.workspace }}/install/lib/python3.13/site-packages
         LD_LIBRARY_PATH: ${{ runner.workspace }}/install/lib
