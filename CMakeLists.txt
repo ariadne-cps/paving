@@ -26,7 +26,8 @@ require_same_dependency_commit(Foundation CHAINS
         "set|linear-programming|algebra|interval|numeric|foundation")
 require_same_dependency_commit(Logging CHAINS
         "set|linear-programming|logging"
-        "bdd|threading|logging")
+        "bdd|threading|logging"
+        "benchmarking|logging")
 require_same_dependency_commit(PythonCommon CHAINS
         "set|linear-programming|algebra|interval|numeric|foundation|python-common"
         "bdd|python-common")
