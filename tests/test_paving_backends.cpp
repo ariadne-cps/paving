@@ -73,6 +73,10 @@ class TestPavingBackends : public Ariadne::Testing::ContextFixture {
         auto& alias=right;
         right=std::move(alias);
         ARIADNE_TESTING_PROVE(right.superset(root.split(false)));
+        SubPaving moved(std::move(right));
+        moved.branch(false).set_root_cell(false);
+        ARIADNE_TESTING_PROVE(not paving.superset(root.split(false)));
+        ARIADNE_TESTING_PROVE(paving.superset(root.split(false).split(true)));
     }
 
     Void test_parallel_one_dimensional_frontier() {
