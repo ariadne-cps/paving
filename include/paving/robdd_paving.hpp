@@ -42,9 +42,9 @@
 
 namespace Ariadne {
 
-/** @brief BinaryTreeSubpaving undefined used by paving algorithms. */
+/** @brief View of a subpaving stored in a binary tree. */
 class BinaryTreeSubpaving;
-/** @brief SubPavingInterface undefined used by paving algorithms. */
+/** @brief Abstract interface for viewing a subset of a paving. */
 class SubPavingInterface;
 
 //! \brief Experimental ROBDD-backed paving with value-like root updates.
