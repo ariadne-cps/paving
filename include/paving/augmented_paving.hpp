@@ -6,24 +6,24 @@
  ****************************************************************************/
 
 /*
- *  This file is part of Ariadne.
+ *  This file is part of Ariadne Paving.
  *
- *  Ariadne is free software: you can redistribute it and/or modify
+ *  Ariadne Paving is free software: you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
  *  the Free Software Foundation, either version 3 of the License, or
  *  (at your option) any later version.
  *
- *  Ariadne is distributed in the hope that it will be useful,
+ *  Ariadne Paving is distributed in the hope that it will be useful,
  *  but WITHOUT ANY WARRANTY; without even the implied warranty of
- *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
  *  GNU General Public License for more details.
  *
  *  You should have received a copy of the GNU General Public License
- *  along with Ariadne.  If not, see <https://www.gnu.org/licenses/>.
+ *  along with Ariadne Paving. If not, see <https://www.gnu.org/licenses/>.
  */
 
-/*! \file paving/augmented_paving.hpp
- *  \brief Paved sets for continuous systems
+/** @file paving/augmented_paving.hpp
+ *  @brief Pavings augmented with auxiliary coordinate mappings.
  */
 
 #ifndef ARIADNE_PAVING_AUGMENTED_PAVING_HPP
@@ -75,6 +75,7 @@ class AugmentedPaving
         BinaryTreePaving tree(this->_state_set.grid());
         for(auto it=this->_state_set.begin(),end=this->_state_set.end();
             it!=end;++it) { tree.adjoin(*it); }
+        /** @brief Perform the specified paving operation. */
         Grid auxiliary_grid(this->_auxiliary_mapping.result_size());
         return outer_skew_product(tree,auxiliary_grid,this->_auxiliary_mapping);
     }
@@ -91,21 +92,29 @@ class AugmentedPaving
     Grid grid() const { return this->_state_set.grid(); }
 
     Void clear() { this->_state_set.clear(); }
+    /** @brief Modify the paving or its subdivision. */
     Void adjoin(AugmentedPaving const& other) {
         this->_state_set.adjoin(static_cast<PavingInterface const&>(other._state_set)); }
+    /** @brief Modify the paving or its subdivision. */
     Void restrict(AugmentedPaving const& other) {
         this->_state_set.restrict(static_cast<PavingInterface const&>(other._state_set)); }
+    /** @brief Modify the paving or its subdivision. */
     Void remove(AugmentedPaving const& other) {
         this->_state_set.remove(static_cast<PavingInterface const&>(other._state_set)); }
 
+    /** @brief Modify the paving or its subdivision. */
     Void adjoin_inner_approximation(EffectiveEuclideanSetInterface const& set, Nat fineness) {
         this->_state_set.adjoin_inner_approximation(set,fineness); }
+    /** @brief Modify the paving or its subdivision. */
     Void adjoin_lower_approximation(EffectiveEuclideanOvertSetInterface const& set, Nat extent, Nat fineness) {
         this->_state_set.adjoin_lower_approximation(set,extent,fineness); }
+    /** @brief Modify the paving or its subdivision. */
     Void adjoin_outer_approximation(EffectiveEuclideanCompactSetInterface const& set, Nat fineness) {
         this->_state_set.adjoin_outer_approximation(set,fineness); }
+    /** @brief Modify the paving or its subdivision. */
     Void adjoin_outer_approximation(ValidatedEuclideanCompactSetInterface const& set, Nat fineness) {
         this->_state_set.adjoin_outer_approximation(set,fineness); }
+    /** @brief Modify the paving or its subdivision. */
     Void adjoin_outer_approximation(ExactBoxType const& bx, Nat fineness) {
         this->_state_set.adjoin_outer_approximation(widen(bx),fineness); }
 
@@ -113,15 +122,18 @@ class AugmentedPaving
     Void mince(Nat fineness) { this->_state_set.mince(fineness); }
     Void recombine() { this->_state_set.recombine(); }
 
+    /** @brief Test the stated geometric property. */
     friend Bool subset(AugmentedPaving const& set1, AugmentedPaving const& set2) {
         //ARIADNE_PRECONDITION(same(set1._auxiliary_mapping,set2._auxiliary_mapping));
         return set1._state_set.subset(static_cast<PavingInterface const&>(set2._state_set)); }
+    /** @brief Perform the specified paving operation. */
     friend Bool intersect(AugmentedPaving const& set1, AugmentedPaving const& set2) {
         return set1._state_set.intersects(static_cast<PavingInterface const&>(set2._state_set)); }
 
     virtual AugmentedPaving* clone() const { return new AugmentedPaving(*this); }
     DimensionType dimension() const { return this->_state_set.dimension(); }
 
+    /** @brief Perform the specified paving operation. */
     friend OutputStream& operator<<(OutputStream& os, AugmentedPaving const& set) {
         return os << "AugmentedPaving(" << set._state_set << "," << set._auxiliary_mapping << ")"; }
 };

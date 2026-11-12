@@ -6,24 +6,24 @@
  ****************************************************************************/
 
 /*
- *  This file is part of Ariadne.
+ *  This file is part of Ariadne Paving.
  *
- *  Ariadne is free software: you can redistribute it and/or modify
+ *  Ariadne Paving is free software: you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
  *  the Free Software Foundation, either version 3 of the License, or
  *  (at your option) any later version.
  *
- *  Ariadne is distributed in the hope that it will be useful,
+ *  Ariadne Paving is distributed in the hope that it will be useful,
  *  but WITHOUT ANY WARRANTY; without even the implied warranty of
- *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
  *  GNU General Public License for more details.
  *
  *  You should have received a copy of the GNU General Public License
- *  along with Ariadne.  If not, see <https://www.gnu.org/licenses/>.
+ *  along with Ariadne Paving. If not, see <https://www.gnu.org/licenses/>.
  */
 
-/*! \file paving/grid_cell.hpp
- *  \brief Cells on a grid defined by a binary word.
+/** @file paving/grid_cell.hpp
+ *  @brief Binary subdivisions and cells on a paving grid.
  */
 
 #ifndef ARIADNE_GRID_CELL_HPP
@@ -67,15 +67,22 @@ class BinaryTreeNode;
 // This header uses BinaryTreePaving by reference and return type.
 // Keep its forward declaration in paving rather than geometry.
 class BinaryTreePaving;
+/** @brief Represent a coordinate-aligned grid. */
 class Grid;
+/** @brief Represent cells of a coordinate grid. */
 class GridAbstractCell;
+/** @brief Represent cells of a coordinate grid. */
 class GridCell;
+/** @brief Represent cells of a coordinate grid. */
 class GridOpenCell;
 
 typedef Box<ExactIntervalType> LatticeBoxType;
 
+/** @brief Store or manipulate a paving of grid cells. */
 enum class BinaryTreeDirection : ComparableEnumerationType { LEFT=-1, UP=0, RIGHT=+1 };
+/** @brief Represent a geometric paving component. */
 enum class BinaryChild : ComparableEnumerationType { LEFT=-1, RIGHT=+1 };
+/** @brief Represent a geometric paving component. */
 enum class TernaryChild : ComparableEnumerationType { LEFT=-1, MIDDLE=0, RIGHT=+1 };
 
 //! \brief An abstract cell of a grid paving. This class is the base of the GridCell - a regular cell on the Grid
@@ -420,6 +427,7 @@ inline GridAbstractCell::GridAbstractCell(const Grid& theGrid, const Nat theExte
     _theWord(theWord), _theBoxType(theBoxType) {
 }
 
+/** @brief Perform the specified paving operation. */
 inline Void GridAbstractCell::primary_cell_at_extent( const Nat theExtent, std::int64_t & leftBottomCorner, std::int64_t & rightTopCorner ) {
     ARIADNE_PRECONDITION(theExtent<=53u);
     if ( theExtent % 2 == 1 ) {
@@ -429,14 +437,17 @@ inline Void GridAbstractCell::primary_cell_at_extent( const Nat theExtent, std::
     }
 }
 
+/** @brief Return the requested grid or paving property. */
 inline const Grid& GridAbstractCell::grid() const {
     return _theGrid;
 }
 
+/** @brief Return the requested grid or paving property. */
 inline Nat GridAbstractCell::root_extent() const {
     return _theExtent;
 }
 
+/** @brief Return the requested grid or paving property. */
 inline Nat GridAbstractCell::root_height() const {
     const SizeType height = static_cast<SizeType>(_theExtent) * _theGrid.dimension();
     // Construction limits extent to 53 and dimension to dimension_type.
@@ -444,30 +455,36 @@ inline Nat GridAbstractCell::root_height() const {
     return static_cast<Nat>(height);
 }
 
+/** @brief Return the requested grid or paving property. */
 inline Int GridAbstractCell::depth() const {
     const SizeType root_height = static_cast<SizeType>(_theExtent) * _theGrid.dimension();
     // The path length and primary height are checked during construction.
     return static_cast<Int>(_theWord.size()) - static_cast<Int>(root_height);
 }
 
+/** @brief Return the requested grid or paving property. */
 inline const BinaryWord& GridAbstractCell::word() const {
     return _theWord;
 }
 
+/** @brief Return the requested grid or paving property. */
 inline const ExactBoxType& GridAbstractCell::box() const {
     return _theBoxType;
 }
 
+/** @brief Return the requested grid or paving property. */
 inline dimension_type GridAbstractCell::dimension() const {
     // compute_lattice_box checks the grid dimension before constructing the cell.
     return static_cast<dimension_type>(_theGrid.dimension());
 }
 
+/** @brief Perform the specified paving operation. */
 inline ExactIntervalType GridAbstractCell::operator[](dimension_type i) const {
     return _theBoxType[i];
 }
 
 
+/** @brief Perform the specified paving operation. */
 inline GridAbstractCell& GridAbstractCell::operator=(const GridAbstractCell & otherCell ) {
     _theGrid = otherCell._theGrid;
     _theExtent = otherCell._theExtent;
@@ -479,6 +496,7 @@ inline GridAbstractCell& GridAbstractCell::operator=(const GridAbstractCell & ot
 
 /*********************************************GridCell***********************************************/
 
+/** @brief Construct the object. */
 inline GridCell::GridCell() : GridAbstractCell( Grid(), 0, BinaryWord(), ExactBoxType() ) {
 }
 
@@ -486,22 +504,28 @@ inline GridCell::GridCell(const Grid& theGrid, const Nat theExtent, const Binary
                     GridAbstractCell( theGrid, theExtent, theWord, compute_box(theGrid, theExtent, theWord) ) {
 }
 
+/** @brief Construct the object. */
 inline GridCell::GridCell(const GridCell & otherCell ) : GridAbstractCell(otherCell) {
 }
 
+/** @brief Perform the specified paving operation. */
 inline GridCell& GridCell::operator=(const GridCell & otherCell ) {
+    /** @brief Perform the specified paving operation. */
     GridAbstractCell::operator=(otherCell);
     return *this;
 }
 
+/** @brief Perform the specified paving operation. */
 inline Bool GridCell::operator==( const GridCell& other ) const {
     return compare_grid_cells( this, other, COMPARE_EQUAL );
 }
 
+/** @brief Perform the specified paving operation. */
 inline Bool GridCell::operator<(const GridCell& other) const {
     return compare_grid_cells( this, other, COMPARE_LESS );
 }
 
+/** @brief Perform the specified paving operation. */
 inline Bool GridCell::compare_grid_cells(const GridCell * pCellLeft, const GridCell &cellRight, const Nat comparator ) {
     return GridAbstractCell::compare_abstract_grid_cells( pCellLeft, cellRight, comparator );
 }
@@ -518,6 +542,7 @@ inline GridOpenCell::GridOpenCell(const Grid& theGrid, const Nat theExtent, cons
                             GridAbstractCell(theGrid, theExtent, theWord, theBoxType) {
 }
 
+/** @brief Construct the object. */
 inline GridOpenCell::GridOpenCell() : GridAbstractCell( Grid(), 0, BinaryWord(), compute_box(Grid(), 0, BinaryWord()) ) {
 }
 
@@ -525,26 +550,33 @@ inline GridOpenCell::GridOpenCell(const Grid& theGrid, const Nat theExtent, cons
                     GridAbstractCell( theGrid, theExtent, theWord, compute_box(theGrid, theExtent, theWord) ) {
 }
 
+/** @brief Construct the object. */
 inline GridOpenCell::GridOpenCell(const GridOpenCell & otherCell ) : GridAbstractCell(otherCell) {
 }
 
+/** @brief Perform the specified paving operation. */
 inline GridOpenCell& GridOpenCell::operator=(const GridOpenCell & otherCell ) {
+    /** @brief Perform the specified paving operation. */
     GridAbstractCell::operator=(otherCell);
     return *this;
 }
 
+/** @brief Perform the specified paving operation. */
 inline Bool GridOpenCell::operator==( const GridOpenCell& other ) const {
     return compare_grid_cells( this, other, COMPARE_EQUAL );
 }
 
+/** @brief Perform the specified paving operation. */
 inline Bool GridOpenCell::operator<(const GridOpenCell& other) const {
     return compare_grid_cells( this, other, COMPARE_LESS );
 }
 
+/** @brief Perform the specified paving operation. */
 inline Bool GridOpenCell::compare_grid_cells(const GridOpenCell * pCellLeft, const GridOpenCell &cellRight, const Nat comparator ) {
     return GridAbstractCell::compare_abstract_grid_cells( pCellLeft, cellRight, comparator );
 }
 
+/** @brief Perform the specified paving operation. */
 inline Bool GridOpenCell::intersect( const GridOpenCell & theLeftOpenCell, const GridOpenCell & theRightOpenCell ) {
     return definitely( theLeftOpenCell.box().overlaps(  theRightOpenCell.box() ) );
 }

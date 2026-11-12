@@ -6,24 +6,24 @@
  ****************************************************************************/
 
 /*
- *  This file is part of Ariadne.
+ *  This file is part of Ariadne Paving.
  *
- *  Ariadne is free software: you can redistribute it and/or modify
+ *  Ariadne Paving is free software: you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
  *  the Free Software Foundation, either version 3 of the License, or
  *  (at your option) any later version.
  *
- *  Ariadne is distributed in the hope that it will be useful,
+ *  Ariadne Paving is distributed in the hope that it will be useful,
  *  but WITHOUT ANY WARRANTY; without even the implied warranty of
- *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
  *  GNU General Public License for more details.
  *
  *  You should have received a copy of the GNU General Public License
- *  along with Ariadne.  If not, see <https://www.gnu.org/licenses/>.
+ *  along with Ariadne Paving. If not, see <https://www.gnu.org/licenses/>.
  */
 
-/*! \file paving/binary_tree_paving.hpp
- *  \brief Grid paving is used to represent sets, based on integer and dyadic coordinate cells, of a grid.
+/** @file paving/binary_tree_paving.hpp
+ *  @brief Tree-based pavings of dyadic grid cells.
  */
 
 #ifndef ARIADNE_PAVING_BINARY_TREE_PAVING_HPP
@@ -62,24 +62,34 @@
 
 namespace Ariadne {
 
+/** @brief Represent a geometric paving component. */
 class PreparedConstrainedImageSetSeparation;
 
 // Some type definitions
 typedef Array<Int> IndexArray;
 typedef Array<SizeType> SizeArray;
 
+/** @brief Represent a geometric paving component. */
 class Projection;
 
 // Some pre-declarations
 class BinaryTreeNode;
+/** @brief Represent a coordinate-aligned grid. */
 class Grid;
+/** @brief Represent cells of a coordinate grid. */
 class GridAbstractCell;
+/** @brief Represent cells of a coordinate grid. */
 class GridCell;
+/** @brief Represent cells of a coordinate grid. */
 class GridOpenCell;
+/** @brief Store or manipulate a paving of grid cells. */
 class BinaryTreeSubpaving;
+/** @brief Store or manipulate a paving of grid cells. */
 class BinaryTreePaving;
 
+/** @brief Navigate the binary-tree representation. */
 class BinaryTreePavingCursor;
+/** @brief Iterate over paving cells. */
 class BinaryTreePavingConstIterator;
 
 // Declarations of classes in other files
@@ -92,19 +102,30 @@ class NotAllowedMoveException : public std::logic_error {
 };
 
 
+/** @brief Store or manipulate a paving of grid cells. */
 class BinaryTreeNode;
 
+/** @brief Test the stated geometric property. */
 Bool subset( const GridCell& theCell, const BinaryTreeSubpaving& theSet );
+/** @brief Perform the specified paving operation. */
 Bool intersect( const GridCell& theCell, const BinaryTreeSubpaving& theSet );
+/** @brief Test the stated geometric property. */
 Bool subset( const BinaryTreeSubpaving& theSet1, const BinaryTreeSubpaving& theSet2 );
+/** @brief Perform the specified paving operation. */
 BinaryTreePaving join( const BinaryTreeSubpaving& theSet1, const BinaryTreeSubpaving& theSet2 );
+/** @brief Perform the specified paving operation. */
 BinaryTreePaving intersection( const BinaryTreeSubpaving& theSet1, const BinaryTreeSubpaving& theSet2 );
+/** @brief Perform the specified paving operation. */
 BinaryTreePaving difference( const BinaryTreeSubpaving& theSet1, const BinaryTreeSubpaving& theSet2 );
+/** @brief Perform the specified paving operation. */
 Bool intersect( const BinaryTreeSubpaving& theSet1, const BinaryTreeSubpaving& theSet2 );
 
+/** @brief Perform the specified paving operation. */
 BinaryTreePaving product( const BinaryTreeSubpaving& theSet1, const BinaryTreeSubpaving& theSet2 );
+/** @brief Perform the specified paving operation. */
 BinaryTreePaving product(GridCell const& cell, BinaryTreeSubpaving const& set);
 
+/** @brief Perform the specified paving operation. */
 BinaryTreePaving image(const BinaryTreePaving& theSet, const Projection& theProjection);
 
 //! \brief This class represents a subpaving of a paving. Note that, the subtree enclosed into
@@ -117,7 +138,9 @@ class BinaryTreeSubpaving
 
     friend class BinaryTreePavingCursor;
 
+    /** @brief Perform the specified paving operation. */
     friend BinaryTreePaving outer_approximation( const EffectiveEuclideanCompactSetInterface& theSet, const Grid& theGrid, const Nat numSubdivInDim );
+    /** @brief Perform the specified paving operation. */
     friend BinaryTreePaving inner_approximation( const EffectiveEuclideanOpenSetInterface& theSet, const Grid& theGrid, const Nat numSubdivInDim );
 
     //! \brief The pointer to the root node of the subpaving tree.
@@ -386,12 +409,16 @@ class BinaryTreeSubpaving
     //! \brief Write to an output stream.
     virtual OutputStream& _write(OutputStream& os) const override;
 
+    /** @brief Perform the specified paving operation. */
     friend OutputStream& operator<<(OutputStream& os, const BinaryTreeSubpaving& theBinaryTreeSubpaving);
     //!@}
 
   protected:
+    /** @brief Perform the specified paving operation. */
     virtual SubPavingInterface* _branch(Bool left_or_right) const override;
+    /** @brief Perform the specified paving operation. */
     virtual ForwardConstantIteratorInterface<GridCell>* _begin() const override;
+    /** @brief Perform the specified paving operation. */
     virtual ForwardConstantIteratorInterface<GridCell>* _end() const override;
 
 };
@@ -585,7 +612,9 @@ class BinaryTreePaving
     //! Calls made through an explicit BinaryTreeSubpaving reference still
     //! require external synchronization.
     Void mince_to_depth(Nat depth);
+    /** @brief Perform the specified paving operation. */
     Void mince_to_tree_depth(Nat tree_depth);
+    /** @brief Modify the paving or its subdivision. */
     Void subdivide(ApproximateDouble max_cell_width);
     //! \brief Return the current tree depth under the owner mutex.
     Nat tree_depth() const;
@@ -602,12 +631,15 @@ class BinaryTreePaving
     //! after the callback returns. Do not call locking BinaryTreePaving methods
     //! from inside the callback: the owner mutex is non-recursive.
     template<class Callback>
+    /** @brief Perform the specified paving operation. */
     Void with_locked_subpaving(Callback&& callback) {
         static_assert(std::is_void_v<std::invoke_result_t<Callback&&, BinaryTreeSubpaving&>>,
             "A scoped subpaving callback must return void");
+        /** @brief Perform the specified paving operation. */
         std::lock_guard<std::mutex> lock(_adjoin_mutex);
         BinaryTreeSubpaving view(_theGridCell.grid(),_theGridCell.root_extent(),
                                _theGridCell.word(),_pRootTreeNode);
+        /** @brief Perform the specified paving operation. */
         std::invoke(std::forward<Callback>(callback),view);
     }
 
@@ -618,49 +650,70 @@ class BinaryTreePaving
     //! \warning Do not retain any reference to the child beyond the callback
     //! or re-enter owner-locking methods from the callback.
     template<class Callback>
+    /** @brief Perform the specified paving operation. */
     Void with_locked_branch(Bool right, Callback&& callback) {
         static_assert(std::is_void_v<std::invoke_result_t<Callback&&, BinaryTreeSubpaving&>>,
             "A scoped branch callback must return void");
+        /** @brief Perform the specified paving operation. */
         std::lock_guard<std::mutex> lock(_adjoin_mutex);
         BinaryTreeSubpaving view=BinaryTreeSubpaving::branch(right);
+        /** @brief Perform the specified paving operation. */
         std::invoke(std::forward<Callback>(callback),view);
     }
 
     //! Explicit overrides resolve the shared SubPavingInterface virtual base.
     //! \brief Coherent owning-tree value queries.
     Bool is_empty() const;
+    /** @brief Perform the specified paving operation. */
     FloatDPApproximation measure() const;
+    /** @brief Return the requested grid or paving property. */
     SizeType size() const override;
+    /** @brief Return the requested grid or paving property. */
     DimensionType dimension() const override;
     const Grid& grid() const override { return BinaryTreeSubpaving::grid(); }
+    /** @brief Return the requested grid or paving property. */
     GridCell root_cell() const override;
     //! \brief Stable snapshot iterators; the owning tree may be mutated later.
     //! \details Borrowed BinaryTreeSubpaving iterators do not acquire ownership.
     ConstIterator begin() const;
+    /** @brief Return an iterator over paving cells. */
     ConstIterator end() const;
     //! \brief Bounding geometry computed on a detached, coherent snapshot.
     UpperBoxType bounding_box() const override;
     //! \brief Compare stable snapshots of owning pavings, not live nodes.
     //! \details Borrowed BinaryTreeSubpaving operands must remain stable.
     Bool equals(const SubPavingInterface& paving) const override;
+    /** @brief Test the stated geometric property. */
     Bool subset(const SubPavingInterface& paving) const override;
+    /** @brief Test the stated geometric property. */
     Bool intersects(const SubPavingInterface& paving) const override;
+    /** @brief Perform the specified paving operation. */
     Bool superset(const GridCell& cell) const override;
+    /** @brief Perform the specified paving operation. */
     Bool superset(ExactBoxType const& box) const override {
         return BinaryTreeSubpaving::superset(box);
     }
+    /** @brief Perform the specified paving operation. */
     Void set_root_cell(Bool enabled) override;
+    /** @brief Perform the specified paving operation. */
     Void mince(Nat fineness) override;
+    /** @brief Perform the specified paving operation. */
     Void recombine() override;
     //! \brief Geometric predicates evaluated on consistent tree snapshots.
     ValidatedLowerKleenean inside(const ExactBoxType& box) const override;
+    /** @brief Perform the specified paving operation. */
     ValidatedLowerKleenean separated(const ExactBoxType& box) const override;
+    /** @brief Test the stated geometric property. */
     ValidatedLowerKleenean overlaps(const ExactBoxType& box) const override;
 
   protected:
+    /** @brief Perform the specified paving operation. */
     OutputStream& _write(OutputStream& os) const override;
+    /** @brief Perform the specified paving operation. */
     SubPavingInterface* _branch(Bool left_or_right) const override;
+    /** @brief Perform the specified paving operation. */
     ForwardConstantIteratorInterface<GridCell>* _begin() const override;
+    /** @brief Perform the specified paving operation. */
     ForwardConstantIteratorInterface<GridCell>* _end() const override;
 
   public:
@@ -760,7 +813,9 @@ class BinaryTreePaving
     //!   4. Iterates through the enabled leaf nodes of the paving (all the nodes are initially enabled)
     //!   5. Disables the cells that are disjoint with the \a theSet
     Void adjoin_outer_approximation( const ValidatedEuclideanCompactSetInterface& theSet, const Nat numSubdivInDim ) override;
+    /** @brief Modify the paving or its subdivision. */
     Void adjoin_outer_approximation( const EffectiveEuclideanCompactSetInterface& theSet, const Nat numSubdivInDim ) override;
+    /** @brief Modify the paving or its subdivision. */
     Void adjoin_outer_approximation( const UpperBoxType& theBoxType, const Nat numSubdivInDim ) override;
 
     //! \brief Adjoin a lower approximation to a given set, computing to the given extent and resolution:
@@ -801,40 +856,58 @@ class BinaryTreePaving
     //! the given set.
     Void adjoin_inner_approximation( const EffectiveEuclideanSetInterface& theSet, const Nat numSubdivInDim ) override;
 
+    /** @brief Modify the paving or its subdivision. */
     Void adjoin_inner_approximation( const LowerBoxType& theBoxType, const Nat numSubdivInDim );
     //!@}
 
     //!@{
     //! \name Input/output routines.
 
+    /** @brief Perform the specified paving operation. */
     friend OutputStream& operator<<(OutputStream& os, const BinaryTreePaving& theBinaryTreePaving);
     //!@}
 
   private:
+    /** @brief Represent a geometric paving component. */
     struct CopyState {
         GridCell root_cell;
         std::unique_ptr<BinaryTreeNode> root_tree;
     };
+    /** @brief Perform the specified paving operation. */
     static CopyState _snapshot_copy(BinaryTreePaving const& source);
+    /** @brief Construct the object. */
     explicit BinaryTreePaving(CopyState state);
+    /** @brief Perform the specified paving operation. */
     Void _adjoin_unlocked(GridCell const& cell);
+    /** @brief Perform the specified paving operation. */
     Void _adjoin_unlocked(BinaryTreeSubpaving const& source);
     // Source is stable for the duration; owning sources are locked as well.
     Void _restrict_unlocked(BinaryTreeSubpaving const& source);
+    /** @brief Perform the specified paving operation. */
     Void _remove_unlocked(BinaryTreeSubpaving const& source);
     mutable std::mutex _adjoin_mutex;
 };
 
+/** @brief Perform the specified paving operation. */
 BinaryTreePaving outer_approximation(const ExactBoxType& theBoxType, const Grid& theGrid, const Nat fineness);
+/** @brief Perform the specified paving operation. */
 BinaryTreePaving outer_approximation(const ExactBoxType& theBoxType, const Nat fineness);
+/** @brief Perform the specified paving operation. */
 BinaryTreePaving outer_approximation( const EffectiveEuclideanCompactSetInterface& theSet, const Grid& theGrid, const Nat numSubdivInDim );
+/** @brief Perform the specified paving operation. */
 BinaryTreePaving outer_approximation( const EffectiveEuclideanCompactSetInterface& theSet, const Nat numSubdivInDim );
+/** @brief Perform the specified paving operation. */
 BinaryTreePaving outer_approximation( const ValidatedEuclideanCompactSetInterface& theSet, const Grid& theGrid, const Nat numSubdivInDim );
+/** @brief Perform the specified paving operation. */
 BinaryTreePaving outer_approximation( const ValidatedEuclideanCompactSetInterface& theSet, const Nat numSubdivInDim );
+/** @brief Perform the specified paving operation. */
 BinaryTreePaving inner_approximation( const EffectiveEuclideanOpenSetInterface& theSet, const Grid& theGrid, const Nat extent, const Nat numSubdivInDim );
+/** @brief Perform the specified paving operation. */
 BinaryTreePaving inner_approximation( const EffectiveEuclideanOpenSetInterface& theSet, const Grid& theGrid, const ExactBoxType& bounding_box, const Nat numSubdivInDim );
+/** @brief Perform the specified paving operation. */
 BinaryTreePaving inner_approximation( const EffectiveEuclideanSetInterface& theSet, const Grid& theGrid, const Nat numSubdivInDim );
 
+/** @brief Perform the specified paving operation. */
 template<class BS> BinaryTreePaving outer_approximation(const ListSet<BS>& theSet, const Grid& theGrid, const Nat numSubdivInDim);
 
 
@@ -875,6 +948,7 @@ class BinaryTreePavingCursor {
     //! if left_or_right == indeterminate then we are going one level up.
     Void updateTheCurrentGridCell( BinaryTreeDirection up_or_left_or_right );
 
+    /** @brief Perform the specified paving operation. */
     friend OutputStream& operator<<(OutputStream& os, const BinaryTreePavingCursor& theBinaryTreePavingCursor);
 
   public:
@@ -982,6 +1056,7 @@ class BinaryTreePavingConstIterator
     //!@{
     //! \name Iterator Specific
 
+    /** @brief Perform the specified paving operation. */
     virtual Void increment();
 
     //! \brief Returns true if:
@@ -990,6 +1065,7 @@ class BinaryTreePavingConstIterator
     //! and they point to the same node of the same sub paving
     Bool equal( BinaryTreePavingConstIterator const & theOtherIterator) const;
 
+    /** @brief Perform the specified paving operation. */
     virtual GridCell const& dereference() const;
 
     //!@}
@@ -1064,6 +1140,7 @@ class BinaryTreePavingConstIterator
 
 //***************************************BinaryTreePavingCursor**********************************************/
 
+/** @brief Return the requested grid or paving property. */
 inline const GridCell& BinaryTreePavingCursor::cell() const {
     if(_cell_geometry_dirty) {
         // Construct before assigning so a failed computation leaves dirty
@@ -1079,10 +1156,12 @@ inline const GridCell& BinaryTreePavingCursor::cell() const {
 
 //***************************************BinaryTreePavingConstIterator************************************/
 
+/** @brief Perform the specified paving operation. */
 inline GridCell const& BinaryTreePavingConstIterator::dereference() const {
     return _pBinaryTreePavingCursor.cell();
 }
 
+/** @brief Perform the specified paving operation. */
 inline BinaryTreePavingCursor const& BinaryTreePavingConstIterator::cursor() const {
     return _pBinaryTreePavingCursor;
 }
@@ -1090,8 +1169,10 @@ inline BinaryTreePavingCursor const& BinaryTreePavingConstIterator::cursor() con
 //**************************************FRIENDS OF BinaryTreePaving******************************************/
 
 template<class BS>
+/** @brief Perform the specified paving operation. */
 BinaryTreePaving outer_approximation(const ListSet<BS>& theSet, const Grid& theGrid, const Nat numSubdivInDim) {
     ARIADNE_ASSERT_MSG( theSet.dimension()==theGrid.dimension(),"theSet="<<theSet<<", theGrid="<<theGrid );
+    /** @brief Perform the specified paving operation. */
     BinaryTreePaving result( theGrid );
     for(auto basicSet : theSet) {
         result.adjoin_outer_approximation( basicSet, numSubdivInDim );
