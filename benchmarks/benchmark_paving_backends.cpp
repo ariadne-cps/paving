@@ -1,10 +1,30 @@
 /***************************************************************************
- *            benchmark_paving_backends.cpp
+ *            benchmarks/benchmark_paving_backends.cpp
  *
- *  Comparative geometric-set workloads for BinaryTreePaving and RobddPaving.
+ *  Copyright  2026  Luca Geretti
  *
- *  This file is part of Ariadne Paving, GPL-3.0-or-later.
  ****************************************************************************/
+
+/*
+ *  This file is part of Ariadne Paving.
+ *
+ *  Ariadne Paving is free software: you can redistribute it and/or modify
+ *  it under the terms of the GNU General Public License as published by
+ *  the Free Software Foundation, either version 3 of the License, or
+ *  (at your option) any later version.
+ *
+ *  Ariadne Paving is distributed in the hope that it will be useful,
+ *  but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+ *  GNU General Public License for more details.
+ *
+ *  You should have received a copy of the GNU General Public License
+ *  along with Ariadne Paving. If not, see <https://www.gnu.org/licenses/>.
+ */
+
+/** @file benchmarks/benchmark_paving_backends.cpp
+ *  @brief Benchmark paving operations and backend implementations.
+ */
 
 #include "function/procedure.hpp"
 #include "constraint-solving/constraint_solver.hpp"
