@@ -1,7 +1,8 @@
 /***************************************************************************
- *            robdd_paving.hpp
+ *            paving/robdd_paving.hpp
  *
  *  Copyright  2026  Luca Geretti
+ *
  ****************************************************************************/
 
 /*
@@ -11,6 +12,18 @@
  *  it under the terms of the GNU General Public License as published by
  *  the Free Software Foundation, either version 3 of the License, or
  *  (at your option) any later version.
+ *
+ *  Ariadne Paving is distributed in the hope that it will be useful,
+ *  but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+ *  GNU General Public License for more details.
+ *
+ *  You should have received a copy of the GNU General Public License
+ *  along with Ariadne Paving. If not, see <https://www.gnu.org/licenses/>.
+ */
+
+/** @file paving/robdd_paving.hpp
+ *  @brief Pavings represented using reduced ordered binary decision diagrams.
  */
 
 #ifndef ARIADNE_PAVING_ROBDD_PAVING_HPP
@@ -29,7 +42,9 @@
 
 namespace Ariadne {
 
+/** @brief BinaryTreeSubpaving undefined used by paving algorithms. */
 class BinaryTreeSubpaving;
+/** @brief SubPavingInterface undefined used by paving algorithms. */
 class SubPavingInterface;
 
 //! \brief Experimental ROBDD-backed paving with value-like root updates.
@@ -270,6 +285,7 @@ class RobddPaving : public virtual PavingInterface {
     Void adjoin_lower_approximation(
         EffectiveEuclideanOvertSetInterface const& set,
         Nat extent, Nat fineness) override;
+    /** @brief Perform the requested paving operation. */
     Void restrict_to_extent(Nat extent) override;
 
     //! \brief Adjoin the certified inner approximation of an open set.
@@ -317,6 +333,7 @@ class RobddPaving : public virtual PavingInterface {
 
     //! \brief Test whether the paving covers a geometric cell completely.
     Bool superset(GridCell const& cell) const override;
+    /** @brief Perform the requested paving operation. */
     Bool superset(ExactBoxType const& box) const override;
 
     //! \brief Return a detached subpaving restricted to a descendant cell.
@@ -336,10 +353,13 @@ class RobddPaving : public virtual PavingInterface {
   protected:
     //! \brief Create a live, non-owning child view through SubPavingInterface.
     SubPavingInterface* _branch(Bool right) const override;
+    /** @brief Perform the requested paving operation. */
     ForwardConstantIteratorInterface<GridCell>* _begin() const override;
+    /** @brief Perform the requested paving operation. */
     ForwardConstantIteratorInterface<GridCell>* _end() const override;
 
   private:
+    /** @brief CopyState undefined used by paving algorithms. */
     struct CopyState {
         std::shared_ptr<RobddManager> manager_owner;
         RobddManager* manager;
@@ -347,19 +367,29 @@ class RobddPaving : public virtual PavingInterface {
         Robdd root;
         SizeType depth;
     };
+    /** @brief Perform the requested paving operation. */
     static CopyState _snapshot_copy(RobddPaving const& source);
+    /** @brief Perform the requested paving operation. */
     explicit RobddPaving(CopyState state);
+    /** @brief Perform the requested paving operation. */
     Void _adjoin_unlocked(RobddPaving const& source);
     // The caller must stabilize *this* and the source. No owner-lock
     // acquisition is allowed in these helpers: internal mutations already
     // hold the destination mutex; public value operations use snapshots.
+    /** @brief Perform the requested paving operation. */
     RobddPaving _join_unlocked(RobddPaving const& other) const;
+    /** @brief Perform the requested paving operation. */
     RobddPaving _intersection_unlocked(RobddPaving const& other) const;
+    /** @brief Perform the requested paving operation. */
     RobddPaving _difference_unlocked(RobddPaving const& other) const;
 
+    /** @brief Perform the requested paving operation. */
     OutputStream& _write(OutputStream& os) const override;
+    /** @brief Perform the requested paving operation. */
     Void _check_compatible(RobddPaving const& other) const;
+    /** @brief Perform the requested paving operation. */
     GridCell _common_root(RobddPaving const& other) const;
+    /** @brief Perform the requested paving operation. */
     std::pair<Robdd,SizeType> _lift_to(GridCell const& ancestor) const;
 
     // Keep this before the borrowed pointer: a shared manager must outlive
