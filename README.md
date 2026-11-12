@@ -127,11 +127,9 @@ performing an outer/inner approximation. A subview cannot use cells
 coarser than its own nonempty root. The detached result uses the primary
 root cell at the source's root extent, even for child views.
 
-
 ## Comparative backend benchmark
 
 Build explicitly with:
-
 
 ```bash
 cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
@@ -203,25 +201,6 @@ cmake --install build-release --prefix /path/to/install
 
 Python 3.11 or newer and a compatible development environment are required for the Python extension. Paving contributes grid and paving operations to `pyariadne_paving` alongside the Set and BDD Python modules and their dependencies.
 
-## Tutorials
-
-The C++ and Python tutorials perform the **same representation-neutral operations** through
-`Paving`: adjoin cells, iterate, union, intersection, difference, copy an
-independent value, and modify a live `SubPaving` view. Each tutorial runs its
-workflow once with BinaryTreePaving and once with RobddPaving, where both
-ROBDD-backed pavings share one manager. The backend is selected only at
-construction, not in the algorithm.
-
-- C++: `tutorial/tutorial_paving.cpp`, built separately
-  against an installed `ariadne-paving`.
-- Python: `python/tutorial.py`.
-- Both tutorials are executed in the Release workflow; they are not registered
-  as additional CTest or pytest cases in this repository.
-- Python uses `Paving.tree(grid)` and `Paving.robdd(grid, manager)`
-  factory methods; the underlying C++ polymorphic value has the same semantics.
-  The BDD Python `RobddManager` binding uses shared ownership to permit
-  interoperable canonical nodes and safe manager lifetimes.
-
 ## Contribution guidelines
 
 Please contact the developer: Luca Geretti <luca.geretti@univr.it>.
@@ -259,7 +238,6 @@ modes. Memory table columns distinguish BDD N (nodes reachable from
 the root), Mgr N (fresh manager after initial construction), and Mgr
 warm (manager nodes remaining after all timed measurements). These
 manager node counts are not an allocation size or full heap profile.
-
 
 ### Manager allocation diagnostics and isolated mutations
 
@@ -421,7 +399,6 @@ control the workload. Times are medians in nanoseconds per query,
 calibrated separately by category/implementation. This benchmark is not
 registered with CTest; invoke it explicitly when needed.
 
-
 ### Outer approximation with pre-existing geometric coverage
 
 Use the opt-in `--compare-outer-overlap` mode of
@@ -509,7 +486,6 @@ run longer: calibration ends as soon as the duration threshold is met.
 Both `BinaryTreePaving` and `RobddPaving` serialize concurrent `adjoin(GridCell)`, `adjoin(std::vector<GridCell>)`, and same-backend `adjoin(SubPavingInterface)` calls on one destination. A vector batch holds one paving mutex for the full operation. The tree backend additionally locks both owning tree pavings in a deadlock-safe order when merging them; the ROBDD backend snapshots the source before acquiring the destination mutex. Independently owned sources are supported; borrowed source views must remain valid and stable during the operation.
 
 **Scope limit:** This is an incremental thread-safety milestone, not a full `PavingInterface` guarantee. `superset(GridCell)`, `size()`, `root_cell()`, `clone()` and owning snapshot/copy construction can now run alongside `adjoin` on both backends. ROBDD additionally snapshots its Boolean root, depth, enabled-cell counts, compact iterators and enumeration. Other concurrent mutations, explicit tree iterators, borrowed views, generic multi-paving comparisons and reference-valued `grid()` are not yet protected. Do not invoke those APIs concurrently with adjoin on the same paving. `RobddManager` retains its separate synchronization. Regression tests exercise both backend read/write overlap.
-
 
 ## CachedBinaryTreePaving: explicit compiled ROBDD query cache
 
