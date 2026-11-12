@@ -31,6 +31,7 @@
 #include <thread>
 #include <vector>
 
+#include "algebra/vector.hpp"
 #include "function/projection.hpp"
 #include "geometry/set_wrapper.hpp"
 #include "paving/binary_tree_paving.hpp"
