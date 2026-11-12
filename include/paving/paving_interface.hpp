@@ -6,24 +6,24 @@
  ****************************************************************************/
 
 /*
- *  This file is part of Ariadne.
+ *  This file is part of Ariadne Paving.
  *
- *  Ariadne is free software: you can redistribute it and/or modify
+ *  Ariadne Paving is free software: you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
  *  the Free Software Foundation, either version 3 of the License, or
  *  (at your option) any later version.
  *
- *  Ariadne is distributed in the hope that it will be useful,
+ *  Ariadne Paving is distributed in the hope that it will be useful,
  *  but WITHOUT ANY WARRANTY; without even the implied warranty of
- *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
  *  GNU General Public License for more details.
  *
  *  You should have received a copy of the GNU General Public License
- *  along with Ariadne.  If not, see <https://www.gnu.org/licenses/>.
+ *  along with Ariadne Paving. If not, see <https://www.gnu.org/licenses/>.
  */
 
-/*! \file paving/paving_interface.hpp
- *  \brief Storage sets based on pavings and covers
+/** @file paving/paving_interface.hpp
+ *  @brief Abstract interfaces and handles for paving representations.
  */
 
 #ifndef ARIADNE_PAVING_INTERFACE_HPP
@@ -41,7 +41,9 @@
 namespace Ariadne {
 
 
+/** @brief Grid supports abstract interfaces and handles for paving representations. */
 class Grid;
+/** @brief GridCell supports abstract interfaces and handles for paving representations. */
 class GridCell;
 
 #define ARIADNE_ABSTRACT_METHOD { throw std::runtime_error(StringType("ERROR: Unimplemented abstract method ")+ARIADNE_PRETTY_FUNCTION); }
@@ -50,6 +52,7 @@ class GridCell;
 // NOTE: Corresponds to your SetCheckerInterface; I think that this name is better.
 template<class BS> class PredicateInterface {
   public:
+    /** @brief Perform the paving operation. */
     virtual ValidatedKleenean check(const BS&) = 0;
 };
 
@@ -59,12 +62,18 @@ template<class T> class ForwardConstantIteratorInterface
 {
     friend class ForwardConstantIteratorHandle<T>;
   public:
+    /** @brief Destroy this object. */
     virtual ~ForwardConstantIteratorInterface() = default;
   private:
+    /** @brief Perform the paving operation. */
     virtual ForwardConstantIteratorInterface<T>* clone() const = 0;
+    /** @brief Perform the paving operation. */
     virtual Void increment() = 0;
+    /** @brief Perform the paving operation. */
     virtual const T& dereference() const = 0;
+    /** @brief Perform the paving operation. */
     virtual Bool equals(const ForwardConstantIteratorInterface<T>&) const = 0;
+    /** @brief Perform the paving operation. */
     virtual OutputStream& _write(OutputStream&) const = 0;
     friend OutputStream& operator<<(OutputStream& os, const ForwardConstantIteratorInterface<T>& self) { self._write(os); return os; }
 };
@@ -100,19 +109,29 @@ template<class T> class ForwardConstantIteratorHandle
 template<class BS> class DenotableSetInterface
 {
   public:
+    /** @brief Return the requested paving property. */
     inline ForwardConstantIteratorHandle<BS> begin() const;
+    /** @brief Return the requested paving property. */
     inline ForwardConstantIteratorHandle<BS> end() const;
+    /** @brief Modify the paving representation. */
     virtual Void adjoin(const BS&) = 0;
+    /** @brief Modify the paving representation. */
     virtual Void adjoin(const DenotableSetInterface<BS>&) = 0;
   protected:
+    /** @brief Perform the paving operation. */
     virtual ForwardConstantIteratorInterface<BS>* _begin() const = 0;
+    /** @brief Perform the paving operation. */
     virtual ForwardConstantIteratorInterface<BS>* _end() const = 0;
 };
 
+/** @brief Paving supports abstract interfaces and handles for paving representations. */
 class Paving;
+/** @brief SubPaving supports abstract interfaces and handles for paving representations. */
 class SubPaving;
 
+/** @brief PavingInterface supports abstract interfaces and handles for paving representations. */
 class PavingInterface;
+/** @brief SubPavingInterface supports abstract interfaces and handles for paving representations. */
 class SubPavingInterface;
 
 //! \ingroup DiscretisedSetSubModule
@@ -219,9 +238,12 @@ class SubPavingInterface
     virtual Void recombine() = 0;
   protected:
     virtual SubPavingInterface* _branch(Bool left_or_right) const = 0; // Could also be called "child" or "subpaving"
+    /** @brief Perform the paving operation. */
     virtual ForwardConstantIteratorInterface<GridCell>* _begin() const = 0;
+    /** @brief Perform the paving operation. */
     virtual ForwardConstantIteratorInterface<GridCell>* _end() const = 0;
   private:
+    /** @brief Perform the paving operation. */
     virtual OutputStream& _write(OutputStream&) const = 0;
 };
 
@@ -329,6 +351,7 @@ class SubPaving
 
     const Grid& grid() const { return this->_ptr->grid(); }
     SizeType size() const { return this->_ptr->size(); }
+    /** @brief Return the requested paving property. */
     GridCell root_cell() const { return this->_ptr->root_cell(); };
     Bool superset(const GridCell& c) const { return this->_ptr->superset(c); }
     Bool subset(const SubPavingInterface& p) const { return this->_ptr->subset(p); }
@@ -340,6 +363,7 @@ class SubPaving
     ForwardConstantIteratorHandle<GridCell> begin() const { return this->_ptr->_begin(); }
     ForwardConstantIteratorHandle<GridCell> end() const { return this->_ptr->_end(); }
 
+    /** @brief Perform the paving operation. */
     UpperBoxType bounding_box() const { return this->_ptr->bounding_box(); };
     ValidatedLowerKleenean inside(const ExactBoxType& bx) const { return this->_ptr->inside(bx); }
     ValidatedLowerKleenean separated(const ExactBoxType& bx) const { return this->_ptr->separated(bx); }
@@ -353,6 +377,7 @@ class SubPaving
         this->_ptr->for_each_enabled_cell_at_exact_fineness(
             fineness,std::forward<Visitor>(visitor));
     }
+    /** @brief Perform the paving operation. */
     Paving uniform_cell_paving(Nat fineness) const;
   private:
     OutputStream& _write(OutputStream& os) const { return this->_ptr->_write(os); }
@@ -376,15 +401,25 @@ class PavingInterface
     virtual Void adjoin_cells(const PredicateInterface<ExactBoxType>&, const Nat) { ARIADNE_ABSTRACT_METHOD; }
     //! Full geometric box coverage, including adjacent enabled cells.
     virtual Bool superset(ExactBoxType const& box) const = 0;
+    /** @brief Modify the paving representation. */
     virtual Void adjoin_outer_approximation(const EffectiveEuclideanCompactSetInterface& set, const Nat fineness) = 0;
+    /** @brief Modify the paving representation. */
     virtual Void adjoin_outer_approximation(const UpperBoxType& set, const Nat fineness) = 0;
+    /** @brief Modify the paving representation. */
     virtual Void adjoin_outer_approximation(const ValidatedEuclideanCompactSetInterface& set, Nat fineness) = 0;
+    /** @brief Modify the paving representation. */
     virtual Void adjoin_lower_approximation(const EffectiveEuclideanOvertSetInterface& set, Nat extent, Nat fineness) = 0;
+    /** @brief Modify the paving representation. */
     virtual Void restrict_to_extent(Nat extent) = 0;
+    /** @brief Modify the paving representation. */
     virtual Void adjoin_inner_approximation(const EffectiveEuclideanOpenSetInterface& set, const Nat extent, const Nat fineness) = 0;
+    /** @brief Modify the paving representation. */
     virtual Void adjoin_inner_approximation(const EffectiveEuclideanSetInterface& set, const Nat fineness) = 0;
+    /** @brief Modify the paving representation. */
     virtual Void adjoin(const SubPavingInterface& paving) = 0;
+    /** @brief Modify the paving representation. */
     virtual Void restrict(const SubPavingInterface& paving) = 0;
+    /** @brief Modify the paving representation. */
     virtual Void remove(const SubPavingInterface& paving) = 0;
     virtual Void adjoin(const GridCell& cell) = 0; // Deprecated?
     //! \brief Adjoin a sequence of cells, allowing backend-specific batching.
@@ -430,6 +465,7 @@ class Paving
 
     ForwardConstantIteratorHandle<GridCell> begin() const { return this->_ptr->_begin(); }
     ForwardConstantIteratorHandle<GridCell> end() const { return this->_ptr->_end(); }
+    /** @brief Perform the paving operation. */
     UpperBoxType bounding_box() const { return this->_ptr->bounding_box(); };
     ValidatedLowerKleenean inside(const ExactBoxType& bx) const { return this->_ptr->inside(bx); }
     ValidatedLowerKleenean separated(const ExactBoxType& bx) const { return this->_ptr->separated(bx); }
@@ -448,6 +484,7 @@ class Paving
     Void restrict(const SubPavingInterface& paving) { return this->_ptr->restrict(paving); }
     Void remove(const SubPavingInterface& paving) { return this->_ptr->remove(paving); }
     Void adjoin(const GridCell& cell) { return this->_ptr->adjoin(cell); }
+    /** @brief Modify the paving representation. */
     Void adjoin(std::vector<GridCell> const& cells) {
         return this->_ptr->adjoin(cells);
     }
@@ -458,6 +495,7 @@ class Paving
         this->_ptr->for_each_enabled_cell_at_exact_fineness(
             fineness,std::forward<Visitor>(visitor));
     }
+    /** @brief Perform the paving operation. */
     Paving uniform_cell_paving(Nat fineness) const {
         return this->_ptr->uniform_cell_paving(fineness);
     }
@@ -469,12 +507,16 @@ inline Paving SubPaving::uniform_cell_paving(Nat fineness) const {
     return this->_ptr->uniform_cell_paving(fineness);
 }
 
+/** @brief Perform the paving operation. */
 inline Paving join(const SubPavingInterface& p1, const SubPavingInterface& p2) {
     Paving r(p1); r.adjoin(p2); return r; }
+/** @brief Perform the paving operation. */
 inline Paving geometric_union(const SubPavingInterface& p1, const SubPavingInterface& p2) {
     Paving r(p1); r.adjoin(p2); return r; }
+/** @brief Perform the paving operation. */
 inline Paving intersection(const SubPavingInterface& p1, const SubPavingInterface& p2) {
     Paving r(p1); r.restrict(p2); return r; }
+/** @brief Perform the paving operation. */
 inline Paving difference(const SubPavingInterface& p1, const SubPavingInterface& p2) {
     Paving r(p1); r.remove(p2); return r; }
 

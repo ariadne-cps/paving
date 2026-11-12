@@ -1,7 +1,8 @@
 /***************************************************************************
- *            paving_cell_operations.hpp
+ *            paving/paving_cell_operations.hpp
  *
  *  Copyright  2026  Luca Geretti
+ *
  ****************************************************************************/
 
 /*
@@ -11,6 +12,18 @@
  *  it under the terms of the GNU General Public License as published by
  *  the Free Software Foundation, either version 3 of the License, or
  *  (at your option) any later version.
+ *
+ *  Ariadne Paving is distributed in the hope that it will be useful,
+ *  but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+ *  GNU General Public License for more details.
+ *
+ *  You should have received a copy of the GNU General Public License
+ *  along with Ariadne Paving. If not, see <https://www.gnu.org/licenses/>.
+ */
+
+/** @file paving/paving_cell_operations.hpp
+ *  @brief Common cell operations across paving backends.
  */
 
 #ifndef ARIADNE_PAVING_CELL_OPERATIONS_HPP
@@ -35,6 +48,7 @@ namespace Ariadne {
 //! \note This is an in-place operation on the owning paving, not a
 //! detached subpaving snapshot.
 template<class Paving>
+/** @brief Perform the paving operation. */
 Void set_paving_cell(Paving& paving, GridCell const& cell, Bool enabled) {
     ARIADNE_PRECONDITION_MSG(paving.grid() == cell.grid(),
         "Cannot modify a cell on a different grid");
@@ -116,16 +130,19 @@ class PavingCellViewIterator final
         : _owner(owner),_root(root),_cells(std::move(cells)),
           _position(past_end ? _cells->size() : 0u) { }
 
+    /** @brief Perform the paving operation. */
     PavingCellViewIterator* clone() const override {
         return new PavingCellViewIterator(*this);
     }
 
+    /** @brief Perform the paving operation. */
     Void increment() override {
         ARIADNE_PRECONDITION_MSG(_position < _cells->size(),
             "Cannot advance a past-the-end cell-view iterator");
         ++_position;
     }
 
+    /** @brief Perform the paving operation. */
     GridCell const& dereference() const override {
         ARIADNE_PRECONDITION_MSG(_position < _cells->size(),
             "Cannot dereference a past-the-end cell-view iterator");
@@ -145,6 +162,7 @@ class PavingCellViewIterator final
             (*_cells)[_position]==(*rhs->_cells)[rhs->_position];
     }
 
+    /** @brief Perform the paving operation. */
     OutputStream& _write(OutputStream& os) const override {
         os << "PavingCellViewIterator(";
         if (_position==_cells->size()) { os << "end"; }
@@ -168,6 +186,7 @@ class PavingCellViewIterator final
 //! \tparam Paving A mutable paving providing grid(), root_cell(),
 //! superset(GridCell), adjoin(GridCell) and remove(GridCell).
 template<class Paving>
+/** @brief PavingCellView supports common cell operations across paving backends. */
 class PavingCellView {
   public:
     PavingCellView(Paving& paving, GridCell const& root)
@@ -200,6 +219,7 @@ class PavingCellView {
     //! a new paving and works with either backend's constant iterators.
     //! \note Do not mutate the owner while this visit is in progress.
     template<class Visitor>
+    /** @brief Perform the paving operation. */
     Void for_each_enabled_leaf(Visitor&& visitor) const {
         for (auto it=_paving->begin(), end=_paving->end(); it!=end; ++it) {
             if (_root.box().subset(it->box())) {
@@ -216,6 +236,7 @@ class PavingCellView {
     //! must not be destroyed during comparisons with fresh iterators.
     using ConstIterator=ForwardConstantIteratorHandle<GridCell>;
 
+    /** @brief Return the requested paving property. */
     ConstIterator begin() const {
         auto cells=std::make_shared<std::vector<GridCell>>();
         for_each_enabled_leaf([&](GridCell const& cell) {
@@ -225,6 +246,7 @@ class PavingCellView {
             _paving,_root,cells,false));
     }
 
+    /** @brief Return the requested paving property. */
     ConstIterator end() const {
         auto cells=std::make_shared<std::vector<GridCell>>();
         return ConstIterator(new PavingCellViewIterator(
@@ -246,6 +268,7 @@ class PavingCellView {
     //! \brief Bounding box of the enabled region restricted to this view.
     //! \details The empty view has an empty box of ambient dimension.
     UpperBoxType bounding_box() const {
+        /** @brief Perform the paving operation. */
         UpperBoxType bounds(dimension());
         Bool found=false;
         for_each_enabled_leaf([&](GridCell const& cell) {
@@ -337,11 +360,13 @@ PavingCellView<Paving> paving_cell_view(
 //! subpaving(GridCell) operation and canonical leaf interpretation.
 //! \warning The owner must outlive this live adapter and its child views.
 template<class Paving>
+/** @brief PavingCellViewAdapter supports common cell operations across paving backends. */
 class PavingCellViewAdapter final : public SubPavingInterface {
   public:
     PavingCellViewAdapter(Paving& paving, GridCell const& root)
         : _paving(&paving), _view(paving,root) { }
 
+    /** @brief Perform the paving operation. */
     SubPavingInterface* clone() const override {
         return new Paving(_paving->subpaving(_view.root_cell()));
     }
@@ -355,42 +380,52 @@ class PavingCellViewAdapter final : public SubPavingInterface {
     Grid const& grid() const override { return _view.grid(); }
     SizeType size() const override { return _view.size(); }
     GridCell root_cell() const override { return _view.root_cell(); }
+    /** @brief Perform the paving operation. */
     Bool superset(GridCell const& cell) const override {
         return _view.superset(cell);
     }
 
+    /** @brief Perform the paving operation. */
     Bool equals(SubPavingInterface const& other) const override {
         return _paving->subpaving(_view.root_cell()).equals(other);
     }
 
+    /** @brief Perform the paving operation. */
     Bool subset(SubPavingInterface const& other) const override {
         return _paving->subpaving(_view.root_cell()).subset(other);
     }
 
+    /** @brief Perform the paving operation. */
     Bool intersects(SubPavingInterface const& other) const override {
         return _paving->subpaving(_view.root_cell()).intersects(other);
     }
 
+    /** @brief Perform the paving operation. */
     Void set_root_cell(Bool enabled) override {
         _view.set_root_cell(enabled);
     }
 
+    /** @brief Perform the paving operation. */
     UpperBoxType bounding_box() const override {
         return _view.bounding_box();
     }
 
+    /** @brief Perform the paving operation. */
     ValidatedLowerKleenean inside(ExactBoxType const& box) const override {
         return _view.inside(box);
     }
 
+    /** @brief Perform the paving operation. */
     ValidatedLowerKleenean separated(ExactBoxType const& box) const override {
         return _view.separated(box);
     }
 
+    /** @brief Perform the paving operation. */
     ValidatedLowerKleenean overlaps(ExactBoxType const& box) const override {
         return _view.overlaps(box);
     }
 
+    /** @brief Perform the paving operation. */
     Void mince(Nat fineness) override {
         // A canonical subview has no persistent refinement state.
         // Changing the owner's global logical depth would not be local.
@@ -398,17 +433,20 @@ class PavingCellViewAdapter final : public SubPavingInterface {
         (void)fineness;
     }
 
+    /** @brief Perform the paving operation. */
     Void recombine() override {
         // A canonical subview has no redundant nodes to recombine.
         // Never change the owner's global depth or sibling representation.
     }
 
   protected:
+    /** @brief Perform the paving operation. */
     SubPavingInterface* _branch(Bool right) const override {
         return new PavingCellViewAdapter(
             *_paving,_view.root_cell().split(right));
     }
 
+    /** @brief Perform the paving operation. */
     ForwardConstantIteratorInterface<GridCell>* _begin() const override {
         auto cells=std::make_shared<std::vector<GridCell>>();
         _view.for_each_enabled_leaf([&](GridCell const& cell) {
@@ -418,6 +456,7 @@ class PavingCellViewAdapter final : public SubPavingInterface {
             _paving,_view.root_cell(),cells,false);
     }
 
+    /** @brief Perform the paving operation. */
     ForwardConstantIteratorInterface<GridCell>* _end() const override {
         auto cells=std::make_shared<std::vector<GridCell>>();
         return new PavingCellViewIterator(
@@ -425,6 +464,7 @@ class PavingCellViewAdapter final : public SubPavingInterface {
     }
 
   private:
+    /** @brief Perform the paving operation. */
     OutputStream& _write(OutputStream& os) const override {
         return os << "PavingCellViewAdapter(" << _view.root_cell() << ")";
     }
