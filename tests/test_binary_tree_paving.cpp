@@ -35,8 +35,8 @@
 #include <utility>
 #include <vector>
 
-#include "foundation/logical.hpp"
 #include "algebra/vector.hpp"
+#include "foundation/logical.hpp"
 #include "function/projection.hpp"
 #include "geometry/set_interface.hpp"
 #include "geometry/set_wrapper.hpp"
