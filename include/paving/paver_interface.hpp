@@ -34,22 +34,21 @@
 
 namespace Ariadne {
 
-
 /** @brief PavingInterface supports abstract interface for geometric paving algorithms. */
 class PavingInterface;
 /** @brief ValidatedConstrainedImageSet supports abstract interface for geometric paving algorithms. */
 class ValidatedConstrainedImageSet;
 
 //! \brief A class for computing outer approximations to sets defined by functions.
-class PaverInterface : public virtual WritableInterface
-{
+class PaverInterface : public virtual WritableInterface {
   public:
     typedef ValidatedConstrainedImageSet SetType;
+
   public:
     /** @brief Modify the paving representation. */
-    virtual Void  adjoin_outer_approximation(PavingInterface& paving, SetType const& set, Nat fineness) const = 0;
+    virtual Void adjoin_outer_approximation(PavingInterface& paving, const SetType& set, Nat fineness) const = 0;
 };
 
-} //namespace Ariadne
+} // namespace Ariadne
 
 #endif /* ARIADNE_PAVER_INTERFACE_HPP */

@@ -29,12 +29,11 @@
 #ifndef ARIADNE_GRID_HPP
 #define ARIADNE_GRID_HPP
 
-#include "utility/array.hpp"
-#include "numeric/numeric.hpp"
 #include "algebra/vector.hpp"
-
-#include "geometry/point.hpp"
 #include "geometry/box.hpp"
+#include "geometry/point.hpp"
+#include "numeric/numeric.hpp"
+#include "utility/array.hpp"
 
 namespace Ariadne {
 
@@ -51,8 +50,9 @@ class GridCell;
 //! This should be more general, and will unify the concepts of Paving and Cover,
 //! as well as different types of covers.
 class Grid {
-    using FLT=FloatDP;
+    using FLT = FloatDP;
     using Double = double;
+
   public:
     typedef double DyadicType;
     typedef Int IntegerType;
@@ -60,9 +60,11 @@ class Grid {
     typedef UpperBound<FLT> UpperNumericType;
     typedef LowerBound<FLT> LowerNumericType;
     typedef Point<FLT> ExactPointType;
+
   private:
     // Structure containing actual data values
     struct Data;
+
   public:
     //! Destructor.
     ~Grid();
@@ -112,7 +114,7 @@ class Grid {
     //! Construct a grid for the product space,
     //! comprising subdivisions of \a g1 for the first,
     //! then those of \a g2.
-    friend Grid join(Grid const& g1, Grid const& g2);
+    friend Grid join(const Grid& g1, const Grid& g2);
 
     //! Write to an output stream.
     friend OutputStream& operator<<(OutputStream& os, const Grid& g);
@@ -146,14 +148,15 @@ class Grid {
     ExactBoxType box(const Array<DyadicType>& l, const Array<DyadicType>& u) const;
     /** @brief Return the requested grid or paving property. */
     ExactBoxType box(const GridCell& cell) const;
+
   private:
     // Create new data
     Void _create(const Vector<RawFloatDP>& o, const Vector<RawFloatDP>& l);
+
   private:
     // Pointer to data. We can test grids for equality using reference semantics since data is a constant.
     std::shared_ptr<Data> _data;
 };
-
 
 } // namespace Ariadne
 

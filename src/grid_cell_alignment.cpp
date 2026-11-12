@@ -26,46 +26,47 @@
  *  @brief Implement grid cell alignment operations.
  */
 
+#include "paving/grid_cell_alignment.hpp"
+
 #include <algorithm>
 
 #include "utility/macros.hpp"
-#include "paving/grid_cell_alignment.hpp"
 
 namespace Ariadne {
 
-BinaryWord cell_path_at_extent(GridCell const& cell, Nat extent) {
+BinaryWord cell_path_at_extent(const GridCell& cell, Nat extent) {
     ARIADNE_PRECONDITION_MSG(extent >= cell.root_extent(),
-        "Cannot align a cell to a smaller primary-cell extent");
+                             "Cannot align a cell to a smaller primary-cell extent");
     BinaryWord path = GridCell::primary_cell_path(
-        cell.grid().dimension(),extent,cell.root_extent());
+        cell.grid().dimension(), extent, cell.root_extent());
     path.append(cell.word());
     return path;
 }
 
-GridCell common_root_cell(GridCell const& first, GridCell const& second) {
+GridCell common_root_cell(const GridCell& first, const GridCell& second) {
     ARIADNE_PRECONDITION_MSG(first.grid() == second.grid(),
-        "Cannot align cells from different grids");
-    Nat extent = std::max(first.root_extent(),second.root_extent());
-    BinaryWord lhs = cell_path_at_extent(first,extent);
-    BinaryWord rhs = cell_path_at_extent(second,extent);
+                             "Cannot align cells from different grids");
+    Nat extent = std::max(first.root_extent(), second.root_extent());
+    BinaryWord lhs = cell_path_at_extent(first, extent);
+    BinaryWord rhs = cell_path_at_extent(second, extent);
     BinaryWord common;
-    SizeType limit = std::min(lhs.size(),rhs.size());
-    for (SizeType i=0u; i<limit and lhs[i]==rhs[i]; ++i) {
+    SizeType limit = std::min(lhs.size(), rhs.size());
+    for (SizeType i = 0u; i < limit and lhs[i] == rhs[i]; ++i) {
         common.push_back(lhs[i]);
     }
-    return GridCell(first.grid(),extent,common);
+    return GridCell(first.grid(), extent, common);
 }
 
 BinaryWord relative_cell_path(
-        GridCell const& ancestor, GridCell const& descendant) {
+    const GridCell& ancestor, const GridCell& descendant) {
     ARIADNE_PRECONDITION_MSG(ancestor.grid() == descendant.grid(),
-        "Cannot compute relative cell paths across different grids");
+                             "Cannot compute relative cell paths across different grids");
     BinaryWord path = cell_path_at_extent(
-        descendant,ancestor.root_extent());
+        descendant, ancestor.root_extent());
     ARIADNE_PRECONDITION_MSG(ancestor.word().is_prefix(path),
-        "The first cell must contain the second cell");
+                             "The first cell must contain the second cell");
     BinaryWord suffix;
-    for (SizeType i=ancestor.word().size(); i<path.size(); ++i) {
+    for (SizeType i = ancestor.word().size(); i < path.size(); ++i) {
         suffix.push_back(path[i]);
     }
     return suffix;

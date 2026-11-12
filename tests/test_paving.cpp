@@ -26,26 +26,26 @@
  *  @brief Test paving geometry and backend behavior.
  */
 
-#include <iostream>
 #include <fstream>
+#include <iostream>
 #include <memory>
 #include <sstream>
-#include "paving/paving_interface.hpp"
-#include "paving/binary_tree_paving.hpp"
+
 #include "function/function.hpp"
-#include "set/function_set.hpp"
 #include "logging/logging.hpp"
+#include "paving/binary_tree_paving.hpp"
+#include "paving/paving_interface.hpp"
+#include "set/function_set.hpp"
 
 #include "ariadne-testing.hpp"
-
 
 using namespace Ariadne;
 using namespace std;
 
-class TestPaving : public Ariadne::Testing::ContextFixture
-{
+class TestPaving : public Ariadne::Testing::ContextFixture {
   public:
     using ContextFixture::ContextFixture;
+
   public:
     Void test_constructors();
     Void test_iterator();
@@ -56,33 +56,31 @@ class TestPaving : public Ariadne::Testing::ContextFixture
     Void test_paving_handle_forwarding();
 };
 
-
 Void TestPaving::test_constructors() {
     Grid grid(2);
     BinaryTreePaving grid_set(grid);
     PavingInterface& paving = grid_set;
 
     ARIADNE_TESTING_NOTE("paving = " << (paving));
-    ARIADNE_TESTING_EXPECT_EQUAL(paving.grid(),grid);
+    ARIADNE_TESTING_EXPECT_EQUAL(paving.grid(), grid);
     BinaryWord path("10010");
-    GridCell cell(paving.grid(),1u,path);
+    GridCell cell(paving.grid(), 1u, path);
     ARIADNE_TESTING_NOTE("cell = " << (cell));
     paving.adjoin(cell);
     ARIADNE_TESTING_NOTE("paving = " << (paving));
-    path=BinaryWord("110110");
-    cell=GridCell(paving.grid(),1u,path);
-    paving.adjoin(GridCell(grid,Nat(1),BinaryWord("110110")));
+    path = BinaryWord("110110");
+    cell = GridCell(paving.grid(), 1u, path);
+    paving.adjoin(GridCell(grid, Nat(1), BinaryWord("110110")));
     ARIADNE_TESTING_NOTE("paving = " << (paving));
-    ARIADNE_TESTING_EXPECT_EQUAL(paving.size(),2);
+    ARIADNE_TESTING_EXPECT_EQUAL(paving.size(), 2);
 
     Paving paving_copy = paving;
-    ARIADNE_TESTING_EXPECT_EQUAL(paving_copy.grid(),grid);
-    ARIADNE_TESTING_EXPECT_EQUAL(paving_copy.size(),2);
+    ARIADNE_TESTING_EXPECT_EQUAL(paving_copy.grid(), grid);
+    ARIADNE_TESTING_EXPECT_EQUAL(paving_copy.size(), 2);
 
-    paving.adjoin(GridCell(grid,Nat(1),BinaryWord("0101")));
-    ARIADNE_TESTING_EXPECT_EQUAL(paving.size(),3);
-    ARIADNE_TESTING_EXPECT_EQUAL(paving_copy.size(),2);
-
+    paving.adjoin(GridCell(grid, Nat(1), BinaryWord("0101")));
+    ARIADNE_TESTING_EXPECT_EQUAL(paving.size(), 3);
+    ARIADNE_TESTING_EXPECT_EQUAL(paving_copy.size(), 2);
 }
 
 Void TestPaving::test_iterator() {
@@ -91,24 +89,24 @@ Void TestPaving::test_iterator() {
     PavingInterface& paving = grid_set;
     Nat height = 1;
 
-    GridCell cell1(grid,height,BinaryWord("10010"));
-    GridCell cell2(grid,height,BinaryWord("110110"));
+    GridCell cell1(grid, height, BinaryWord("10010"));
+    GridCell cell2(grid, height, BinaryWord("110110"));
     paving.adjoin(cell2);
     paving.adjoin(cell1);
 
-    PavingInterface::ConstIterator iter=paving.begin();
-    ARIADNE_TESTING_EXPECT_EQUAL(*iter,cell1);
+    PavingInterface::ConstIterator iter = paving.begin();
+    ARIADNE_TESTING_EXPECT_EQUAL(*iter, cell1);
     ++iter;
-    ARIADNE_TESTING_EXPECT_EQUAL(*iter,cell2);
+    ARIADNE_TESTING_EXPECT_EQUAL(*iter, cell2);
     ++iter;
-    ARIADNE_TESTING_EXPECT_EQUAL(iter,paving.end());
+    ARIADNE_TESTING_EXPECT_EQUAL(iter, paving.end());
 }
 
 Void TestPaving::test_branch() {
     Grid grid(2);
     BinaryTreePaving grid_set(grid);
     PavingInterface& paving = grid_set;
-    GridCell cell(grid,0,BinaryWord(""));
+    GridCell cell(grid, 0, BinaryWord(""));
 
     Nat height = 0;
 
@@ -117,37 +115,49 @@ Void TestPaving::test_branch() {
     BinaryWord word3("1100");
     BinaryWord word4("1110");
 
-    ExactBoxType box1{{0.0_x,0.25_x},{0.25_x,0.5_x}};
-    ExactBoxType box2{{0.25_x,0.5_x},{0.0_x,0.25_x}};
-    ExactBoxType box3{{0.5_x,0.75_x},{0.5_x,0.75_x}};
-    ExactBoxType box4{{0.75_x,1.0_x},{0.5_x,0.75_x}};
+    ExactBoxType box1{
+        { 0.0_x, 0.25_x},
+        {0.25_x,  0.5_x}
+    };
+    ExactBoxType box2{
+        {0.25_x,  0.5_x},
+        { 0.0_x, 0.25_x}
+    };
+    ExactBoxType box3{
+        {0.5_x, 0.75_x},
+        {0.5_x, 0.75_x}
+    };
+    ExactBoxType box4{
+        {0.75_x,  1.0_x},
+        { 0.5_x, 0.75_x}
+    };
 
-    paving.adjoin(GridCell(grid,height,word1));
-    paving.adjoin(GridCell(grid,height,word2));
-    paving.adjoin(GridCell(grid,height,word3));
-    paving.adjoin(GridCell(grid,height,word4));
+    paving.adjoin(GridCell(grid, height, word1));
+    paving.adjoin(GridCell(grid, height, word2));
+    paving.adjoin(GridCell(grid, height, word3));
+    paving.adjoin(GridCell(grid, height, word4));
 
     ARIADNE_TESTING_NOTE("paving = " << (paving));
-    ARIADNE_TESTING_PROVE(paving.size()==4);
+    ARIADNE_TESTING_PROVE(paving.size() == 4);
 
     BinaryTreeSubpaving direct_branch0 =
-        static_cast<BinaryTreeSubpaving const&>(grid_set).branch(0);
-    ARIADNE_TESTING_PROVE(direct_branch0.size()==2);
+        static_cast<const BinaryTreeSubpaving&>(grid_set).branch(0);
+    ARIADNE_TESTING_PROVE(direct_branch0.size() == 2);
     ARIADNE_TESTING_NOTE("direct_branch0.root_cell() = " << (direct_branch0.root_cell()));
 
     SubPaving branch0 = paving.branch(0);
-    ARIADNE_TESTING_PROVE(branch0.size()==2);
+    ARIADNE_TESTING_PROVE(branch0.size() == 2);
     ARIADNE_TESTING_NOTE("branch0.root_cell() = " << (branch0.root_cell()));
     ARIADNE_TESTING_NOTE("branch0 = " << (branch0));
-    ARIADNE_TESTING_PROVE(branch0.begin()->word()==word1);
-    ARIADNE_TESTING_PROVE((++branch0.begin())->word()==word2);
+    ARIADNE_TESTING_PROVE(branch0.begin()->word() == word1);
+    ARIADNE_TESTING_PROVE((++branch0.begin())->word() == word2);
 
     SubPaving branch1 = paving.branch(1);
-    ARIADNE_TESTING_PROVE(branch1.size()==2);
+    ARIADNE_TESTING_PROVE(branch1.size() == 2);
     ARIADNE_TESTING_NOTE("branch1.root_cell() = " << (branch1.root_cell()));
     ARIADNE_TESTING_NOTE("branch1 = " << (branch1));
-    ARIADNE_TESTING_PROVE(branch1.begin()->word()==word3);
-    ARIADNE_TESTING_PROVE((++branch1.begin())->word()==word4);
+    ARIADNE_TESTING_PROVE(branch1.begin()->word() == word3);
+    ARIADNE_TESTING_PROVE((++branch1.begin())->word() == word4);
 }
 
 Void TestPaving::test_clone() {
@@ -160,33 +170,32 @@ Void TestPaving::test_clone() {
     {
         BinaryTreePaving grid_set(grid);
         PavingInterface& paving = grid_set;
-        paving.adjoin(GridCell(grid,0,word1));
-        paving.adjoin(GridCell(grid,0,word2));
-        paving.adjoin(GridCell(grid,0,word3));
+        paving.adjoin(GridCell(grid, 0, word1));
+        paving.adjoin(GridCell(grid, 0, word2));
+        paving.adjoin(GridCell(grid, 0, word3));
 
         BinaryTreeSubpaving branch0 =
-            static_cast<BinaryTreeSubpaving const&>(grid_set).branch(0);
-        ARIADNE_TESTING_EXPECT_EQUAL(branch0.size(),2);
+            static_cast<const BinaryTreeSubpaving&>(grid_set).branch(0);
+        ARIADNE_TESTING_EXPECT_EQUAL(branch0.size(), 2);
 
         cloned_branch = std::make_unique<Paving>(branch0);
         const PavingInterface& cloned_paving = *cloned_branch;
         const SubPavingInterface& original_interface = branch0;
         const SubPavingInterface& cloned_interface = cloned_paving;
 
-        ARIADNE_TESTING_EXPECT_EQUAL(cloned_branch->size(),2);
-        ARIADNE_TESTING_PROVE(subset(original_interface,cloned_interface));
-        ARIADNE_TESTING_PROVE(subset(cloned_interface,original_interface));
+        ARIADNE_TESTING_EXPECT_EQUAL(cloned_branch->size(), 2);
+        ARIADNE_TESTING_PROVE(subset(original_interface, cloned_interface));
+        ARIADNE_TESTING_PROVE(subset(cloned_interface, original_interface));
     }
 
-    ARIADNE_TESTING_EXPECT_EQUAL(cloned_branch->size(),2);
-    Paving::ConstIterator iter=cloned_branch->begin();
-    ARIADNE_TESTING_EXPECT_EQUAL(*iter,GridCell(grid,0,word1));
+    ARIADNE_TESTING_EXPECT_EQUAL(cloned_branch->size(), 2);
+    Paving::ConstIterator iter = cloned_branch->begin();
+    ARIADNE_TESTING_EXPECT_EQUAL(*iter, GridCell(grid, 0, word1));
     ++iter;
-    ARIADNE_TESTING_EXPECT_EQUAL(*iter,GridCell(grid,0,word2));
+    ARIADNE_TESTING_EXPECT_EQUAL(*iter, GridCell(grid, 0, word2));
     ++iter;
-    ARIADNE_TESTING_EXPECT_EQUAL(iter,cloned_branch->end());
+    ARIADNE_TESTING_EXPECT_EQUAL(iter, cloned_branch->end());
 }
-
 
 Void TestPaving::test_geometry() {
     Grid grid(2);
@@ -195,13 +204,13 @@ Void TestPaving::test_geometry() {
 
     Paving paving_handle1(grid_tree_set);
     PavingInterface& paving_interface1 = paving_handle1;
-    paving_handle1.adjoin(GridCell(grid,height,BinaryWord("10")));
+    paving_handle1.adjoin(GridCell(grid, height, BinaryWord("10")));
     Paving paving_handle2(grid_tree_set);
     PavingInterface& paving_interface2 = paving_handle2;
-    paving_handle2.adjoin(GridCell(grid,height,BinaryWord("1")));
+    paving_handle2.adjoin(GridCell(grid, height, BinaryWord("1")));
     Paving paving_handle3(grid_tree_set);
     PavingInterface& paving_interface3 = paving_handle3;
-    paving_handle3.adjoin(GridCell(grid,height,BinaryWord("0110")));
+    paving_handle3.adjoin(GridCell(grid, height, BinaryWord("0110")));
 
     ARIADNE_TESTING_NOTE("paving_handle1 = " << (paving_handle1));
     ARIADNE_TESTING_NOTE("paving_handle2 = " << (paving_handle2));
@@ -211,46 +220,47 @@ Void TestPaving::test_geometry() {
     paving_handle1.subset(paving_interface2);
     paving_interface1.subset(paving_handle2);
     paving_interface1.subset(paving_interface2);
-    subset(paving_handle1,paving_handle2);
-    subset(paving_handle1,paving_interface2);
-    subset(paving_interface1,paving_handle2);
-    subset(paving_interface1,paving_interface2);
+    subset(paving_handle1, paving_handle2);
+    subset(paving_handle1, paving_interface2);
+    subset(paving_interface1, paving_handle2);
+    subset(paving_interface1, paving_interface2);
 
-    ARIADNE_TESTING_PROVE(subset(paving_interface1,paving_interface1));
-    ARIADNE_TESTING_PROVE(subset(paving_interface1,paving_interface2));
-    ARIADNE_TESTING_PROVE(!subset(paving_interface2,paving_interface1));
-    ARIADNE_TESTING_PROVE(!subset(paving_interface1,paving_interface3));
-    ARIADNE_TESTING_PROVE(!subset(paving_interface3,paving_interface1));
-    ARIADNE_TESTING_PROVE(!subset(paving_interface2,paving_interface3));
-    ARIADNE_TESTING_PROVE(!subset(paving_interface3,paving_interface2));
+    ARIADNE_TESTING_PROVE(subset(paving_interface1, paving_interface1));
+    ARIADNE_TESTING_PROVE(subset(paving_interface1, paving_interface2));
+    ARIADNE_TESTING_PROVE(!subset(paving_interface2, paving_interface1));
+    ARIADNE_TESTING_PROVE(!subset(paving_interface1, paving_interface3));
+    ARIADNE_TESTING_PROVE(!subset(paving_interface3, paving_interface1));
+    ARIADNE_TESTING_PROVE(!subset(paving_interface2, paving_interface3));
+    ARIADNE_TESTING_PROVE(!subset(paving_interface3, paving_interface2));
 
     ARIADNE_TESTING_PROVE(paving_handle1.intersects(paving_handle2));
-    ARIADNE_TESTING_PROVE(intersect(paving_handle1,paving_handle2));
+    ARIADNE_TESTING_PROVE(intersect(paving_handle1, paving_handle2));
 
-    ARIADNE_TESTING_PROVE(intersect(paving_interface1,paving_interface1));
-    ARIADNE_TESTING_PROVE(intersect(paving_interface1,paving_interface2));
-    ARIADNE_TESTING_PROVE(intersect(paving_interface2,paving_interface1));
-    ARIADNE_TESTING_PROVE(!intersect(paving_interface1,paving_interface3));
-    ARIADNE_TESTING_PROVE(!intersect(paving_interface3,paving_interface1));
-    ARIADNE_TESTING_PROVE(!intersect(paving_interface2,paving_interface3));
-    ARIADNE_TESTING_PROVE(!intersect(paving_interface3,paving_interface2));
+    ARIADNE_TESTING_PROVE(intersect(paving_interface1, paving_interface1));
+    ARIADNE_TESTING_PROVE(intersect(paving_interface1, paving_interface2));
+    ARIADNE_TESTING_PROVE(intersect(paving_interface2, paving_interface1));
+    ARIADNE_TESTING_PROVE(!intersect(paving_interface1, paving_interface3));
+    ARIADNE_TESTING_PROVE(!intersect(paving_interface3, paving_interface1));
+    ARIADNE_TESTING_PROVE(!intersect(paving_interface2, paving_interface3));
+    ARIADNE_TESTING_PROVE(!intersect(paving_interface3, paving_interface2));
 
-    ARIADNE_TESTING_EXPECT_EQUAL(geometric_union(paving_handle1,paving_handle2).size(),1);
-    ARIADNE_TESTING_EXPECT_EQUAL(geometric_union(paving_handle1,paving_handle3).size(),2);
-    ARIADNE_TESTING_EXPECT_EQUAL(geometric_union(paving_handle2,paving_handle3).size(),2);
-    ARIADNE_TESTING_EXPECT_EQUAL(intersection(paving_handle1,paving_handle2).size(),1);
-    ARIADNE_TESTING_EXPECT_EQUAL(intersection(paving_handle2,paving_handle3).size(),0);
-    ARIADNE_TESTING_EXPECT_EQUAL(difference(paving_handle1,paving_handle2).size(),0);
-    ARIADNE_TESTING_EXPECT_EQUAL(difference(paving_handle2,paving_handle1).size(),1);
+    ARIADNE_TESTING_EXPECT_EQUAL(geometric_union(paving_handle1, paving_handle2).size(), 1);
+    ARIADNE_TESTING_EXPECT_EQUAL(geometric_union(paving_handle1, paving_handle3).size(), 2);
+    ARIADNE_TESTING_EXPECT_EQUAL(geometric_union(paving_handle2, paving_handle3).size(), 2);
+    ARIADNE_TESTING_EXPECT_EQUAL(intersection(paving_handle1, paving_handle2).size(), 1);
+    ARIADNE_TESTING_EXPECT_EQUAL(intersection(paving_handle2, paving_handle3).size(), 0);
+    ARIADNE_TESTING_EXPECT_EQUAL(difference(paving_handle1, paving_handle2).size(), 0);
+    ARIADNE_TESTING_EXPECT_EQUAL(difference(paving_handle2, paving_handle1).size(), 1);
 
     Paving paving_handle4(grid_tree_set);
-    paving_handle4.adjoin(GridCell(grid,height,BinaryWord("11")));
-    ARIADNE_TESTING_EXPECT_EQUAL(intersection(paving_handle1,paving_handle2),paving_handle1);
-    ARIADNE_TESTING_EXPECT_EQUAL(difference(paving_handle2,paving_handle1),paving_handle4);
+    paving_handle4.adjoin(GridCell(grid, height, BinaryWord("11")));
+    ARIADNE_TESTING_EXPECT_EQUAL(intersection(paving_handle1, paving_handle2), paving_handle1);
+    ARIADNE_TESTING_EXPECT_EQUAL(difference(paving_handle2, paving_handle1), paving_handle4);
 
-    ARIADNE_TESTING_EXPECT_SAME(geometric_union(paving_handle1,paving_handle3).bounding_box(),UpperBoxType({{0.25_x,1.0_x},{0.0_x,0.75_x}}));
-
-
+    ARIADNE_TESTING_EXPECT_SAME(geometric_union(paving_handle1, paving_handle3).bounding_box(), UpperBoxType({
+                                                                                                    {0.25_x,  1.0_x},
+                                                                                                    { 0.0_x, 0.75_x}
+    }));
 }
 
 Void TestPaving::test_approximation() {
@@ -258,11 +268,14 @@ Void TestPaving::test_approximation() {
     BinaryTreePaving grid_set(grid);
     PavingInterface& paving = grid_set;
 
-    EffectiveVectorMultivariateFunction x=EffectiveVectorMultivariateFunction::identity(2);
-    EffectiveConstrainedImageSet set(RealBox({{-1.0_x,1.0_x},{-1.0_x,1.0_x}}));
-    set.apply( {2*x[0]+x[1]+x[0]*x[0]/4,x[0]+x[1]} );
+    EffectiveVectorMultivariateFunction x = EffectiveVectorMultivariateFunction::identity(2);
+    EffectiveConstrainedImageSet set(RealBox({
+        {-1.0_x, 1.0_x},
+        {-1.0_x, 1.0_x}
+    }));
+    set.apply({2 * x[0] + x[1] + x[0] * x[0] / 4, x[0] + x[1]});
     Nat depth = 2;
-    paving.adjoin_outer_approximation(set,depth);
+    paving.adjoin_outer_approximation(set, depth);
     paving.recombine();
 
     Nat height = 6;
@@ -281,7 +294,7 @@ Void TestPaving::test_approximation() {
                       "0010100101010001001101100101101110100101110101000010000"
                       "0001010010010101001010001010010010100100110101001101001"
                       "00101001010101101000000101001000100100000000000");
-    BinaryTreePaving expected_grid_set(grid,height,tree,leaves);
+    BinaryTreePaving expected_grid_set(grid, height, tree, leaves);
     PavingInterface& expected_paving = expected_grid_set;
 
     ARIADNE_TESTING_EXPECT_BINARY_PREDICATE(subset, expected_paving, paving);
@@ -290,86 +303,91 @@ Void TestPaving::test_approximation() {
     error_paving.remove(paving);
 }
 
-
 class NonnegativePredicate : public PredicateInterface<ExactBoxType> {
   public:
-    ValidatedKleenean check(const ExactBoxType& box) override { return box[0].lower_bound()>=FloatDP(0,dp); }
+    ValidatedKleenean check(const ExactBoxType& box) override { return box[0].lower_bound() >= FloatDP(0, dp); }
 };
 
 Void TestPaving::test_paving_handle_forwarding() {
     Grid grid(1u);
     BinaryTreePaving native(grid);
-    GridCell root(grid,0u,BinaryWord());
-    GridCell left(grid,0u,BinaryWord("0"));
-    GridCell right(grid,0u,BinaryWord("1"));
+    GridCell root(grid, 0u, BinaryWord());
+    GridCell left(grid, 0u, BinaryWord("0"));
+    GridCell right(grid, 0u, BinaryWord("1"));
     native.adjoin(root);
     native.mince(1u);
-    const SubPavingInterface& native_interface=native;
+    const SubPavingInterface& native_interface = native;
     Paving paving(native_interface);
     Paving copied(paving);
     Paving owned(new BinaryTreePaving(grid));
-    owned=copied;
-    const Paving& alias=owned;
-    owned=alias;
-    const Paving& const_owned=owned;
-    const PavingInterface& const_interface=const_owned;
-    ARIADNE_TESTING_EXPECT_EQUAL(const_owned.grid(),grid);
-    ARIADNE_TESTING_EXPECT_EQUAL(const_owned.size(),2u);
+    owned = copied;
+    const Paving& alias = owned;
+    owned = alias;
+    const Paving& const_owned = owned;
+    const PavingInterface& const_interface = const_owned;
+    ARIADNE_TESTING_EXPECT_EQUAL(const_owned.grid(), grid);
+    ARIADNE_TESTING_EXPECT_EQUAL(const_owned.size(), 2u);
     ARIADNE_TESTING_PROVE(const_owned.superset(left));
     ARIADNE_TESTING_PROVE(const_owned.subset(native_interface));
     ARIADNE_TESTING_PROVE(const_owned.intersects(native_interface));
-    ARIADNE_TESTING_PROVE(const_owned.root_cell()==root);
-    ARIADNE_TESTING_PROVE(const_interface==native_interface);
-    ARIADNE_TESTING_PROVE(subset(const_interface,native_interface));
-    ARIADNE_TESTING_PROVE(intersect(const_interface,native_interface));
-    auto iter=const_owned.begin();
-    auto old=iter++;
-    ARIADNE_TESTING_PROVE(*old==left);
-    ARIADNE_TESTING_PROVE(iter->box()==right.box());
-    old=iter;
-    const auto& old_alias=old;
-    old=old_alias;
-    ARIADNE_TESTING_PROVE(old==iter);
-    ARIADNE_TESTING_PROVE(old!=const_owned.end());
+    ARIADNE_TESTING_PROVE(const_owned.root_cell() == root);
+    ARIADNE_TESTING_PROVE(const_interface == native_interface);
+    ARIADNE_TESTING_PROVE(subset(const_interface, native_interface));
+    ARIADNE_TESTING_PROVE(intersect(const_interface, native_interface));
+    auto iter = const_owned.begin();
+    auto old = iter++;
+    ARIADNE_TESTING_PROVE(*old == left);
+    ARIADNE_TESTING_PROVE(iter->box() == right.box());
+    old = iter;
+    const auto& old_alias = old;
+    old = old_alias;
+    ARIADNE_TESTING_PROVE(old == iter);
+    ARIADNE_TESTING_PROVE(old != const_owned.end());
     ++iter;
-    ARIADNE_TESTING_PROVE(iter==const_owned.end());
-    auto native_iterator=native.begin();
+    ARIADNE_TESTING_PROVE(iter == const_owned.end());
+    auto native_iterator = native.begin();
     ForwardConstantIteratorHandle<GridCell> adapted(static_cast<const ForwardConstantIteratorInterface<GridCell>&>(native_iterator));
-    ARIADNE_TESTING_PROVE(*adapted==left);
+    ARIADNE_TESTING_PROVE(*adapted == left);
     std::ostringstream repr;
-    repr<<adapted<<old<<const_owned;
-    auto& mutable_interface=static_cast<PavingInterface&>(paving);
-    SubPaving sub=mutable_interface.branch(false);
+    repr << adapted << old << const_owned;
+    auto& mutable_interface = static_cast<PavingInterface&>(paving);
+    SubPaving sub = mutable_interface.branch(false);
     SubPaving sub_copy(sub);
     SubPaving from_interface(static_cast<const SubPavingInterface&>(sub));
-    sub_copy=from_interface;
-    const SubPaving& sub_alias=sub_copy;
-    sub_copy=sub_alias;
-    const SubPaving& const_sub=sub;
-    const SubPavingInterface& const_sub_interface=const_sub;
-    ARIADNE_TESTING_EXPECT_EQUAL(const_sub_interface.size(),1u);
-    ARIADNE_TESTING_EXPECT_EQUAL(const_sub.grid(),grid);
-    ARIADNE_TESTING_EXPECT_EQUAL(const_sub.size(),1u);
-    ARIADNE_TESTING_PROVE(const_sub.root_cell()==left);
+    sub_copy = from_interface;
+    const SubPaving& sub_alias = sub_copy;
+    sub_copy = sub_alias;
+    const SubPaving& const_sub = sub;
+    const SubPavingInterface& const_sub_interface = const_sub;
+    ARIADNE_TESTING_EXPECT_EQUAL(const_sub_interface.size(), 1u);
+    ARIADNE_TESTING_EXPECT_EQUAL(const_sub.grid(), grid);
+    ARIADNE_TESTING_EXPECT_EQUAL(const_sub.size(), 1u);
+    ARIADNE_TESTING_PROVE(const_sub.root_cell() == left);
     ARIADNE_TESTING_PROVE(const_sub.superset(left));
     ARIADNE_TESTING_PROVE(const_sub.subset(native_interface));
     ARIADNE_TESTING_PROVE(const_sub.intersects(native_interface));
-    ARIADNE_TESTING_PROVE(const_sub.begin()!=const_sub.end());
-    ARIADNE_TESTING_EXPECT_EQUAL(const_sub.bounding_box().dimension(),1u);
-    ExactBoxType large{{-1.0_x,2.0_x}};
-    ExactBoxType far{{3.0_x,4.0_x}};
-    ExactBoxType middle{{0.125_x,0.375_x}};
+    ARIADNE_TESTING_PROVE(const_sub.begin() != const_sub.end());
+    ARIADNE_TESTING_EXPECT_EQUAL(const_sub.bounding_box().dimension(), 1u);
+    ExactBoxType large{
+        {-1.0_x, 2.0_x}
+    };
+    ExactBoxType far{
+        {3.0_x, 4.0_x}
+    };
+    ExactBoxType middle{
+        {0.125_x, 0.375_x}
+    };
     ARIADNE_TESTING_PROVE(definitely(const_sub.inside(large)));
     ARIADNE_TESTING_PROVE(definitely(const_sub.separated(far)));
     ARIADNE_TESTING_PROVE(definitely(const_sub.overlaps(middle)));
-    repr<<const_sub;
+    repr << const_sub;
     sub_copy.mince(2u);
     sub_copy.recombine();
     sub_copy.set_root_cell(false);
-    ARIADNE_TESTING_EXPECT_EQUAL(sub_copy.size(),0u);
-    ARIADNE_TESTING_EXPECT_EQUAL(const_sub.size(),1u);
+    ARIADNE_TESTING_EXPECT_EQUAL(sub_copy.size(), 0u);
+    ARIADNE_TESTING_EXPECT_EQUAL(const_sub.size(), 1u);
     paving.set_root_cell(true);
-    ARIADNE_TESTING_EXPECT_EQUAL(paving.bounding_box().dimension(),1u);
+    ARIADNE_TESTING_EXPECT_EQUAL(paving.bounding_box().dimension(), 1u);
     ARIADNE_TESTING_PROVE(definitely(paving.inside(large)));
     ARIADNE_TESTING_PROVE(definitely(paving.separated(far)));
     ARIADNE_TESTING_PROVE(definitely(paving.overlaps(middle)));
@@ -378,29 +396,31 @@ Void TestPaving::test_paving_handle_forwarding() {
     paving.adjoin(right);
     ARIADNE_TESTING_PROVE(paving.superset(right));
     paving.remove(native_interface);
-    ARIADNE_TESTING_EXPECT_EQUAL(paving.size(),0u);
+    ARIADNE_TESTING_EXPECT_EQUAL(paving.size(), 0u);
     paving.adjoin(native_interface);
     paving.restrict(native_interface);
     ARIADNE_TESTING_PROVE(paving.subset(native_interface));
-    ARIADNE_TESTING_PROVE(join(native_interface,native_interface).superset(left));
-    ARIADNE_TESTING_PROVE(geometric_union(native_interface,native_interface).superset(left));
-    ARIADNE_TESTING_PROVE(intersection(native_interface,native_interface).superset(left));
-    ARIADNE_TESTING_EXPECT_EQUAL(difference(native_interface,native_interface).size(),0u);
+    ARIADNE_TESTING_PROVE(join(native_interface, native_interface).superset(left));
+    ARIADNE_TESTING_PROVE(geometric_union(native_interface, native_interface).superset(left));
+    ARIADNE_TESTING_PROVE(intersection(native_interface, native_interface).superset(left));
+    ARIADNE_TESTING_EXPECT_EQUAL(difference(native_interface, native_interface).size(), 0u);
     owned.set_root_cell(false);
-    ExactBoxSetType set(ExactBoxType{{0.125_x,0.875_x}});
-    const EffectiveEuclideanCompactSetInterface& compact=set;
-    const EffectiveEuclideanOpenSetInterface& open=set;
-    const EffectiveEuclideanSetInterface& generic=set;
-    owned.adjoin_outer_approximation(compact,2u);
-    ARIADNE_TESTING_PROVE(owned.size()>0u);
+    ExactBoxSetType set(ExactBoxType{
+        {0.125_x, 0.875_x}
+    });
+    const EffectiveEuclideanCompactSetInterface& compact = set;
+    const EffectiveEuclideanOpenSetInterface& open = set;
+    const EffectiveEuclideanSetInterface& generic = set;
+    owned.adjoin_outer_approximation(compact, 2u);
+    ARIADNE_TESTING_PROVE(owned.size() > 0u);
     owned.set_root_cell(false);
-    owned.adjoin_inner_approximation(open,0u,2u);
-    ARIADNE_TESTING_PROVE(owned.size()>0u);
+    owned.adjoin_inner_approximation(open, 0u, 2u);
+    ARIADNE_TESTING_PROVE(owned.size() > 0u);
     owned.set_root_cell(false);
-    owned.adjoin_inner_approximation(generic,2u);
-    ARIADNE_TESTING_PROVE(owned.size()>0u);
+    owned.adjoin_inner_approximation(generic, 2u);
+    ARIADNE_TESTING_PROVE(owned.size() > 0u);
     NonnegativePredicate predicate;
-    ARIADNE_TESTING_EXPECT_THROWS(std::runtime_error, owned.adjoin_cells(predicate,2u));
+    ARIADNE_TESTING_EXPECT_THROWS(std::runtime_error, owned.adjoin_cells(predicate, 2u));
     ARIADNE_TESTING_PROVE(!repr.str().empty());
 }
 

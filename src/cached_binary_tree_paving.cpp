@@ -40,63 +40,63 @@ struct CachedBinaryTreePaving::Compiled {
     RobddPaving paving;
     std::uint64_t version;
 
-    Compiled(BinaryTreePaving const& snapshot,std::uint64_t revision)
-        : manager(),paving(manager,static_cast<BinaryTreeSubpaving const&>(snapshot)),
-          version(revision) { }
+    Compiled(const BinaryTreePaving& snapshot, std::uint64_t revision)
+        : manager(), paving(manager, static_cast<const BinaryTreeSubpaving&>(snapshot)),
+          version(revision) {}
 };
 
 CachedBinaryTreePaving::CachedBinaryTreePaving(
-        Grid const& grid,Bool enabled,Bool automatic_cache)
-    : BinaryTreePaving(grid,enabled),_automatic_cache(automatic_cache) { }
+    const Grid& grid, Bool enabled, Bool automatic_cache)
+    : BinaryTreePaving(grid, enabled), _automatic_cache(automatic_cache) {}
 
 CachedBinaryTreePaving::CachedBinaryTreePaving(
-        BinaryTreePaving const& source,Bool automatic_cache)
-    : BinaryTreePaving(source),_automatic_cache(automatic_cache) { }
+    const BinaryTreePaving& source, Bool automatic_cache)
+    : BinaryTreePaving(source), _automatic_cache(automatic_cache) {}
 
-CachedBinaryTreePaving::CachedBinaryTreePaving(CachedBinaryTreePaving const& source)
-    : BinaryTreePaving(static_cast<BinaryTreePaving const&>(source)),
-      _automatic_cache(source._automatic_cache) { }
+CachedBinaryTreePaving::CachedBinaryTreePaving(const CachedBinaryTreePaving& source)
+    : BinaryTreePaving(static_cast<const BinaryTreePaving&>(source)),
+      _automatic_cache(source._automatic_cache) {}
 
 CachedBinaryTreePaving* CachedBinaryTreePaving::clone() const {
     return new CachedBinaryTreePaving(*this);
 }
 
 Void CachedBinaryTreePaving::invalidate_unlocked() const {
-    _version=PavingDetail::checked_next_revision(_version);
+    _version = PavingDetail::checked_next_revision(_version);
     _compiled.reset();
 }
 
-Void CachedBinaryTreePaving::adjoin(GridCell const& cell) {
+Void CachedBinaryTreePaving::adjoin(const GridCell& cell) {
     std::lock_guard<std::recursive_mutex> lock(_mutex);
     invalidate_unlocked();
     BinaryTreePaving::adjoin(cell);
 }
 
-Void CachedBinaryTreePaving::adjoin(std::vector<GridCell> const& cells) {
+Void CachedBinaryTreePaving::adjoin(const std::vector<GridCell>& cells) {
     std::lock_guard<std::recursive_mutex> lock(_mutex);
     invalidate_unlocked();
     BinaryTreePaving::adjoin(cells);
 }
 
-Void CachedBinaryTreePaving::adjoin(SubPavingInterface const& other) {
+Void CachedBinaryTreePaving::adjoin(const SubPavingInterface& other) {
     std::lock_guard<std::recursive_mutex> lock(_mutex);
     invalidate_unlocked();
     BinaryTreePaving::adjoin(other);
 }
 
-Void CachedBinaryTreePaving::restrict(SubPavingInterface const& other) {
+Void CachedBinaryTreePaving::restrict(const SubPavingInterface& other) {
     std::lock_guard<std::recursive_mutex> lock(_mutex);
     invalidate_unlocked();
     BinaryTreePaving::restrict(other);
 }
 
-Void CachedBinaryTreePaving::remove(SubPavingInterface const& other) {
+Void CachedBinaryTreePaving::remove(const SubPavingInterface& other) {
     std::lock_guard<std::recursive_mutex> lock(_mutex);
     invalidate_unlocked();
     BinaryTreePaving::remove(other);
 }
 
-Void CachedBinaryTreePaving::remove(GridCell const& cell) {
+Void CachedBinaryTreePaving::remove(const GridCell& cell) {
     std::lock_guard<std::recursive_mutex> lock(_mutex);
     invalidate_unlocked();
     BinaryTreePaving::remove(cell);
@@ -126,40 +126,40 @@ Void CachedBinaryTreePaving::restrict_to_extent(Nat extent) {
     BinaryTreePaving::restrict_to_extent(extent);
 }
 
-Void CachedBinaryTreePaving::adjoin_outer_approximation(EffectiveEuclideanCompactSetInterface const& set,Nat fineness) {
+Void CachedBinaryTreePaving::adjoin_outer_approximation(const EffectiveEuclideanCompactSetInterface& set, Nat fineness) {
     std::lock_guard<std::recursive_mutex> lock(_mutex);
     invalidate_unlocked();
-    BinaryTreePaving::adjoin_outer_approximation(set,fineness);
+    BinaryTreePaving::adjoin_outer_approximation(set, fineness);
 }
 
-Void CachedBinaryTreePaving::adjoin_outer_approximation(ValidatedEuclideanCompactSetInterface const& set,Nat fineness) {
+Void CachedBinaryTreePaving::adjoin_outer_approximation(const ValidatedEuclideanCompactSetInterface& set, Nat fineness) {
     std::lock_guard<std::recursive_mutex> lock(_mutex);
     invalidate_unlocked();
-    BinaryTreePaving::adjoin_outer_approximation(set,fineness);
+    BinaryTreePaving::adjoin_outer_approximation(set, fineness);
 }
 
-Void CachedBinaryTreePaving::adjoin_outer_approximation(UpperBoxType const& box,Nat fineness) {
+Void CachedBinaryTreePaving::adjoin_outer_approximation(const UpperBoxType& box, Nat fineness) {
     std::lock_guard<std::recursive_mutex> lock(_mutex);
     invalidate_unlocked();
-    BinaryTreePaving::adjoin_outer_approximation(box,fineness);
+    BinaryTreePaving::adjoin_outer_approximation(box, fineness);
 }
 
-Void CachedBinaryTreePaving::adjoin_lower_approximation(EffectiveEuclideanOvertSetInterface const& set,Nat extent,Nat fineness) {
+Void CachedBinaryTreePaving::adjoin_lower_approximation(const EffectiveEuclideanOvertSetInterface& set, Nat extent, Nat fineness) {
     std::lock_guard<std::recursive_mutex> lock(_mutex);
     invalidate_unlocked();
-    BinaryTreePaving::adjoin_lower_approximation(set,extent,fineness);
+    BinaryTreePaving::adjoin_lower_approximation(set, extent, fineness);
 }
 
-Void CachedBinaryTreePaving::adjoin_inner_approximation(EffectiveEuclideanOpenSetInterface const& set,Nat extent,Nat fineness) {
+Void CachedBinaryTreePaving::adjoin_inner_approximation(const EffectiveEuclideanOpenSetInterface& set, Nat extent, Nat fineness) {
     std::lock_guard<std::recursive_mutex> lock(_mutex);
     invalidate_unlocked();
-    BinaryTreePaving::adjoin_inner_approximation(set,extent,fineness);
+    BinaryTreePaving::adjoin_inner_approximation(set, extent, fineness);
 }
 
-Void CachedBinaryTreePaving::adjoin_inner_approximation(EffectiveEuclideanSetInterface const& set,Nat fineness) {
+Void CachedBinaryTreePaving::adjoin_inner_approximation(const EffectiveEuclideanSetInterface& set, Nat fineness) {
     std::lock_guard<std::recursive_mutex> lock(_mutex);
     invalidate_unlocked();
-    BinaryTreePaving::adjoin_inner_approximation(set,fineness);
+    BinaryTreePaving::adjoin_inner_approximation(set, fineness);
 }
 
 Void CachedBinaryTreePaving::clear() {
@@ -186,49 +186,49 @@ Void CachedBinaryTreePaving::subdivide(ApproximateDouble width) {
     BinaryTreePaving::subdivide(width);
 }
 
-Void CachedBinaryTreePaving::adjoin_over_approximation(ExactBoxType const& box,Nat fineness) {
+Void CachedBinaryTreePaving::adjoin_over_approximation(const ExactBoxType& box, Nat fineness) {
     std::lock_guard<std::recursive_mutex> lock(_mutex);
     invalidate_unlocked();
-    BinaryTreePaving::adjoin_over_approximation(box,fineness);
+    BinaryTreePaving::adjoin_over_approximation(box, fineness);
 }
 
-Void CachedBinaryTreePaving::adjoin_lower_approximation(EffectiveEuclideanOvertSetInterface const& set,ExactBoxType const& bounding,Nat fineness) {
+Void CachedBinaryTreePaving::adjoin_lower_approximation(const EffectiveEuclideanOvertSetInterface& set, const ExactBoxType& bounding, Nat fineness) {
     std::lock_guard<std::recursive_mutex> lock(_mutex);
     invalidate_unlocked();
-    BinaryTreePaving::adjoin_lower_approximation(set,bounding,fineness);
+    BinaryTreePaving::adjoin_lower_approximation(set, bounding, fineness);
 }
 
-Void CachedBinaryTreePaving::adjoin_lower_approximation(EffectiveEuclideanLocatedSetInterface const& set,Nat fineness) {
+Void CachedBinaryTreePaving::adjoin_lower_approximation(const EffectiveEuclideanLocatedSetInterface& set, Nat fineness) {
     std::lock_guard<std::recursive_mutex> lock(_mutex);
     invalidate_unlocked();
-    BinaryTreePaving::adjoin_lower_approximation(set,fineness);
+    BinaryTreePaving::adjoin_lower_approximation(set, fineness);
 }
 
-Void CachedBinaryTreePaving::adjoin_inner_approximation(EffectiveEuclideanOpenSetInterface const& set,ExactBoxType const& bounding,Nat fineness) {
+Void CachedBinaryTreePaving::adjoin_inner_approximation(const EffectiveEuclideanOpenSetInterface& set, const ExactBoxType& bounding, Nat fineness) {
     std::lock_guard<std::recursive_mutex> lock(_mutex);
     invalidate_unlocked();
-    BinaryTreePaving::adjoin_inner_approximation(set,bounding,fineness);
+    BinaryTreePaving::adjoin_inner_approximation(set, bounding, fineness);
 }
 
-Void CachedBinaryTreePaving::adjoin_inner_approximation(LowerBoxType const& box,Nat fineness) {
+Void CachedBinaryTreePaving::adjoin_inner_approximation(const LowerBoxType& box, Nat fineness) {
     std::lock_guard<std::recursive_mutex> lock(_mutex);
     invalidate_unlocked();
-    BinaryTreePaving::adjoin_inner_approximation(box,fineness);
+    BinaryTreePaving::adjoin_inner_approximation(box, fineness);
 }
 
-Void CachedBinaryTreePaving::adjoin(BinaryTreeSubpaving const& other) {
+Void CachedBinaryTreePaving::adjoin(const BinaryTreeSubpaving& other) {
     std::lock_guard<std::recursive_mutex> lock(_mutex);
     invalidate_unlocked();
     BinaryTreePaving::adjoin(other);
 }
 
-Void CachedBinaryTreePaving::restrict(BinaryTreeSubpaving const& other) {
+Void CachedBinaryTreePaving::restrict(const BinaryTreeSubpaving& other) {
     std::lock_guard<std::recursive_mutex> lock(_mutex);
     invalidate_unlocked();
     BinaryTreePaving::restrict(other);
 }
 
-Void CachedBinaryTreePaving::remove(BinaryTreeSubpaving const& other) {
+Void CachedBinaryTreePaving::remove(const BinaryTreeSubpaving& other) {
     std::lock_guard<std::recursive_mutex> lock(_mutex);
     invalidate_unlocked();
     BinaryTreePaving::remove(other);
@@ -249,41 +249,44 @@ SubPavingInterface* CachedBinaryTreePaving::_branch(Bool right) const {
 Bool CachedBinaryTreePaving::compile_cache() {
     std::lock_guard<std::mutex> compiling(_compile_mutex);
     std::unique_lock<std::recursive_mutex> lock(_mutex);
-    if(_compiled) return true;
-    std::uint64_t const revision=_version;
-    auto snapshot=std::make_unique<BinaryTreePaving>(
-        static_cast<BinaryTreePaving const&>(*this));
+    if (_compiled)
+        return true;
+    const std::uint64_t revision = _version;
+    auto snapshot = std::make_unique<BinaryTreePaving>(
+        static_cast<const BinaryTreePaving&>(*this));
     lock.unlock();
     // Never hold _mutex while building canonical ROBDD nodes.
-    auto candidate=std::make_shared<Compiled const>(*snapshot,revision);
+    auto candidate = std::make_shared<const Compiled>(*snapshot, revision);
     lock.lock();
-    if(_version!=revision) return false;
-    _compiled=std::move(candidate);
+    if (_version != revision)
+        return false;
+    _compiled = std::move(candidate);
     return true;
 }
 
-Bool CachedBinaryTreePaving::superset(GridCell const& cell) const {
-    if(_automatic_cache and not has_cache())
+Bool CachedBinaryTreePaving::superset(const GridCell& cell) const {
+    if (_automatic_cache and not has_cache())
         (void)const_cast<CachedBinaryTreePaving*>(this)->compile_cache();
-    std::shared_ptr<Compiled const> compiled;
+    std::shared_ptr<const Compiled> compiled;
     {
         std::lock_guard<std::recursive_mutex> lock(_mutex);
-        compiled=_compiled;
-        if(not compiled) return BinaryTreePaving::superset(cell);
+        compiled = _compiled;
+        if (not compiled)
+            return BinaryTreePaving::superset(cell);
     }
     return compiled->paving.superset(cell);
 }
 
-Bool CachedBinaryTreePaving::superset(ExactBoxType const& box) const {
-    if(_automatic_cache and not has_cache())
+Bool CachedBinaryTreePaving::superset(const ExactBoxType& box) const {
+    if (_automatic_cache and not has_cache())
         (void)const_cast<CachedBinaryTreePaving*>(this)->compile_cache();
-    std::shared_ptr<Compiled const> compiled;
+    std::shared_ptr<const Compiled> compiled;
     {
         std::lock_guard<std::recursive_mutex> lock(_mutex);
-        compiled=_compiled;
-        if(not compiled) {
+        compiled = _compiled;
+        if (not compiled) {
             BinaryTreePaving snapshot(
-                static_cast<BinaryTreePaving const&>(*this));
+                static_cast<const BinaryTreePaving&>(*this));
             return snapshot.BinaryTreePaving::superset(box);
         }
     }
@@ -293,12 +296,12 @@ Bool CachedBinaryTreePaving::superset(ExactBoxType const& box) const {
 std::unique_ptr<BinaryTreePaving> CachedBinaryTreePaving::tree_snapshot() const {
     std::lock_guard<std::recursive_mutex> lock(_mutex);
     return std::make_unique<BinaryTreePaving>(
-        static_cast<BinaryTreePaving const&>(*this));
+        static_cast<const BinaryTreePaving&>(*this));
 }
 
 Bool CachedBinaryTreePaving::has_cache() const {
     std::lock_guard<std::recursive_mutex> lock(_mutex);
-    return static_cast<Bool>(_compiled!=nullptr);
+    return static_cast<Bool>(_compiled != nullptr);
 }
 
 std::uint64_t CachedBinaryTreePaving::version() const {
@@ -307,10 +310,10 @@ std::uint64_t CachedBinaryTreePaving::version() const {
 }
 
 SizeType CachedBinaryTreePaving::cached_nodes() const {
-    std::shared_ptr<Compiled const> compiled;
+    std::shared_ptr<const Compiled> compiled;
     {
         std::lock_guard<std::recursive_mutex> lock(_mutex);
-        compiled=_compiled;
+        compiled = _compiled;
     }
     return compiled ? compiled->manager.node_count() : 0u;
 }

@@ -37,13 +37,13 @@ namespace Ariadne {
 //! \details Prepends the primary-cell subdivision path to the cell word.
 //! This operation is independent of the paving representation.
 //! \pre extent >= cell.root_extent().
-BinaryWord cell_path_at_extent(GridCell const& cell, Nat extent);
+BinaryWord cell_path_at_extent(const GridCell& cell, Nat extent);
 
 //! \brief Return the smallest common binary-prefix ancestor of two cells.
 //! \details Aligns both cells at their greater primary-cell extent, then
 //! returns a cell corresponding to their longest common path prefix.
 //! \pre The cells must belong to the same grid.
-GridCell common_root_cell(GridCell const& first, GridCell const& second);
+GridCell common_root_cell(const GridCell& first, const GridCell& second);
 
 //! \brief Return the subdivision path from an ancestor to a descendant.
 //! \details Returns an empty path for geometrically identical cells, even
@@ -51,7 +51,7 @@ GridCell common_root_cell(GridCell const& first, GridCell const& second);
 //! \pre Both cells must belong to the same grid, the ancestor's primary
 //! extent must be no smaller, and the ancestor must contain the descendant.
 BinaryWord relative_cell_path(
-    GridCell const& ancestor, GridCell const& descendant);
+    const GridCell& ancestor, const GridCell& descendant);
 
 } // namespace Ariadne
 

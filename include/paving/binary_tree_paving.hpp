@@ -29,36 +29,30 @@
 #ifndef ARIADNE_PAVING_BINARY_TREE_PAVING_HPP
 #define ARIADNE_PAVING_BINARY_TREE_PAVING_HPP
 
-#include <iostream>
-#include <iomanip>
-#include <string>
-
 #include <functional>
+#include <iomanip>
+#include <iostream>
 #include <memory>
 #include <mutex>
+#include <string>
 #include <type_traits>
 #include <utility>
 
+#include "algebra/vector.hpp"
 #include "foundation/logical.hpp"
-#include "utility/array.hpp"
-#include "utility/iterator.hpp"
-
-#include "utility/binary_word.hpp"
-
-#include "utility/exceptions.hpp"
+#include "function/function.decl.hpp"
 #include "geometry/box.hpp"
 #include "geometry/point.hpp"
-#include "set/list_set.hpp"
-
-#include "numeric/numeric.hpp"
-
 #include "geometry/set_interface.hpp"
-#include "paving/paving_interface.hpp"
-#include "algebra/vector.hpp"
-#include "function/function.decl.hpp"
+#include "numeric/numeric.hpp"
 #include "paving/grid.hpp"
 #include "paving/grid_cell.hpp"
-
+#include "paving/paving_interface.hpp"
+#include "set/list_set.hpp"
+#include "utility/array.hpp"
+#include "utility/binary_word.hpp"
+#include "utility/exceptions.hpp"
+#include "utility/iterator.hpp"
 
 namespace Ariadne {
 
@@ -93,37 +87,37 @@ class BinaryTreePavingCursor;
 class BinaryTreePavingConstIterator;
 
 // Declarations of classes in other files
-template<class BS> class ListSet;
+template<class BS>
+class ListSet;
 
 //! \brief The BinaryTreePavingCursor throws this exception if we try to go beyond the binary tree.
 class NotAllowedMoveException : public std::logic_error {
   public:
-    NotAllowedMoveException(const StringType& str) : std::logic_error(str) { }
+    NotAllowedMoveException(const StringType& str) : std::logic_error(str) {}
 };
-
 
 /** @brief Store or manipulate a paving of grid cells. */
 class BinaryTreeNode;
 
 /** @brief Test the stated geometric property. */
-Bool subset( const GridCell& theCell, const BinaryTreeSubpaving& theSet );
+Bool subset(const GridCell& theCell, const BinaryTreeSubpaving& theSet);
 /** @brief Perform the specified paving operation. */
-Bool intersect( const GridCell& theCell, const BinaryTreeSubpaving& theSet );
+Bool intersect(const GridCell& theCell, const BinaryTreeSubpaving& theSet);
 /** @brief Test the stated geometric property. */
-Bool subset( const BinaryTreeSubpaving& theSet1, const BinaryTreeSubpaving& theSet2 );
+Bool subset(const BinaryTreeSubpaving& theSet1, const BinaryTreeSubpaving& theSet2);
 /** @brief Perform the specified paving operation. */
-BinaryTreePaving join( const BinaryTreeSubpaving& theSet1, const BinaryTreeSubpaving& theSet2 );
+BinaryTreePaving join(const BinaryTreeSubpaving& theSet1, const BinaryTreeSubpaving& theSet2);
 /** @brief Perform the specified paving operation. */
-BinaryTreePaving intersection( const BinaryTreeSubpaving& theSet1, const BinaryTreeSubpaving& theSet2 );
+BinaryTreePaving intersection(const BinaryTreeSubpaving& theSet1, const BinaryTreeSubpaving& theSet2);
 /** @brief Perform the specified paving operation. */
-BinaryTreePaving difference( const BinaryTreeSubpaving& theSet1, const BinaryTreeSubpaving& theSet2 );
+BinaryTreePaving difference(const BinaryTreeSubpaving& theSet1, const BinaryTreeSubpaving& theSet2);
 /** @brief Perform the specified paving operation. */
-Bool intersect( const BinaryTreeSubpaving& theSet1, const BinaryTreeSubpaving& theSet2 );
+Bool intersect(const BinaryTreeSubpaving& theSet1, const BinaryTreeSubpaving& theSet2);
 
 /** @brief Perform the specified paving operation. */
-BinaryTreePaving product( const BinaryTreeSubpaving& theSet1, const BinaryTreeSubpaving& theSet2 );
+BinaryTreePaving product(const BinaryTreeSubpaving& theSet1, const BinaryTreeSubpaving& theSet2);
 /** @brief Perform the specified paving operation. */
-BinaryTreePaving product(GridCell const& cell, BinaryTreeSubpaving const& set);
+BinaryTreePaving product(const GridCell& cell, const BinaryTreeSubpaving& set);
 
 /** @brief Perform the specified paving operation. */
 BinaryTreePaving image(const BinaryTreePaving& theSet, const Projection& theProjection);
@@ -132,27 +126,25 @@ BinaryTreePaving image(const BinaryTreePaving& theSet, const Projection& theProj
 //! this class is just a pointer to the node in the tree of some paving. This class is not
 //! responsible for deallocation of that original tree.
 class BinaryTreeSubpaving
-    : public virtual SubPavingInterface
-{
+    : public virtual SubPavingInterface {
   protected:
-
     friend class BinaryTreePavingCursor;
 
     /** @brief Perform the specified paving operation. */
-    friend BinaryTreePaving outer_approximation( const EffectiveEuclideanCompactSetInterface& theSet, const Grid& theGrid, const Nat numSubdivInDim );
+    friend BinaryTreePaving outer_approximation(const EffectiveEuclideanCompactSetInterface& theSet, const Grid& theGrid, const Nat numSubdivInDim);
     /** @brief Perform the specified paving operation. */
-    friend BinaryTreePaving inner_approximation( const EffectiveEuclideanOpenSetInterface& theSet, const Grid& theGrid, const Nat numSubdivInDim );
+    friend BinaryTreePaving inner_approximation(const EffectiveEuclideanOpenSetInterface& theSet, const Grid& theGrid, const Nat numSubdivInDim);
 
     //! \brief The pointer to the root node of the subpaving tree.
     //! Note that, this is not necessarily the root node of the corresponding paving tree.
-    BinaryTreeNode * _pRootTreeNode;
+    BinaryTreeNode* _pRootTreeNode;
 
     //! \brief The paving cell corresponding to the root node of the SubPaving.*/
     GridCell _theGridCell;
 
     //! \brief this function takes the interval width and computes how many binary subdivisions
     //! one has to make in order to have sub-intervals of the width <= \a theMaxWidth
-    Nat compute_number_subdiv( FloatDP theWidth, const FloatDP theMaxWidth) const;
+    Nat compute_number_subdiv(FloatDP theWidth, const FloatDP theMaxWidth) const;
 
     //! \brief This method checks whether the set defined by \a pCurrentNode is a superset
     //! of \a theBoxType, in case when it is known that the cell corresponding to the root of
@@ -160,16 +152,16 @@ class BinaryTreeSubpaving
     //! this tree is (virtually) rooted via the path theWord] encloses \a theBoxType.
     //! This is a recursive procedure and it returns true only if there are no disabled
     //! cells in \a pCurrentNode that intersect with theBoxType.
-    static ValidatedKleenean _superset( const BinaryTreeNode* pCurrentNode, const Grid& theGrid,
-                                        const Nat theExtent, BinaryWord &theWord, const ExactBoxType& theBoxType );
+    static ValidatedKleenean _superset(const BinaryTreeNode* pCurrentNode, const Grid& theGrid,
+                                       const Nat theExtent, BinaryWord& theWord, const ExactBoxType& theBoxType);
 
     //! \brief This method checks whether the set defined by \a pCurrentNode is a subset
     //! of \a theBoxType. The set of \a pCurrentNode is defined by \a theGrid, the primary
     //! cell (\a theExtent) to which this tree is (virtually) rooted via the path theWord.
     //! This is a recursive procedure and it returns true only if all enabled sub-cells of
     //! \a pCurrentNode are sub-sets of \a theBoxType.
-    static ValidatedKleenean _subset( const BinaryTreeNode* pCurrentNode, const Grid& theGrid,
-                                      const Nat theExtent, BinaryWord &theWord, const ExactBoxType& theBoxType );
+    static ValidatedKleenean _subset(const BinaryTreeNode* pCurrentNode, const Grid& theGrid,
+                                     const Nat theExtent, BinaryWord& theWord, const ExactBoxType& theBoxType);
 
     //! \brief This method checks whether \a theBoxType is disjoint from the set defined by
     //! \a pCurrentNode, \a theGrid, the primary cell (\a theExtent) to which this
@@ -178,8 +170,8 @@ class BinaryTreeSubpaving
     //! down to the leaves. When reaching a leaf node that is enabled we conclude that we
     //! have an intersection. If there are no such nodes then there is no intersection,
     //! and the sets are disjoint.
-    static ValidatedKleenean _disjoint( const BinaryTreeNode* pCurrentNode, const Grid& theGrid,
-                                        const Nat theExtent, BinaryWord &theWord, const ExactBoxType& theBoxType );
+    static ValidatedKleenean _disjoint(const BinaryTreeNode* pCurrentNode, const Grid& theGrid,
+                                       const Nat theExtent, BinaryWord& theWord, const ExactBoxType& theBoxType);
 
     //! \brief This method checks whether \a theBoxType overlaps the set defined by
     //! \a pCurrentNode, \a theGrid, the primary cell (\a theExtent) to which this
@@ -189,8 +181,8 @@ class BinaryTreeSubpaving
     //! have an overlap. If there are no such nodes then there is no overlap. Note that this
     //! method cannot be implemented using disjoint since disjoint tests if the closures
     //! are disjoint, and overlaps tests if the interiors are not disjoint.
-    static ValidatedKleenean _intersects( const BinaryTreeNode* pCurrentNode, const Grid& theGrid,
-                                          const Nat theExtent, BinaryWord &theWord, const ExactBoxType& theBoxType );
+    static ValidatedKleenean _intersects(const BinaryTreeNode* pCurrentNode, const Grid& theGrid,
+                                         const Nat theExtent, BinaryWord& theWord, const ExactBoxType& theBoxType);
 
     //! Allow to convert the number of subdivisions in each dimension, i.e. \a numSubdivInDim,
     //! starting from the zero cell into the number of subdivisions that have to be done in a
@@ -199,11 +191,10 @@ class BinaryTreeSubpaving
     //! Returns zero if the binary tree already has a sufficient number of subdivisions due to
     //! its root cell being smaller than the cells obtained when subdividing \a numSubdivInDim
     //! times in each dimension starting from the zero-cell level.
-    Nat zero_cell_subdivisions_to_tree_subdivisions( const Nat numSubdivInDim, const Nat primaryCellExtent,
-                                                     const Nat primaryToRootCellPathLength ) const;
+    Nat zero_cell_subdivisions_to_tree_subdivisions(const Nat numSubdivInDim, const Nat primaryCellExtent,
+                                                    const Nat primaryToRootCellPathLength) const;
 
   public:
-
     //! \brief A short name for the constant Iterator
     typedef BinaryTreePavingConstIterator ConstIterator;
 
@@ -218,10 +209,10 @@ class BinaryTreeSubpaving
     //! \a theWord defines the path to the \a pRootTreeNode node from the primary root cell
     //! of the corresponding BinaryTreePaving.
     //! \pre pRootTreeNode is non-null and remains alive for this view.
-    BinaryTreeSubpaving( const Grid& theGrid, const Nat theExtent, const BinaryWord& theWord, BinaryTreeNode * pRootTreeNode );
+    BinaryTreeSubpaving(const Grid& theGrid, const Nat theExtent, const BinaryWord& theWord, BinaryTreeNode* pRootTreeNode);
 
     //! \brief A copy constructor that only copies the pointer to the root of the binary tree and the cell
-    BinaryTreeSubpaving( const BinaryTreeSubpaving &otherSubset);
+    BinaryTreeSubpaving(const BinaryTreeSubpaving& otherSubset);
 
     //! \brief Make a dynamically-allocated copy as a BinaryTreePaving.
     virtual BinaryTreeSubpaving* clone() const override;
@@ -248,7 +239,7 @@ class BinaryTreeSubpaving
     virtual const Grid& grid() const override;
 
     //! \brief Returns the const pointer to the root BinaryTreeNode of the SubPaving*/
-    const BinaryTreeNode * binary_tree() const;
+    const BinaryTreeNode* binary_tree() const;
 
     //! Recalculate the depth of the tree rooted at \a _pRootTreeNode
     Nat tree_depth() const;
@@ -294,22 +285,22 @@ class BinaryTreeSubpaving
     //! \a numSubdivInDim is the number of subdivisions in each dimension, and D is the number of dimensions of our space.
     //! Note that, in case the subset is already subdivided to the required depth then nothing is done.
     //! The latter can happen if the root cell of the subset is below the depth ( extent + numSubdivInDim ) * D.
-    virtual Void mince( Nat numSubdivInDim ) override;
+    virtual Void mince(Nat numSubdivInDim) override;
 
     //! \brief Subdivides the set up to the depth specified by the parameter.
     //! Note that the depth is measured from the unit cell and thus the subdivision
     //! is done relative to it but not to the root of the original paving.
-    Void mince_to_depth( const Nat theNewDepth );
+    Void mince_to_depth(const Nat theNewDepth);
 
     //! \brief Subdivides the tree up to the depth specified by the parameter.
     //! Note that, we start from the root of the sub-paving and thus the subdivision
     //! is done relative to it but not to the root of the original paving.
-    Void mince_to_tree_depth( const Nat theNewTreeDepth );
+    Void mince_to_tree_depth(const Nat theNewTreeDepth);
 
     //! \brief Subdivide the paving until the smallest depth such that the leaf
     //! cells size is <= \a theMaxCellWidth. Note that, the disabled cells are
     //! not subdivided.
-    Void subdivide( ApproximateDouble theMaxCellWidth );
+    Void subdivide(ApproximateDouble theMaxCellWidth);
 
     //! \brief Recombines the subdivisions, for instance if all subcells of a cell are
     //! enabled/disabled then they are put together.
@@ -321,27 +312,27 @@ class BinaryTreeSubpaving
     //! \name Geometric Predicates
 
     //! \brief Tests if a cell is a subset of a set.
-    friend Bool subset( const GridCell& theCell, const BinaryTreeSubpaving& theSet );
+    friend Bool subset(const GridCell& theCell, const BinaryTreeSubpaving& theSet);
 
     //! \brief Tests if a cell intersect (as an open set) a paving set.
-    friend Bool intersect( const GridCell& theCell, const BinaryTreeSubpaving& theSet );
+    friend Bool intersect(const GridCell& theCell, const BinaryTreeSubpaving& theSet);
 
     //! \brief Tests if a grid set \a theSet1 is a subset of \a theSet2.
-    friend Bool subset( const BinaryTreeSubpaving& theSet1, const BinaryTreeSubpaving& theSet2 );
+    friend Bool subset(const BinaryTreeSubpaving& theSet1, const BinaryTreeSubpaving& theSet2);
 
     //! \brief Join (make union of) two grid paving sets.
-    friend BinaryTreePaving join( const BinaryTreeSubpaving& theSet1, const BinaryTreeSubpaving& theSet2 );
+    friend BinaryTreePaving join(const BinaryTreeSubpaving& theSet1, const BinaryTreeSubpaving& theSet2);
 
     //! \brief The intersection of two grid paving sets. Points only lying on the
     //! intersection of the boundaries of the two sets are not included in the result.
-    friend BinaryTreePaving intersection( const BinaryTreeSubpaving& theSet1, const BinaryTreeSubpaving& theSet2 );
+    friend BinaryTreePaving intersection(const BinaryTreeSubpaving& theSet1, const BinaryTreeSubpaving& theSet2);
 
     //! \brief The difference of two grid paving sets. (Results in theSet1 minus theSet2)
-    friend BinaryTreePaving difference( const BinaryTreeSubpaving& theSet1, const BinaryTreeSubpaving& theSet2 );
+    friend BinaryTreePaving difference(const BinaryTreeSubpaving& theSet1, const BinaryTreeSubpaving& theSet2);
 
     //! \brief Tests if two grid paving sets intersect (as open sets)
     //! If at least one of the BinaryTreeSubpavings represents an empty set, then the result is false.
-    friend Bool intersect( const BinaryTreeSubpaving& theSet1, const BinaryTreeSubpaving& theSet2 );
+    friend Bool intersect(const BinaryTreeSubpaving& theSet1, const BinaryTreeSubpaving& theSet2);
 
     //! \brief Tests if a grid set equals another paving.
     virtual Bool equals(const SubPavingInterface&) const override;
@@ -353,31 +344,31 @@ class BinaryTreeSubpaving
     virtual Bool intersects(const SubPavingInterface&) const override;
 
     //! \brief Tests if a cell is a subset of the set.
-    virtual Bool superset( const GridCell& theCell) const override;
+    virtual Bool superset(const GridCell& theCell) const override;
 
     //! \brief Tests if a grid set is a subset of a box.
-    Bool subset( const ExactBoxType& theBoxType ) const;
+    Bool subset(const ExactBoxType& theBoxType) const;
 
     //! \brief Tests if a grid set is a superset of a box.
-    Bool superset( const ExactBoxType& theBoxType ) const;
+    Bool superset(const ExactBoxType& theBoxType) const;
 
     //! \brief Tests if a grid set intersects (the interior) of a box.
-    Bool intersects( const ExactBoxType& theBoxType ) const;
+    Bool intersects(const ExactBoxType& theBoxType) const;
 
     //! \brief Tests if a grid set is disjoint from (the interior of) box.
-    Bool disjoint( const ExactBoxType& theBoxType ) const;
+    Bool disjoint(const ExactBoxType& theBoxType) const;
 
     //! \brief Tests if the interior of a grid set is a superset of a box.
-    ValidatedLowerKleenean covers( const ExactBoxType& theBoxType ) const;
+    ValidatedLowerKleenean covers(const ExactBoxType& theBoxType) const;
 
     //! \brief Tests if (the closure of) a grid set is a subset of the interior of box.
-    virtual ValidatedLowerKleenean inside( const ExactBoxType& theBoxType  ) const override;
+    virtual ValidatedLowerKleenean inside(const ExactBoxType& theBoxType) const override;
 
     //! \brief Tests if (the closure of) a grid set is disjoint from (the closure of) a box.
-    virtual ValidatedLowerKleenean separated( const ExactBoxType& theBoxType  ) const override;
+    virtual ValidatedLowerKleenean separated(const ExactBoxType& theBoxType) const override;
 
     //! \brief Tests if a grid set overlaps (intersects the interior of) a box.
-    virtual ValidatedLowerKleenean overlaps( const ExactBoxType& theBoxType ) const override;
+    virtual ValidatedLowerKleenean overlaps(const ExactBoxType& theBoxType) const override;
 
     //!@}
 
@@ -396,7 +387,7 @@ class BinaryTreeSubpaving
     //! \name Conversions
 
     //! \brief An assignment operator that only copies the pointer to the root of the binary tree and the cell
-    BinaryTreeSubpaving& operator=( const BinaryTreeSubpaving &otherSubset);
+    BinaryTreeSubpaving& operator=(const BinaryTreeSubpaving& otherSubset);
 
     //! \brief Convert to a list of ordinary boxes, unrelated to the grid.
     operator ListSet<ExactBoxType>() const;
@@ -420,7 +411,6 @@ class BinaryTreeSubpaving
     virtual ForwardConstantIteratorInterface<GridCell>* _begin() const override;
     /** @brief Perform the specified paving operation. */
     virtual ForwardConstantIteratorInterface<GridCell>* _end() const override;
-
 };
 
 //! \ingroup ListSetSubModule
@@ -441,12 +431,9 @@ class BinaryTreeSubpaving
 //!
 //! \sa GridCell
 class BinaryTreePaving
-    : public virtual PavingInterface
-    , public BinaryTreeSubpaving
-{
-
+    : public virtual PavingInterface,
+      public BinaryTreeSubpaving {
   public:
-
     typedef Grid GridType;
 
     typedef GridCell CellType;
@@ -454,7 +441,6 @@ class BinaryTreePaving
     using PavingInterface::adjoin;
 
   protected:
-
     friend class BinaryTreePavingCursor;
 
     //! \brief This method takes the extent of the primary cell
@@ -472,10 +458,10 @@ class BinaryTreePaving
     //! a leaf node on the path from the primary node of the paving to the primary
     //! node of the cell, we stop locating the node corresponding to the primary
     //! cell of extent \a otherPavingPCellExtent and set \a has_stopped to true.
-    BinaryTreeNode* align_with_cell( const Nat otherPavingPCellExtent, const Bool stop_on_enabled, const Bool stop_on_disabled, Bool & has_stopped );
+    BinaryTreeNode* align_with_cell(const Nat otherPavingPCellExtent, const Bool stop_on_enabled, const Bool stop_on_disabled, Bool& has_stopped);
 
     //! \brief This method adjoins a cell with root extent \a cellExtent with path \a pCellPath to this paving.
-    Void _adjoin_cell( const Nat cellExtent, BinaryWord const& pCellPath );
+    Void _adjoin_cell(const Nat cellExtent, const BinaryWord& pCellPath);
 
     //! \brief This method adjoins the outer approximation of \a theSet (computed on the fly) to this paving.
     //! We use the primary cell (enclosed in this paving) of extent \a primary_cell_hight and represented
@@ -484,11 +470,11 @@ class BinaryTreePaving
     //! of the binary tree we should make to get the proper cells for outer approximating \a theSet.
     //! This method is recursive, the parameter \a pPath defines the path to the current node pBinaryTreeNode
     //! from the root node in recursive calls, thus the initial evaluate for this method must be done with an empty word.
-    static Void _adjoin_outer_approximation( const Grid & theGrid, BinaryTreeNode * pBinaryTreeNode, const Nat primary_cell_extent,
-                                             const Nat max_mince_tree_depth, const EffectiveEuclideanCompactSetInterface& theSet, BinaryWord * pPath,
-                                             const PreparedConstrainedImageSetSeparation* prepared );
-    static Void _adjoin_outer_approximation( const Grid & theGrid, BinaryTreeNode * pBinaryTreeNode, const Nat primary_cell_extent,
-                                             const Nat max_mince_tree_depth, const ValidatedEuclideanCompactSetInterface& theSet, BinaryWord * pPath );
+    static Void _adjoin_outer_approximation(const Grid& theGrid, BinaryTreeNode* pBinaryTreeNode, const Nat primary_cell_extent,
+                                            const Nat max_mince_tree_depth, const EffectiveEuclideanCompactSetInterface& theSet, BinaryWord* pPath,
+                                            const PreparedConstrainedImageSetSeparation* prepared);
+    static Void _adjoin_outer_approximation(const Grid& theGrid, BinaryTreeNode* pBinaryTreeNode, const Nat primary_cell_extent,
+                                            const Nat max_mince_tree_depth, const ValidatedEuclideanCompactSetInterface& theSet, BinaryWord* pPath);
 
     //! \brief This method adjoins the inner approximation of \a theSet (computed on the fly) to this paving.
     //! We use the primary cell (enclosed in this paving) of extent \a primary_cell_extent and represented
@@ -497,8 +483,8 @@ class BinaryTreePaving
     //! of the binary tree we should make to get the proper cells for inner approximating \a theSet.
     //! This method is recursive, the parameter \a pPath defines the path to the current node pBinaryTreeNode
     //! from the root node in recursive calls, thus the initial evaluate for this method must be done with an empty word.
-    static Void _adjoin_inner_approximation( const Grid & theGrid, BinaryTreeNode * pBinaryTreeNode, const Nat primary_cell_extent,
-                                             const Nat max_mince_tree_depth, const EffectiveEuclideanOpenSetInterface& theSet, BinaryWord * pPath );
+    static Void _adjoin_inner_approximation(const Grid& theGrid, BinaryTreeNode* pBinaryTreeNode, const Nat primary_cell_extent,
+                                            const Nat max_mince_tree_depth, const EffectiveEuclideanOpenSetInterface& theSet, BinaryWord* pPath);
 
     //! \brief This method adjoins the lower approximation of \a theSet (computed on the fly) to this paving.
     //! We use the primary cell (enclosed in this paving) of extent \a primary_cell_hight and represented
@@ -509,29 +495,29 @@ class BinaryTreePaving
     //! from the root node in recursive calls, thus the initial evaluate for this method must be done with an empty word.
     //! The approximation method does not recombine cells, as knowing that both children intersect a set is more
     //! information than knowing that the parent does.
-    static Void _adjoin_lower_approximation( const Grid & theGrid, BinaryTreeNode * pBinaryTreeNode, const Nat primary_cell_extent,
-                                             const Nat max_mince_tree_depth, const EffectiveEuclideanOvertSetInterface& theSet, BinaryWord * pPath );
+    static Void _adjoin_lower_approximation(const Grid& theGrid, BinaryTreeNode* pBinaryTreeNode, const Nat primary_cell_extent,
+                                            const Nat max_mince_tree_depth, const EffectiveEuclideanOvertSetInterface& theSet, BinaryWord* pPath);
 
     //! \brief This method adjoins the lower approximation of \a theSet (computed on the fly) to this paving.
     //! It is specialised for open sets, for which we have the superset() operator. If a set is a superset of
     //! a cell, then we know it overlaps the cell and all its children.
-    static Void _adjoin_lower_approximation( const Grid & theGrid, BinaryTreeNode * pBinaryTreeNode, const Nat primary_cell_extent,
-                                             const Nat max_mince_tree_depth, const EffectiveEuclideanOpenSetInterface& theSet, BinaryWord * pPath );
+    static Void _adjoin_lower_approximation(const Grid& theGrid, BinaryTreeNode* pBinaryTreeNode, const Nat primary_cell_extent,
+                                            const Nat max_mince_tree_depth, const EffectiveEuclideanOpenSetInterface& theSet, BinaryWord* pPath);
 
     //! \brief This method is uset to do restriction of this set to the set given by
     //! \a theOtherSubPaving Note that, here we require that the extent of the primary
     //! root cell of this set is >= the extent of the primary root cell of \a theOtherSubPaving.
-    Void restrict_to_lower( const BinaryTreeSubpaving& theOtherSubPaving );
+    Void restrict_to_lower(const BinaryTreeSubpaving& theOtherSubPaving);
 
     //! \brief This method is uset to remove \a theOtherSubPaving from this set.
     //! Note that, here we require that the extent of the primary root cell of
     //! this set is >= the extent of the primary root cell of \a theOtherSubPaving.
-    Void remove_from_lower( const BinaryTreeSubpaving& theOtherSubPaving );
+    Void remove_from_lower(const BinaryTreeSubpaving& theOtherSubPaving);
 
     //! \brief This method changes the primary cell of this BinaryTreePaving.
     //! We only can increase the extent of the primary cell, this is why
     //! if toPCellExtent <= this->cell().extent(), then nothing is done.
-    Void up_to_primary_cell( const Nat toPCellExtent );
+    Void up_to_primary_cell(const Nat toPCellExtent);
 
   public:
     //!@{
@@ -539,47 +525,47 @@ class BinaryTreePaving
 
     //! \brief Create a %BinaryTreePaving based on zero dimensions.
     //! This constructor is needed to use the Boost Serialization library.
-    BinaryTreePaving( );
+    BinaryTreePaving();
 
     //! \brief The new root node can only be constructed from the existing tree node.
     //! Here, \a pRootTreeNode is not copied, we simply store its pointer inside this class.
     //! Note that, \a pRootTreeNode should correspond to the root node. \a theExtent defines
     //! the extent of the primary root cell corresponding to the \a pRootTreeNode node.
-    BinaryTreePaving( const Grid& theGrid, const Nat theExtent, BinaryTreeNode * pRootTreeNode );
+    BinaryTreePaving(const Grid& theGrid, const Nat theExtent, BinaryTreeNode* pRootTreeNode);
 
     //! \brief Construct a grid tree set from a single cell.
-    BinaryTreePaving( const GridCell & theGridCell );
+    BinaryTreePaving(const GridCell& theGridCell);
 
     //! \brief The copy constructor that actually copies all the data,
     //! including the paving tree. I.e. the new copy of the tree is created.
-    BinaryTreePaving( const BinaryTreePaving & theBinaryTreePaving );
+    BinaryTreePaving(const BinaryTreePaving& theBinaryTreePaving);
 
     //! A simple constructor that creates the [0, 1]*...*[0, 1] cell in the
     //! \a theDimension - dimensional space. Here we assume that we have a non scaling
     //! grid with no shift of the coordinates. I.e. Grid._data._origin = {0, ..., 0}
     //! and Grid._data._lengths = {1, ..., 1}. If enable == true then the cell is enabled
-    explicit BinaryTreePaving( const Nat theDimension, const Bool enable = false );
+    explicit BinaryTreePaving(const Nat theDimension, const Bool enable = false);
 
     //! \brief Construct an empty tree. The \a theBoundingBoxType is used to define the lattice
     //! block (in theGrid) that will correspond to the root of the paving tree \a pRootTreeNode.
-    explicit BinaryTreePaving( const Grid& theGrid, const Bool enable = false  );
+    explicit BinaryTreePaving(const Grid& theGrid, const Bool enable = false);
 
     //! \brief Construct an empty tree. The \a theLatticeBoxType is used to define the lattice
     //! block (in theGrid) that will correspond to the root of the paving tree \a pRootTreeNode.
-    explicit BinaryTreePaving( const Grid& theGrid, const ExactBoxType & theLatticeBoxType );
+    explicit BinaryTreePaving(const Grid& theGrid, const ExactBoxType& theLatticeBoxType);
 
     //! \brief Construct the paving based on the block's coordinates, defined by: \a theLeftLowerPoint
     //! and \a theRightUpperPoint. These are the coordinates in the lattice defined by theGrid.
     //! The primary cell, enclosing the given block of cells is computed automatically and the
     //! binary tree is rooted to that cell. The \a theEnabledCells Array defines the enabled/disabled
     //! 0-level cells of the block (lexicographic order).
-    explicit BinaryTreePaving( const Grid& theGrid, const IndexArray theLeftLowerPoint,
-                          const IndexArray theRightUpperPoint, const BooleanArray& theEnabledCells );
+    explicit BinaryTreePaving(const Grid& theGrid, const IndexArray theLeftLowerPoint,
+                              const IndexArray theRightUpperPoint, const BooleanArray& theEnabledCells);
 
     //! \brief Creates a new paving from the user data. \a theTree is an Array representation of the binary
     //! tree structure, \a theEnabledCells tells whether a node is or is not a leaf, \a theExtent gives the
     //! extent of the primary cell which is assumed to correspond to the root node of \a theTree.
-    explicit BinaryTreePaving( const Grid& theGrid, Nat theExtent, const BooleanArray& theTree, const BooleanArray& theEnabledCells );
+    explicit BinaryTreePaving(const Grid& theGrid, Nat theExtent, const BooleanArray& theTree, const BooleanArray& theEnabledCells);
 
     //!@}
 
@@ -590,7 +576,7 @@ class BinaryTreePaving
     //! of the paving. The root extent and tree subdivisions may change.
     //! The copy assignment operator, which copies all the data
     //! including the paving tree if necessary.
-    BinaryTreePaving& operator=( const BinaryTreePaving & theBinaryTreePaving );
+    BinaryTreePaving& operator=(const BinaryTreePaving& theBinaryTreePaving);
 
     //! \brief Return a new dynamically-allocated copy of the %BinaryTreePaving.
     //! In this case, all the data is copied.
@@ -603,9 +589,9 @@ class BinaryTreePaving
     ~BinaryTreePaving() override;
 
     //! Preserve the non-interface overloads provided by BinaryTreeSubpaving.
+    using BinaryTreeSubpaving::intersects;
     using BinaryTreeSubpaving::subset;
     using BinaryTreeSubpaving::superset;
-    using BinaryTreeSubpaving::intersects;
 
     //! \brief Refine the owning tree under its mutex.
     //! \details These methods hide the borrowed BinaryTreeSubpaving variants.
@@ -634,13 +620,13 @@ class BinaryTreePaving
     /** @brief Perform the specified paving operation. */
     Void with_locked_subpaving(Callback&& callback) {
         static_assert(std::is_void_v<std::invoke_result_t<Callback&&, BinaryTreeSubpaving&>>,
-            "A scoped subpaving callback must return void");
+                      "A scoped subpaving callback must return void");
         /** @brief Perform the specified paving operation. */
         std::lock_guard<std::mutex> lock(_adjoin_mutex);
-        BinaryTreeSubpaving view(_theGridCell.grid(),_theGridCell.root_extent(),
-                               _theGridCell.word(),_pRootTreeNode);
+        BinaryTreeSubpaving view(_theGridCell.grid(), _theGridCell.root_extent(),
+                                 _theGridCell.word(), _pRootTreeNode);
         /** @brief Perform the specified paving operation. */
-        std::invoke(std::forward<Callback>(callback),view);
+        std::invoke(std::forward<Callback>(callback), view);
     }
 
     //! \brief Modify a child view while holding the parent paving's mutex.
@@ -653,12 +639,12 @@ class BinaryTreePaving
     /** @brief Perform the specified paving operation. */
     Void with_locked_branch(Bool right, Callback&& callback) {
         static_assert(std::is_void_v<std::invoke_result_t<Callback&&, BinaryTreeSubpaving&>>,
-            "A scoped branch callback must return void");
+                      "A scoped branch callback must return void");
         /** @brief Perform the specified paving operation. */
         std::lock_guard<std::mutex> lock(_adjoin_mutex);
-        BinaryTreeSubpaving view=BinaryTreeSubpaving::branch(right);
+        BinaryTreeSubpaving view = BinaryTreeSubpaving::branch(right);
         /** @brief Perform the specified paving operation. */
-        std::invoke(std::forward<Callback>(callback),view);
+        std::invoke(std::forward<Callback>(callback), view);
     }
 
     //! Explicit overrides resolve the shared SubPavingInterface virtual base.
@@ -690,7 +676,7 @@ class BinaryTreePaving
     /** @brief Perform the specified paving operation. */
     Bool superset(const GridCell& cell) const override;
     /** @brief Perform the specified paving operation. */
-    Bool superset(ExactBoxType const& box) const override {
+    Bool superset(const ExactBoxType& box) const override {
         return BinaryTreeSubpaving::superset(box);
     }
     /** @brief Perform the specified paving operation. */
@@ -717,9 +703,6 @@ class BinaryTreePaving
     ForwardConstantIteratorInterface<GridCell>* _end() const override;
 
   public:
-
-
-
     //!@{
     //! \name Geometric Operations
 
@@ -727,40 +710,40 @@ class BinaryTreePaving
     // a reference to *this, allowing chaining of operations.
 
     //! \brief Clears the set (makes empty set on same grid).
-    Void clear( );
+    Void clear();
 
     //! \brief Adjoin (make inplace union with) a single cell.
-    Void adjoin( const GridCell& theCell ) override;
+    Void adjoin(const GridCell& theCell) override;
     //! \brief Atomically adjoin a batch under one lock (not per cell).
-    Void adjoin(std::vector<GridCell> const& cells) override;
+    Void adjoin(const std::vector<GridCell>& cells) override;
 
     //! \brief Remove a single cell.
-    Void remove( const GridCell& theCell ) override;
+    Void remove(const GridCell& theCell) override;
 
     //! \brief Adjoin (make inplace union with) another grid paving set.
-    Void adjoin( const BinaryTreeSubpaving& theOtherSubPaving );
+    Void adjoin(const BinaryTreeSubpaving& theOtherSubPaving);
 
     //! \brief Restrict atomically against concurrent mutations of this owner.
     //! \details Owning BinaryTreePaving sources are locked jointly. Borrowed
     //! BinaryTreeSubpaving views must remain stable for the whole operation.
     //! \brief Restrict to (make inplace intersection with) another grid paving set.
-    Void restrict( const BinaryTreeSubpaving& theOtherSubPaving );
+    Void restrict(const BinaryTreeSubpaving& theOtherSubPaving);
 
     //! \brief Remove atomically against concurrent mutations of this owner.
     //! \details Owning BinaryTreePaving sources are locked jointly; borrowed
     //! views must remain stable and are not made lifetime-safe by this lock.
     //! \brief Remove cells in another grid paving set.
-    Void remove( const BinaryTreeSubpaving& theOtherSubPaving );
+    Void remove(const BinaryTreeSubpaving& theOtherSubPaving);
 
     //! \brief Adjoin (make inplace union with) an abstract paving set.
-    Void adjoin( const SubPavingInterface& theOtherSubPaving ) override;
+    Void adjoin(const SubPavingInterface& theOtherSubPaving) override;
     //! \brief Restrict to (make inplace intersection with) an abstract paving set.
-    Void restrict( const SubPavingInterface& theOtherSubPaving ) override;
+    Void restrict(const SubPavingInterface& theOtherSubPaving) override;
     //! \brief Remove cells from  an abstract paving set.
-    Void remove( const SubPavingInterface& theOtherSubPaving ) override;
+    Void remove(const SubPavingInterface& theOtherSubPaving) override;
 
     //! \brief Restrict to cells rooted to the primary cell with the extent (at most) \a theExtent.
-    Void restrict_to_extent( const Nat theExtent ) override;
+    Void restrict_to_extent(const Nat theExtent) override;
 
     //! /brief Creates an over approximation for the \a theBoxType on \a theGrid. \a theBoxType
     //! is in the original space coordinates. We compute the over approximation as the
@@ -773,24 +756,24 @@ class BinaryTreePaving
     //! \name Geometric Operations
 
     //! \brief Join (make union of) two grid paving sets.
-    friend BinaryTreePaving join( const BinaryTreeSubpaving& theSet1, const BinaryTreeSubpaving& theSet2 );
+    friend BinaryTreePaving join(const BinaryTreeSubpaving& theSet1, const BinaryTreeSubpaving& theSet2);
 
     //! \brief The intersection of two grid paving sets. Points only lying on the
     //! intersection of the boundaries of the two sets are not included in the result.
-    friend BinaryTreePaving intersection( const BinaryTreeSubpaving& theSet1, const BinaryTreeSubpaving& theSet2 );
+    friend BinaryTreePaving intersection(const BinaryTreeSubpaving& theSet1, const BinaryTreeSubpaving& theSet2);
 
     //! \brief The difference of two grid paving sets. (Results in theSet1 minus theSet2)
-    friend BinaryTreePaving difference( const BinaryTreeSubpaving& theSet1, const BinaryTreeSubpaving& theSet2 );
+    friend BinaryTreePaving difference(const BinaryTreeSubpaving& theSet1, const BinaryTreeSubpaving& theSet2);
 
     //! \brief The Cartesian product of two grid paving sets.
-    friend BinaryTreePaving product( const BinaryTreeSubpaving& theSet1, const BinaryTreeSubpaving& theSet2 );
+    friend BinaryTreePaving product(const BinaryTreeSubpaving& theSet1, const BinaryTreeSubpaving& theSet2);
 
     //! \brief The image of a grid paving set under a coordinate projection.
-    friend BinaryTreePaving image( const BinaryTreePaving&, const Projection&);
+    friend BinaryTreePaving image(const BinaryTreePaving&, const Projection&);
 
     //! \brief Compute an outer-approximation to the set \f$\{ (x_1,f(x_1)) \mid x_1 \in S_1 \}\f$ preserving the projection onto \f$S_1\f$.
-    friend BinaryTreePaving outer_skew_product(BinaryTreePaving const& theSet1, Grid const& theGrid2,
-                                             ValidatedVectorMultivariateFunction const& theFunction);
+    friend BinaryTreePaving outer_skew_product(const BinaryTreePaving& theSet1, const Grid& theGrid2,
+                                               const ValidatedVectorMultivariateFunction& theFunction);
 
     //!@}
 
@@ -801,7 +784,7 @@ class BinaryTreePaving
     //! \a numSubdivInDim -- defines, how many subdivisions in each dimension from the level of
     //! the zero cell we should make to get the proper cells for outer approximating \a theSet.
     //! \pre The box must have nonempty interior.
-    Void adjoin_over_approximation( const ExactBoxType& theBoxType, const Nat numSubdivInDim );
+    Void adjoin_over_approximation(const ExactBoxType& theBoxType, const Nat numSubdivInDim);
 
     //! \brief Adjoin an outer approximation to a given set, computing to the given resolution.
     //! This method computes an outer approximation for the set \a theSet on the grid \a theGrid.
@@ -812,52 +795,52 @@ class BinaryTreePaving
     //!   3. Minces the paving to the level: depth + \<the primary cell extent\>
     //!   4. Iterates through the enabled leaf nodes of the paving (all the nodes are initially enabled)
     //!   5. Disables the cells that are disjoint with the \a theSet
-    Void adjoin_outer_approximation( const ValidatedEuclideanCompactSetInterface& theSet, const Nat numSubdivInDim ) override;
+    Void adjoin_outer_approximation(const ValidatedEuclideanCompactSetInterface& theSet, const Nat numSubdivInDim) override;
     /** @brief Modify the paving or its subdivision. */
-    Void adjoin_outer_approximation( const EffectiveEuclideanCompactSetInterface& theSet, const Nat numSubdivInDim ) override;
+    Void adjoin_outer_approximation(const EffectiveEuclideanCompactSetInterface& theSet, const Nat numSubdivInDim) override;
     /** @brief Modify the paving or its subdivision. */
-    Void adjoin_outer_approximation( const UpperBoxType& theBoxType, const Nat numSubdivInDim ) override;
+    Void adjoin_outer_approximation(const UpperBoxType& theBoxType, const Nat numSubdivInDim) override;
 
     //! \brief Adjoin a lower approximation to a given set, computing to the given extent and resolution:
     //! \a numSubdivInDim -- defines, how many subdivisions in each dimension from the level of the
     //! zero cell we should make to get the proper cells for outer approximating \a theSet.
     //! A lower approximation comprises all cells intersecting a given set.
-    Void adjoin_lower_approximation( const EffectiveEuclideanOvertSetInterface& theSet, const Nat heightInDim, const Nat numSubdivInDim ) override;
+    Void adjoin_lower_approximation(const EffectiveEuclideanOvertSetInterface& theSet, const Nat heightInDim, const Nat numSubdivInDim) override;
 
     //! \brief Adjoin a lower approximation to a given set restricted to the given bounding box,
     //! computing to the given resolution: \a numSubdivInDim -- defines, how many subdivisions in each
     //! dimension from the level of the zero cell we should make to get the proper cells for outer
     //! approximating \a theSet. A lower approximation comprises all cells intersecting a given set.
-    Void adjoin_lower_approximation( const EffectiveEuclideanOvertSetInterface& theSet, const ExactBoxType& bounding_box, const Nat numSubdivInDim );
+    Void adjoin_lower_approximation(const EffectiveEuclideanOvertSetInterface& theSet, const ExactBoxType& bounding_box, const Nat numSubdivInDim);
 
     //! \brief Adjoin a lower approximation to a given set, computing to the given resolution
     //! \a numSubdivInDim -- defines, how many subdivisions in each dimension from the level of the
     //! zero cell we should make to get the proper cells for outer approximating \a theSet.
     //! A lower approximation comprises all cells intersecting a given set.
-    Void adjoin_lower_approximation( const EffectiveEuclideanLocatedSetInterface& theSet, const Nat numSubdivInDim );
+    Void adjoin_lower_approximation(const EffectiveEuclideanLocatedSetInterface& theSet, const Nat numSubdivInDim);
 
     //! \brief Adjoin an inner approximation to a given set, computing to the given extent and resolution:
     //! \a numSubdivInDim -- defines, how many subdivisions in each dimension from the level of the
     //! zero cell we should make to get the proper cells for outer approximating \a theSet.
     //! An inner approximation comprises all cells that are sub-cells of the given set.
-    Void adjoin_inner_approximation( const EffectiveEuclideanOpenSetInterface& theSet, const Nat heightInDim, const Nat numSubdivInDim ) override;
+    Void adjoin_inner_approximation(const EffectiveEuclideanOpenSetInterface& theSet, const Nat heightInDim, const Nat numSubdivInDim) override;
 
     //! \brief Adjoin an inner approximation to a given set restricted to the given bounding box,
     //! computing to the given resolution: \a numSubdivInDim -- defines, how many subdivisions in each
     //! dimension from the level of the zero cell we should make to get the proper cells for outer
     //! approximating \a theSet. An inner approximation comprises all cells that are sub-cells of
     //! the given set.
-    Void adjoin_inner_approximation( const EffectiveEuclideanOpenSetInterface& theSet, const ExactBoxType& bounding_box, const Nat numSubdivInDim );
+    Void adjoin_inner_approximation(const EffectiveEuclideanOpenSetInterface& theSet, const ExactBoxType& bounding_box, const Nat numSubdivInDim);
 
     //! \brief Adjoin an inner approximation to the given set, computing to the given resolution:
     //! \a numSubdivInDim -- defines, how many subdivisions in each
     //! dimension from the level of the zero cell we should make to get the proper cells for outer
     //! approximating \a theSet. An inner approximation comprises all cells that are sub-cells of
     //! the given set.
-    Void adjoin_inner_approximation( const EffectiveEuclideanSetInterface& theSet, const Nat numSubdivInDim ) override;
+    Void adjoin_inner_approximation(const EffectiveEuclideanSetInterface& theSet, const Nat numSubdivInDim) override;
 
     /** @brief Modify the paving or its subdivision. */
-    Void adjoin_inner_approximation( const LowerBoxType& theBoxType, const Nat numSubdivInDim );
+    Void adjoin_inner_approximation(const LowerBoxType& theBoxType, const Nat numSubdivInDim);
     //!@}
 
     //!@{
@@ -874,17 +857,17 @@ class BinaryTreePaving
         std::unique_ptr<BinaryTreeNode> root_tree;
     };
     /** @brief Perform the specified paving operation. */
-    static CopyState _snapshot_copy(BinaryTreePaving const& source);
+    static CopyState _snapshot_copy(const BinaryTreePaving& source);
     /** @brief Construct the object. */
     explicit BinaryTreePaving(CopyState state);
     /** @brief Perform the specified paving operation. */
-    Void _adjoin_unlocked(GridCell const& cell);
+    Void _adjoin_unlocked(const GridCell& cell);
     /** @brief Perform the specified paving operation. */
-    Void _adjoin_unlocked(BinaryTreeSubpaving const& source);
+    Void _adjoin_unlocked(const BinaryTreeSubpaving& source);
     // Source is stable for the duration; owning sources are locked as well.
-    Void _restrict_unlocked(BinaryTreeSubpaving const& source);
+    Void _restrict_unlocked(const BinaryTreeSubpaving& source);
     /** @brief Perform the specified paving operation. */
-    Void _remove_unlocked(BinaryTreeSubpaving const& source);
+    Void _remove_unlocked(const BinaryTreeSubpaving& source);
     mutable std::mutex _adjoin_mutex;
 };
 
@@ -893,52 +876,52 @@ BinaryTreePaving outer_approximation(const ExactBoxType& theBoxType, const Grid&
 /** @brief Perform the specified paving operation. */
 BinaryTreePaving outer_approximation(const ExactBoxType& theBoxType, const Nat fineness);
 /** @brief Perform the specified paving operation. */
-BinaryTreePaving outer_approximation( const EffectiveEuclideanCompactSetInterface& theSet, const Grid& theGrid, const Nat numSubdivInDim );
+BinaryTreePaving outer_approximation(const EffectiveEuclideanCompactSetInterface& theSet, const Grid& theGrid, const Nat numSubdivInDim);
 /** @brief Perform the specified paving operation. */
-BinaryTreePaving outer_approximation( const EffectiveEuclideanCompactSetInterface& theSet, const Nat numSubdivInDim );
+BinaryTreePaving outer_approximation(const EffectiveEuclideanCompactSetInterface& theSet, const Nat numSubdivInDim);
 /** @brief Perform the specified paving operation. */
-BinaryTreePaving outer_approximation( const ValidatedEuclideanCompactSetInterface& theSet, const Grid& theGrid, const Nat numSubdivInDim );
+BinaryTreePaving outer_approximation(const ValidatedEuclideanCompactSetInterface& theSet, const Grid& theGrid, const Nat numSubdivInDim);
 /** @brief Perform the specified paving operation. */
-BinaryTreePaving outer_approximation( const ValidatedEuclideanCompactSetInterface& theSet, const Nat numSubdivInDim );
+BinaryTreePaving outer_approximation(const ValidatedEuclideanCompactSetInterface& theSet, const Nat numSubdivInDim);
 /** @brief Perform the specified paving operation. */
-BinaryTreePaving inner_approximation( const EffectiveEuclideanOpenSetInterface& theSet, const Grid& theGrid, const Nat extent, const Nat numSubdivInDim );
+BinaryTreePaving inner_approximation(const EffectiveEuclideanOpenSetInterface& theSet, const Grid& theGrid, const Nat extent, const Nat numSubdivInDim);
 /** @brief Perform the specified paving operation. */
-BinaryTreePaving inner_approximation( const EffectiveEuclideanOpenSetInterface& theSet, const Grid& theGrid, const ExactBoxType& bounding_box, const Nat numSubdivInDim );
+BinaryTreePaving inner_approximation(const EffectiveEuclideanOpenSetInterface& theSet, const Grid& theGrid, const ExactBoxType& bounding_box, const Nat numSubdivInDim);
 /** @brief Perform the specified paving operation. */
-BinaryTreePaving inner_approximation( const EffectiveEuclideanSetInterface& theSet, const Grid& theGrid, const Nat numSubdivInDim );
+BinaryTreePaving inner_approximation(const EffectiveEuclideanSetInterface& theSet, const Grid& theGrid, const Nat numSubdivInDim);
 
 /** @brief Perform the specified paving operation. */
-template<class BS> BinaryTreePaving outer_approximation(const ListSet<BS>& theSet, const Grid& theGrid, const Nat numSubdivInDim);
-
+template<class BS>
+BinaryTreePaving outer_approximation(const ListSet<BS>& theSet, const Grid& theGrid, const Nat numSubdivInDim);
 
 //! \brief This class represents a cursor/Iterator that can be used to traverse a subtree.
 class BinaryTreePavingCursor {
   private:
-    //The size with which the stack size will be incremented
+    // The size with which the stack size will be incremented
     static const Nat STACK_SIZE_INCREMENT = 256;
 
-    //The index of the top stack element (within the stack Array)
-    //WARNING: the initial value should be -1 to indicate that
-    //there are no elements in the stack
+    // The index of the top stack element (within the stack Array)
+    // WARNING: the initial value should be -1 to indicate that
+    // there are no elements in the stack
     Int _currentStackIndex;
 
     // The nodes traversed to the current location.
     Array<BinaryTreeNode*> _theStack;
 
     // The subpaving to cursor on
-    const BinaryTreeSubpaving * _pSubPaving;
+    const BinaryTreeSubpaving* _pSubPaving;
 
     // The path in _theCurrentGridCell is always current; the geometric box
     // is recomputed only when cell() is requested. A reference from cell()
     // must not be retained across cursor movement.
     mutable GridCell _theCurrentGridCell;
-    mutable Bool _cell_geometry_dirty=false;
+    mutable Bool _cell_geometry_dirty = false;
 
     //! \brief Push the node into the atack
-    Void push( BinaryTreeNode* pLatestNode );
+    Void push(BinaryTreeNode* pLatestNode);
 
     //! \brief Pop the node from the atack, return nullptr is the stack is empty
-    BinaryTreeNode* pop( );
+    BinaryTreeNode* pop();
 
     //! \brief Check is the stack contains just one element, i.e. we are at the root
     Bool is_at_the_root() const;
@@ -946,7 +929,7 @@ class BinaryTreePavingCursor {
     //! \brief this method is supposed to update the _theCurrentGridCell value, when the cursos moves
     //! if left_or_right == false then we go left, if left_or_right == true then right
     //! if left_or_right == indeterminate then we are going one level up.
-    Void updateTheCurrentGridCell( BinaryTreeDirection up_or_left_or_right );
+    Void updateTheCurrentGridCell(BinaryTreeDirection up_or_left_or_right);
 
     /** @brief Perform the specified paving operation. */
     friend OutputStream& operator<<(OutputStream& os, const BinaryTreePavingCursor& theBinaryTreePavingCursor);
@@ -956,15 +939,15 @@ class BinaryTreePavingCursor {
     BinaryTreePavingCursor();
 
     //! \brief The constructor that accepts the subpaving to cursor on
-    BinaryTreePavingCursor(const BinaryTreeSubpaving * pSubPaving);
+    BinaryTreePavingCursor(const BinaryTreeSubpaving* pSubPaving);
 
     //! \brief The simple copy constructor, this constructor copies the pointer to
     //! BinaryTreeSubpaving and thus the internal stack information remains valid.
-    BinaryTreePavingCursor(const BinaryTreePavingCursor & otherCursor);
+    BinaryTreePavingCursor(const BinaryTreePavingCursor& otherCursor);
 
     //! \brief This is an assignment operator that acts similar to the copy
     //! constructor. Here we copy the pointer to underlying BinaryTreeSubpaving.
-    BinaryTreePavingCursor & operator=(const BinaryTreePavingCursor & otherCursor);
+    BinaryTreePavingCursor& operator=(const BinaryTreePavingCursor& otherCursor);
 
     //! This destructor does not deallocate the enclosed sub paving.
     ~BinaryTreePavingCursor();
@@ -1037,9 +1020,8 @@ class BinaryTreePavingCursor {
 //! \brief This class allows to iterate through the enabled leaf nodes of BinaryTreeSubpaving.
 //! The return objects for this Iterator are constant GridCells.
 class BinaryTreePavingConstIterator
-    : public IteratorFacade< BinaryTreePavingConstIterator, GridCell const, ForwardTraversalTag >
-    , public virtual ForwardConstantIteratorInterface<GridCell>
-{
+    : public IteratorFacade<BinaryTreePavingConstIterator, const GridCell, ForwardTraversalTag>,
+      public virtual ForwardConstantIteratorInterface<GridCell> {
   private:
     //! \brief When set to true indicates that this is the "end Iterator"
     Bool _is_in_end_state;
@@ -1048,7 +1030,7 @@ class BinaryTreePavingConstIterator
     // The owning copy outlives the cursor's borrowed node stack.
     // Iterators produced by BinaryTreeSubpaving remain borrowed.
     std::shared_ptr<BinaryTreePaving> _owned_snapshot;
-    BinaryTreePaving const* _snapshot_source = nullptr; // Identity only.
+    const BinaryTreePaving* _snapshot_source = nullptr; // Identity only.
     BinaryTreePavingCursor _pBinaryTreePavingCursor;
 
     friend class IteratorCoreAccess;
@@ -1063,10 +1045,10 @@ class BinaryTreePavingConstIterator
     //! both iterators are in the "end Iterator" state
     //! both iterators are NOT in the "end Iterator" state
     //! and they point to the same node of the same sub paving
-    Bool equal( BinaryTreePavingConstIterator const & theOtherIterator) const;
+    Bool equal(const BinaryTreePavingConstIterator& theOtherIterator) const;
 
     /** @brief Perform the specified paving operation. */
-    virtual GridCell const& dereference() const;
+    virtual const GridCell& dereference() const;
 
     //!@}
 
@@ -1098,22 +1080,21 @@ class BinaryTreePavingConstIterator
     //! The paramerter \a firstLastNone indicatges whether we want to position the Iterator
     //! on the first enabled leaf node (firstLastNone == true) or the last one (firstLastNone == false)
     //! or we are constructing the "end Iterator" that does not point anywhere.
-    explicit BinaryTreePavingConstIterator( const BinaryTreeSubpaving * pSubPaving, const ValidatedKleenean firstLastNone );
+    explicit BinaryTreePavingConstIterator(const BinaryTreeSubpaving* pSubPaving, const ValidatedKleenean firstLastNone);
     //! \brief Iterator retaining a detached snapshot of the owning paving.
     BinaryTreePavingConstIterator(std::shared_ptr<BinaryTreePaving> snapshot,
-                          BinaryTreePaving const* source,
-                          ValidatedKleenean firstLastNone);
+                                  const BinaryTreePaving* source,
+                                  ValidatedKleenean firstLastNone);
 
     //! \brief The copy constructor that copies the current state by copying the
     //! underlying BinaryTreePavingCursor. The latter is copied by it's copy constructor.
-    BinaryTreePavingConstIterator( const BinaryTreePavingConstIterator& theGridPavingIter ) = default;
+    BinaryTreePavingConstIterator(const BinaryTreePavingConstIterator& theGridPavingIter) = default;
 
     //!@}
 
     //! \brief An assignment operator that copies the current state by copying the
     //! underlying BinaryTreePavingCursor. The latter is copied by it's assignment operator.
-    BinaryTreePavingConstIterator & operator=( const BinaryTreePavingConstIterator& theGridPavingIter ) = default;
-
+    BinaryTreePavingConstIterator& operator=(const BinaryTreePavingConstIterator& theGridPavingIter) = default;
 
     //! This destructor only deallocates the BinaryTreePavingCursor, note that the
     //! latter one does not deallocate the enclosed sub paving.
@@ -1123,17 +1104,17 @@ class BinaryTreePavingConstIterator
     //! \name Get the cursor of the Iterator
 
     // This cursor is only needed to get access to enable/disable node functionality
-    BinaryTreePavingCursor const& cursor() const;
+    const BinaryTreePavingCursor& cursor() const;
 
     //!@}
+
   private:
     // Return a dynamically-allocated copy.
     virtual BinaryTreePavingConstIterator* clone() const;
     // Test equality with another abstract iterator.
-    virtual Bool equals( ForwardConstantIteratorInterface<GridCell> const & theOtherIterator) const;
+    virtual Bool equals(const ForwardConstantIteratorInterface<GridCell>& theOtherIterator) const;
     // Write to an output stream.
     virtual OutputStream& _write(OutputStream& os) const;
-
 };
 
 //**************************************Inline functions*********************************************/
@@ -1142,14 +1123,14 @@ class BinaryTreePavingConstIterator
 
 /** @brief Return the requested grid or paving property. */
 inline const GridCell& BinaryTreePavingCursor::cell() const {
-    if(_cell_geometry_dirty) {
+    if (_cell_geometry_dirty) {
         // Construct before assigning so a failed computation leaves dirty
         // state set instead of exposing a half-updated geometric box.
         GridCell updated(_theCurrentGridCell._theGrid,
                          _theCurrentGridCell._theExtent,
                          _theCurrentGridCell._theWord);
-        _theCurrentGridCell=updated;
-        _cell_geometry_dirty=false;
+        _theCurrentGridCell = updated;
+        _cell_geometry_dirty = false;
     }
     return _theCurrentGridCell;
 }
@@ -1157,12 +1138,12 @@ inline const GridCell& BinaryTreePavingCursor::cell() const {
 //***************************************BinaryTreePavingConstIterator************************************/
 
 /** @brief Perform the specified paving operation. */
-inline GridCell const& BinaryTreePavingConstIterator::dereference() const {
+inline const GridCell& BinaryTreePavingConstIterator::dereference() const {
     return _pBinaryTreePavingCursor.cell();
 }
 
 /** @brief Perform the specified paving operation. */
-inline BinaryTreePavingCursor const& BinaryTreePavingConstIterator::cursor() const {
+inline const BinaryTreePavingCursor& BinaryTreePavingConstIterator::cursor() const {
     return _pBinaryTreePavingCursor;
 }
 
@@ -1171,11 +1152,11 @@ inline BinaryTreePavingCursor const& BinaryTreePavingConstIterator::cursor() con
 template<class BS>
 /** @brief Perform the specified paving operation. */
 BinaryTreePaving outer_approximation(const ListSet<BS>& theSet, const Grid& theGrid, const Nat numSubdivInDim) {
-    ARIADNE_ASSERT_MSG( theSet.dimension()==theGrid.dimension(),"theSet="<<theSet<<", theGrid="<<theGrid );
+    ARIADNE_ASSERT_MSG(theSet.dimension() == theGrid.dimension(), "theSet=" << theSet << ", theGrid=" << theGrid);
     /** @brief Perform the specified paving operation. */
-    BinaryTreePaving result( theGrid );
-    for(auto basicSet : theSet) {
-        result.adjoin_outer_approximation( basicSet, numSubdivInDim );
+    BinaryTreePaving result(theGrid);
+    for (auto basicSet: theSet) {
+        result.adjoin_outer_approximation(basicSet, numSubdivInDim);
     }
     result.recombine();
     return result;

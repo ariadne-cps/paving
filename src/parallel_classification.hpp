@@ -29,6 +29,7 @@
 #pragma once
 
 #include <functional>
+
 #include "utility/typedefs.hpp"
 
 namespace Ariadne {
@@ -43,7 +44,7 @@ int require_rounding_mode(int mode);
 // Run disjoint classification jobs and join every worker before returning
 // or propagating an error. A caller-thread failure takes precedence.
 Void run_parallel_classification(SizeType count,
-    std::function<Void(SizeType)> const& classify,ThreadManager& threading);
+                                 const std::function<Void(SizeType)>& classify, ThreadManager& threading);
 
-}
-}
+} // namespace PavingDetail
+} // namespace Ariadne

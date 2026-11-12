@@ -34,9 +34,9 @@
 #include <utility>
 #include <vector>
 
-#include "utility/macros.hpp"
 #include "paving/grid_cell.hpp"
 #include "paving/paving_interface.hpp"
+#include "utility/macros.hpp"
 
 namespace Ariadne {
 
@@ -49,9 +49,9 @@ namespace Ariadne {
 //! detached subpaving snapshot.
 template<class Paving>
 /** @brief Perform the paving operation. */
-Void set_paving_cell(Paving& paving, GridCell const& cell, Bool enabled) {
+Void set_paving_cell(Paving& paving, const GridCell& cell, Bool enabled) {
     ARIADNE_PRECONDITION_MSG(paving.grid() == cell.grid(),
-        "Cannot modify a cell on a different grid");
+                             "Cannot modify a cell on a different grid");
     ARIADNE_PRECONDITION_MSG(
         cell.box().subset(paving.root_cell().box()),
         "The modified cell must be contained in the paving root");
@@ -82,18 +82,18 @@ Void set_paving_cell(Paving& paving, GridCell const& cell, Bool enabled) {
 //! \warning The number of visited cells may be exponential in fineness.
 template<class Visitor>
 Void for_each_enabled_cell_at_fineness(
-        SubPavingInterface const& paving, Nat fineness, Visitor&& visitor) {
-    GridCell root=paving.root_cell();
-    SizeType extent=static_cast<SizeType>(root.root_extent());
-    SizeType requested=static_cast<SizeType>(fineness);
-    SizeType dimensions=static_cast<SizeType>(paving.dimension());
-    SizeType target=PavingDetail::checked_cell_depth(extent,requested,dimensions);
+    const SubPavingInterface& paving, Nat fineness, Visitor&& visitor) {
+    GridCell root = paving.root_cell();
+    SizeType extent = static_cast<SizeType>(root.root_extent());
+    SizeType requested = static_cast<SizeType>(fineness);
+    SizeType dimensions = static_cast<SizeType>(paving.dimension());
+    SizeType target = PavingDetail::checked_cell_depth(extent, requested, dimensions);
 
     std::vector<GridCell> pending;
-    for (auto it=paving.begin(), end=paving.end(); it!=end; ++it) {
+    for (auto it = paving.begin(), end = paving.end(); it != end; ++it) {
         pending.push_back(*it);
         while (not pending.empty()) {
-            GridCell cell=std::move(pending.back());
+            GridCell cell = std::move(pending.back());
             pending.pop_back();
             if (cell.word().size() >= target) {
                 visitor(cell);
@@ -111,9 +111,9 @@ Void for_each_enabled_cell_at_fineness(
 //! at one exact depth or rejects incompatible coarsening before visiting.
 template<class Visitor>
 Void for_each_enabled_cell_at_exact_fineness(
-        SubPavingInterface const& paving, Nat fineness, Visitor&& visitor) {
+    const SubPavingInterface& paving, Nat fineness, Visitor&& visitor) {
     paving.for_each_enabled_cell_at_exact_fineness(
-        fineness,std::forward<Visitor>(visitor));
+        fineness, std::forward<Visitor>(visitor));
 }
 
 //! \brief A snapshot-based iterator over cells clipped to a subpaving view.
@@ -124,11 +124,11 @@ class PavingCellViewIterator final
     : public ForwardConstantIteratorInterface<GridCell> {
   public:
     PavingCellViewIterator(
-            void const* owner, GridCell const& root,
-            std::shared_ptr<std::vector<GridCell> const> cells,
-            Bool past_end)
-        : _owner(owner),_root(root),_cells(std::move(cells)),
-          _position(past_end ? _cells->size() : 0u) { }
+        const void* owner, const GridCell& root,
+        std::shared_ptr<const std::vector<GridCell>> cells,
+        Bool past_end)
+        : _owner(owner), _root(root), _cells(std::move(cells)),
+          _position(past_end ? _cells->size() : 0u) {}
 
     /** @brief Perform the paving operation. */
     PavingCellViewIterator* clone() const override {
@@ -138,42 +138,47 @@ class PavingCellViewIterator final
     /** @brief Perform the paving operation. */
     Void increment() override {
         ARIADNE_PRECONDITION_MSG(_position < _cells->size(),
-            "Cannot advance a past-the-end cell-view iterator");
+                                 "Cannot advance a past-the-end cell-view iterator");
         ++_position;
     }
 
     /** @brief Perform the paving operation. */
-    GridCell const& dereference() const override {
+    const GridCell& dereference() const override {
         ARIADNE_PRECONDITION_MSG(_position < _cells->size(),
-            "Cannot dereference a past-the-end cell-view iterator");
+                                 "Cannot dereference a past-the-end cell-view iterator");
         return (*_cells)[_position];
     }
 
-    Bool equals(ForwardConstantIteratorInterface<GridCell> const& other)
-            const override {
-        auto const* rhs=dynamic_cast<PavingCellViewIterator const*>(&other);
-        if (rhs==nullptr or _owner!=rhs->_owner or _root!=rhs->_root) {
+    Bool equals(const ForwardConstantIteratorInterface<GridCell>& other)
+        const override {
+        const auto* rhs = dynamic_cast<const PavingCellViewIterator*>(&other);
+        if (rhs == nullptr or _owner != rhs->_owner or _root != rhs->_root) {
             return false;
         }
-        Bool ended=_position==_cells->size();
-        Bool other_ended=rhs->_position==rhs->_cells->size();
-        if (ended or other_ended) { return ended and other_ended; }
-        return _position==rhs->_position and
-            (*_cells)[_position]==(*rhs->_cells)[rhs->_position];
+        Bool ended = _position == _cells->size();
+        Bool other_ended = rhs->_position == rhs->_cells->size();
+        if (ended or other_ended) {
+            return ended and other_ended;
+        }
+        return _position == rhs->_position and
+               (*_cells)[_position] == (*rhs->_cells)[rhs->_position];
     }
 
     /** @brief Perform the paving operation. */
     OutputStream& _write(OutputStream& os) const override {
         os << "PavingCellViewIterator(";
-        if (_position==_cells->size()) { os << "end"; }
-        else { os << (*_cells)[_position]; }
+        if (_position == _cells->size()) {
+            os << "end";
+        } else {
+            os << (*_cells)[_position];
+        }
         return os << ")";
     }
 
   private:
-    void const* _owner;
+    const void* _owner;
     GridCell _root;
-    std::shared_ptr<std::vector<GridCell> const> _cells;
+    std::shared_ptr<const std::vector<GridCell>> _cells;
     SizeType _position;
 };
 
@@ -189,25 +194,25 @@ template<class Paving>
 /** @brief PavingCellView supports common cell operations across paving backends. */
 class PavingCellView {
   public:
-    PavingCellView(Paving& paving, GridCell const& root)
+    PavingCellView(Paving& paving, const GridCell& root)
         : _paving(&paving), _root(root) {
         ARIADNE_PRECONDITION_MSG(paving.grid() == root.grid(),
-            "Cannot create a cell view on a different grid");
+                                 "Cannot create a cell view on a different grid");
         ARIADNE_PRECONDITION_MSG(
             root.box().subset(paving.root_cell().box()),
             "The cell view must lie within the owning paving root");
     }
 
-    GridCell const& root_cell() const { return _root; }
-    Grid const& grid() const { return _paving->grid(); }
+    const GridCell& root_cell() const { return _root; }
+    const Grid& grid() const { return _paving->grid(); }
     DimensionType dimension() const { return _root.dimension(); }
 
     //! \brief Test coverage only inside this view's geometric region.
     //! \details An out-of-view cell is not covered, even when the
     //! containing paving has that cell enabled.
-    Bool superset(GridCell const& cell) const {
+    Bool superset(const GridCell& cell) const {
         ARIADNE_PRECONDITION_MSG(grid() == cell.grid(),
-            "Cannot compare a cell view to a different grid");
+                                 "Cannot compare a cell view to a different grid");
         return cell.box().subset(_root.box()) and _paving->superset(cell);
     }
 
@@ -221,7 +226,7 @@ class PavingCellView {
     template<class Visitor>
     /** @brief Perform the paving operation. */
     Void for_each_enabled_leaf(Visitor&& visitor) const {
-        for (auto it=_paving->begin(), end=_paving->end(); it!=end; ++it) {
+        for (auto it = _paving->begin(), end = _paving->end(); it != end; ++it) {
             if (_root.box().subset(it->box())) {
                 visitor(_root);
             } else if (it->box().subset(_root.box())) {
@@ -234,23 +239,23 @@ class PavingCellView {
     //! \details The returned iterator retains the cells it observed at
     //! creation, even if the owner later changes. The owner and view
     //! must not be destroyed during comparisons with fresh iterators.
-    using ConstIterator=ForwardConstantIteratorHandle<GridCell>;
+    using ConstIterator = ForwardConstantIteratorHandle<GridCell>;
 
     /** @brief Return the requested paving property. */
     ConstIterator begin() const {
-        auto cells=std::make_shared<std::vector<GridCell>>();
-        for_each_enabled_leaf([&](GridCell const& cell) {
+        auto cells = std::make_shared<std::vector<GridCell>>();
+        for_each_enabled_leaf([&](const GridCell& cell) {
             cells->push_back(cell);
         });
         return ConstIterator(new PavingCellViewIterator(
-            _paving,_root,cells,false));
+            _paving, _root, cells, false));
     }
 
     /** @brief Return the requested paving property. */
     ConstIterator end() const {
-        auto cells=std::make_shared<std::vector<GridCell>>();
+        auto cells = std::make_shared<std::vector<GridCell>>();
         return ConstIterator(new PavingCellViewIterator(
-            _paving,_root,cells,true));
+            _paving, _root, cells, true));
     }
 
     //! \brief Number of enabled leaves in the restricted region.
@@ -258,9 +263,9 @@ class PavingCellView {
     //! An explicitly minced tree may have more leaves than a canonical
     //! ROBDD representing the same set until the tree is recombined.
     SizeType size() const {
-        SizeType count=0u;
-        for_each_enabled_leaf([&](GridCell const&) {
-            count=PavingDetail::checked_add(count,1u);
+        SizeType count = 0u;
+        for_each_enabled_leaf([&](const GridCell&) {
+            count = PavingDetail::checked_add(count, 1u);
         });
         return count;
     }
@@ -270,20 +275,20 @@ class PavingCellView {
     UpperBoxType bounding_box() const {
         /** @brief Perform the paving operation. */
         UpperBoxType bounds(dimension());
-        Bool found=false;
-        for_each_enabled_leaf([&](GridCell const& cell) {
+        Bool found = false;
+        for_each_enabled_leaf([&](const GridCell& cell) {
             if (not found) {
-                bounds=cell.box();
-                found=true;
+                bounds = cell.box();
+                found = true;
                 return;
             }
-            for (DimensionType i=0u; i<dimension(); ++i) {
+            for (DimensionType i = 0u; i < dimension(); ++i) {
                 if (cell.box()[i].lower_bound().raw() <
-                        bounds[i].lower_bound().raw()) {
+                    bounds[i].lower_bound().raw()) {
                     bounds[i].set_lower_bound(cell.box()[i].lower_bound());
                 }
                 if (cell.box()[i].upper_bound().raw() >
-                        bounds[i].upper_bound().raw()) {
+                    bounds[i].upper_bound().raw()) {
                     bounds[i].set_upper_bound(cell.box()[i].upper_bound());
                 }
             }
@@ -293,50 +298,56 @@ class PavingCellView {
 
     //! \brief Check inclusion using the same narrowed query box as
     //! BinaryTreeSubpaving::inside.
-    ValidatedLowerKleenean inside(ExactBoxType const& box) const {
+    ValidatedLowerKleenean inside(const ExactBoxType& box) const {
         ARIADNE_PRECONDITION_MSG(box.dimension() == dimension(),
-            "View and query-box dimensions must agree");
-        ExactBoxType narrowed=cast_exact_box(narrow(box));
-        Bool contained=true;
-        for_each_enabled_leaf([&](GridCell const& cell) {
-            if (not cell.box().subset(narrowed)) { contained=false; }
+                                 "View and query-box dimensions must agree");
+        ExactBoxType narrowed = cast_exact_box(narrow(box));
+        Bool contained = true;
+        for_each_enabled_leaf([&](const GridCell& cell) {
+            if (not cell.box().subset(narrowed)) {
+                contained = false;
+            }
         });
         return contained;
     }
 
     //! \brief Check separation against the conservatively widened box.
-    ValidatedLowerKleenean separated(ExactBoxType const& box) const {
+    ValidatedLowerKleenean separated(const ExactBoxType& box) const {
         ARIADNE_PRECONDITION_MSG(box.dimension() == dimension(),
-            "View and query-box dimensions must agree");
-        ExactBoxType widened=cast_exact_box(widen(box));
-        Bool disjoint=true;
-        for_each_enabled_leaf([&](GridCell const& cell) {
-            if (cell.box().overlaps(widened)) { disjoint=false; }
+                                 "View and query-box dimensions must agree");
+        ExactBoxType widened = cast_exact_box(widen(box));
+        Bool disjoint = true;
+        for_each_enabled_leaf([&](const GridCell& cell) {
+            if (cell.box().overlaps(widened)) {
+                disjoint = false;
+            }
         });
         return disjoint;
     }
 
     //! \brief Check interior overlap against the narrowed query box.
-    ValidatedLowerKleenean overlaps(ExactBoxType const& box) const {
+    ValidatedLowerKleenean overlaps(const ExactBoxType& box) const {
         ARIADNE_PRECONDITION_MSG(box.dimension() == dimension(),
-            "View and query-box dimensions must agree");
-        ExactBoxType narrowed=cast_exact_box(narrow(box));
-        Bool intersects=false;
-        for_each_enabled_leaf([&](GridCell const& cell) {
-            if (cell.box().overlaps(narrowed)) { intersects=true; }
+                                 "View and query-box dimensions must agree");
+        ExactBoxType narrowed = cast_exact_box(narrow(box));
+        Bool intersects = false;
+        for_each_enabled_leaf([&](const GridCell& cell) {
+            if (cell.box().overlaps(narrowed)) {
+                intersects = true;
+            }
         });
         return intersects;
     }
 
     //! \brief Update the owner at this view's root, not at its entire root.
     Void set_root_cell(Bool enabled) {
-        set_paving_cell(*_paving,_root,enabled);
+        set_paving_cell(*_paving, _root, enabled);
     }
 
     //! \brief Return a nested view of the same owning paving.
     //! \details Changes through either view affect their common owner.
     PavingCellView branch(Bool right) const {
-        return PavingCellView(*_paving,_root.split(right));
+        return PavingCellView(*_paving, _root.split(right));
     }
 
   private:
@@ -347,8 +358,8 @@ class PavingCellView {
 //! \brief Deduce the backend when constructing a mutable cell view.
 template<class Paving>
 PavingCellView<Paving> paving_cell_view(
-        Paving& paving, GridCell const& root) {
-    return PavingCellView<Paving>(paving,root);
+    Paving& paving, const GridCell& root) {
+    return PavingCellView<Paving>(paving, root);
 }
 
 //! \brief Polymorphic bridge for a mutable cell view of a canonical paving.
@@ -363,8 +374,8 @@ template<class Paving>
 /** @brief PavingCellViewAdapter supports common cell operations across paving backends. */
 class PavingCellViewAdapter final : public SubPavingInterface {
   public:
-    PavingCellViewAdapter(Paving& paving, GridCell const& root)
-        : _paving(&paving), _view(paving,root) { }
+    PavingCellViewAdapter(Paving& paving, const GridCell& root)
+        : _paving(&paving), _view(paving, root) {}
 
     /** @brief Perform the paving operation. */
     SubPavingInterface* clone() const override {
@@ -374,29 +385,29 @@ class PavingCellViewAdapter final : public SubPavingInterface {
     //! \brief Expose the concrete owning backend to same-backend dispatch.
     //! \details Allows PavingInterface operations to accept only their own
     //! backend's views, without importing or converting other backends.
-    Paving const& owner() const { return *_paving; }
+    const Paving& owner() const { return *_paving; }
 
     DimensionType dimension() const override { return _view.dimension(); }
-    Grid const& grid() const override { return _view.grid(); }
+    const Grid& grid() const override { return _view.grid(); }
     SizeType size() const override { return _view.size(); }
     GridCell root_cell() const override { return _view.root_cell(); }
     /** @brief Perform the paving operation. */
-    Bool superset(GridCell const& cell) const override {
+    Bool superset(const GridCell& cell) const override {
         return _view.superset(cell);
     }
 
     /** @brief Perform the paving operation. */
-    Bool equals(SubPavingInterface const& other) const override {
+    Bool equals(const SubPavingInterface& other) const override {
         return _paving->subpaving(_view.root_cell()).equals(other);
     }
 
     /** @brief Perform the paving operation. */
-    Bool subset(SubPavingInterface const& other) const override {
+    Bool subset(const SubPavingInterface& other) const override {
         return _paving->subpaving(_view.root_cell()).subset(other);
     }
 
     /** @brief Perform the paving operation. */
-    Bool intersects(SubPavingInterface const& other) const override {
+    Bool intersects(const SubPavingInterface& other) const override {
         return _paving->subpaving(_view.root_cell()).intersects(other);
     }
 
@@ -411,17 +422,17 @@ class PavingCellViewAdapter final : public SubPavingInterface {
     }
 
     /** @brief Perform the paving operation. */
-    ValidatedLowerKleenean inside(ExactBoxType const& box) const override {
+    ValidatedLowerKleenean inside(const ExactBoxType& box) const override {
         return _view.inside(box);
     }
 
     /** @brief Perform the paving operation. */
-    ValidatedLowerKleenean separated(ExactBoxType const& box) const override {
+    ValidatedLowerKleenean separated(const ExactBoxType& box) const override {
         return _view.separated(box);
     }
 
     /** @brief Perform the paving operation. */
-    ValidatedLowerKleenean overlaps(ExactBoxType const& box) const override {
+    ValidatedLowerKleenean overlaps(const ExactBoxType& box) const override {
         return _view.overlaps(box);
     }
 
@@ -443,24 +454,24 @@ class PavingCellViewAdapter final : public SubPavingInterface {
     /** @brief Perform the paving operation. */
     SubPavingInterface* _branch(Bool right) const override {
         return new PavingCellViewAdapter(
-            *_paving,_view.root_cell().split(right));
+            *_paving, _view.root_cell().split(right));
     }
 
     /** @brief Perform the paving operation. */
     ForwardConstantIteratorInterface<GridCell>* _begin() const override {
-        auto cells=std::make_shared<std::vector<GridCell>>();
-        _view.for_each_enabled_leaf([&](GridCell const& cell) {
+        auto cells = std::make_shared<std::vector<GridCell>>();
+        _view.for_each_enabled_leaf([&](const GridCell& cell) {
             cells->push_back(cell);
         });
         return new PavingCellViewIterator(
-            _paving,_view.root_cell(),cells,false);
+            _paving, _view.root_cell(), cells, false);
     }
 
     /** @brief Perform the paving operation. */
     ForwardConstantIteratorInterface<GridCell>* _end() const override {
-        auto cells=std::make_shared<std::vector<GridCell>>();
+        auto cells = std::make_shared<std::vector<GridCell>>();
         return new PavingCellViewIterator(
-            _paving,_view.root_cell(),cells,true);
+            _paving, _view.root_cell(), cells, true);
     }
 
   private:

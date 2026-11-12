@@ -33,37 +33,44 @@
 #include <limits>
 #include <utility>
 #include <vector>
+
 #include "geometry/declarations.hpp"
+#include "geometry/set_interface.hpp"
 #include "paving/grid_cell.hpp"
 #include "paving/paving_arithmetic.hpp"
-#include "geometry/set_interface.hpp"
 
 namespace Ariadne {
-
 
 /** @brief Grid supports abstract interfaces and handles for paving representations. */
 class Grid;
 /** @brief GridCell supports abstract interfaces and handles for paving representations. */
 class GridCell;
 
-#define ARIADNE_ABSTRACT_METHOD { throw std::runtime_error(StringType("ERROR: Unimplemented abstract method ")+ARIADNE_PRETTY_FUNCTION); }
+#define ARIADNE_ABSTRACT_METHOD                                                                                  \
+    {                                                                                                            \
+        throw std::runtime_error(StringType("ERROR: Unimplemented abstract method ") + ARIADNE_PRETTY_FUNCTION); \
+    }
 
 // A continuous predicate taking values in a three-valued logic.
 // NOTE: Corresponds to your SetCheckerInterface; I think that this name is better.
-template<class BS> class PredicateInterface {
+template<class BS>
+class PredicateInterface {
   public:
     /** @brief Perform the paving operation. */
     virtual ValidatedKleenean check(const BS&) = 0;
 };
 
-template<class T> class ForwardConstantIteratorHandle;
+template<class T>
+class ForwardConstantIteratorHandle;
 
-template<class T> class ForwardConstantIteratorInterface
-{
+template<class T>
+class ForwardConstantIteratorInterface {
     friend class ForwardConstantIteratorHandle<T>;
+
   public:
     /** @brief Destroy this object. */
     virtual ~ForwardConstantIteratorInterface() = default;
+
   private:
     /** @brief Perform the paving operation. */
     virtual ForwardConstantIteratorInterface<T>* clone() const = 0;
@@ -75,39 +82,55 @@ template<class T> class ForwardConstantIteratorInterface
     virtual Bool equals(const ForwardConstantIteratorInterface<T>&) const = 0;
     /** @brief Perform the paving operation. */
     virtual OutputStream& _write(OutputStream&) const = 0;
-    friend OutputStream& operator<<(OutputStream& os, const ForwardConstantIteratorInterface<T>& self) { self._write(os); return os; }
+    friend OutputStream& operator<<(OutputStream& os, const ForwardConstantIteratorInterface<T>& self) {
+        self._write(os);
+        return os;
+    }
 };
 
 //! \brief A generic forward Iterator through constant data.
 //! \details Since the Iterator is through constant data, the data may be safely be returned by value rather than by reference,
 //! though this is not strictly standards-conforming, and means that operator->() cannot be provided.
-template<class T> class ForwardConstantIteratorHandle
-{
+template<class T>
+class ForwardConstantIteratorHandle {
     ForwardConstantIteratorInterface<T>* _ptr;
+
   public:
     ~ForwardConstantIteratorHandle() { delete _ptr; }
-    ForwardConstantIteratorHandle(ForwardConstantIteratorInterface<T>* p) : _ptr(p) { }
-    ForwardConstantIteratorHandle(const ForwardConstantIteratorInterface<T>& p) : _ptr(p.clone()) { }
-    ForwardConstantIteratorHandle(const ForwardConstantIteratorHandle<T>& other) : _ptr(other._ptr->clone()) { }
+    ForwardConstantIteratorHandle(ForwardConstantIteratorInterface<T>* p) : _ptr(p) {}
+    ForwardConstantIteratorHandle(const ForwardConstantIteratorInterface<T>& p) : _ptr(p.clone()) {}
+    ForwardConstantIteratorHandle(const ForwardConstantIteratorHandle<T>& other) : _ptr(other._ptr->clone()) {}
     ForwardConstantIteratorHandle<T>& operator=(const ForwardConstantIteratorHandle<T>& other) {
-        if(_ptr!=other._ptr) { auto* copied=other._ptr->clone(); delete _ptr; _ptr=copied; } return *this; }
+        if (_ptr != other._ptr) {
+            auto* copied = other._ptr->clone();
+            delete _ptr;
+            _ptr = copied;
+        }
+        return *this;
+    }
 
     const T& operator*() const { return _ptr->dereference(); }
     const T* operator->() const { return &_ptr->dereference(); }
-    ForwardConstantIteratorHandle<T>& operator++() { _ptr->increment(); return *this; }
-    ForwardConstantIteratorHandle<T> operator++(Int) { ForwardConstantIteratorHandle<T> tmp(*this); this->_ptr->increment(); return tmp; }
+    ForwardConstantIteratorHandle<T>& operator++() {
+        _ptr->increment();
+        return *this;
+    }
+    ForwardConstantIteratorHandle<T> operator++(Int) {
+        ForwardConstantIteratorHandle<T> tmp(*this);
+        this->_ptr->increment();
+        return tmp;
+    }
     Bool operator==(const ForwardConstantIteratorHandle<T>& other) const { return this->_ptr->equals(*other._ptr); }
     Bool operator!=(const ForwardConstantIteratorHandle<T>& other) const { return !this->_ptr->equals(*other._ptr); }
     friend OutputStream& operator<<(OutputStream& os, const ForwardConstantIteratorHandle<T>& self) { return os << *self._ptr; }
-    //friend OutputStream& operator<<(OutputStream& os, const ForwardConstantIteratorHandle<T>& self) { self._ptr->_write(os); return os; }
+    // friend OutputStream& operator<<(OutputStream& os, const ForwardConstantIteratorHandle<T>& self) { self._ptr->_write(os); return os; }
 };
-
 
 //! \brief A prototype interface for sets
 //! \details Since the Iterator is through constant data, the data may be safely be returned by value rather than by reference,
 //! though this is not strictly standards-conforming, and means that operator->() cannot be provided.
-template<class BS> class DenotableSetInterface
-{
+template<class BS>
+class DenotableSetInterface {
   public:
     /** @brief Return the requested paving property. */
     inline ForwardConstantIteratorHandle<BS> begin() const;
@@ -117,6 +140,7 @@ template<class BS> class DenotableSetInterface
     virtual Void adjoin(const BS&) = 0;
     /** @brief Modify the paving representation. */
     virtual Void adjoin(const DenotableSetInterface<BS>&) = 0;
+
   protected:
     /** @brief Perform the paving operation. */
     virtual ForwardConstantIteratorInterface<BS>* _begin() const = 0;
@@ -148,12 +172,13 @@ class SubPavingInterface;
 //! NOTE: Since operations modifying a sub-paving modify the original paving, we need to be careful with constantness, in particular when making copies.
 //! This may be an issue in the branch method or when implementing Handle classes.
 class SubPavingInterface
-    : public virtual LocatedSetInterface<ValidatedTag,RealVector>
-{
+    : public virtual LocatedSetInterface<ValidatedTag, RealVector> {
     friend class SubPaving;
     friend class Paving;
+
   public:
     typedef ForwardConstantIteratorHandle<GridCell> ConstIterator;
+
   public:
     //! \brief A constant Iterator through the cells of the paving.
     inline ForwardConstantIteratorHandle<GridCell> begin() const { return this->_begin(); }
@@ -185,6 +210,7 @@ class SubPavingInterface
     //! which may be larger than a child-view root. Throws if exact
     //! coarsening would alter the set.
     Paving uniform_cell_paving(Nat fineness) const;
+
   public:
     //! \brief A dynamically-allocated copy.
     virtual SubPavingInterface* clone() const = 0;
@@ -218,10 +244,10 @@ class SubPavingInterface
     //! \brief Modify the underlying paving so that the root cell of the subpaving is either enabled or disabled.
     virtual Void set_root_cell(Bool onoff) = 0;
 
-    virtual UpperBoxType bounding_box() const = 0; // Inherited from CompactSetInterface
-    virtual ValidatedLowerKleenean inside(const ExactBoxType& bx) const = 0; // Inherited from CompactSetInterface
+    virtual UpperBoxType bounding_box() const = 0;                              // Inherited from CompactSetInterface
+    virtual ValidatedLowerKleenean inside(const ExactBoxType& bx) const = 0;    // Inherited from CompactSetInterface
     virtual ValidatedLowerKleenean separated(const ExactBoxType& bx) const = 0; // Inherited from ClosedSetInterface
-    virtual ValidatedLowerKleenean overlaps(const ExactBoxType& bx) const = 0; // Inherited from OvertSetInterface
+    virtual ValidatedLowerKleenean overlaps(const ExactBoxType& bx) const = 0;  // Inherited from OvertSetInterface
 
     //! \brief Optional representation refinement preserving the geometric set.
     //! \details Explicit trees split stored enabled leaves, while a reduced
@@ -236,12 +262,14 @@ class SubPavingInterface
     //! sibling geometry. Canonical views may have nothing to recombine.
     //! \note Legacy representation operation, not geometric normalization.
     virtual Void recombine() = 0;
+
   protected:
     virtual SubPavingInterface* _branch(Bool left_or_right) const = 0; // Could also be called "child" or "subpaving"
     /** @brief Perform the paving operation. */
     virtual ForwardConstantIteratorInterface<GridCell>* _begin() const = 0;
     /** @brief Perform the paving operation. */
     virtual ForwardConstantIteratorInterface<GridCell>* _end() const = 0;
+
   private:
     /** @brief Perform the paving operation. */
     virtual OutputStream& _write(OutputStream&) const = 0;
@@ -249,66 +277,70 @@ class SubPavingInterface
 
 template<class Visitor>
 Void SubPavingInterface::for_each_enabled_cell_at_exact_fineness(
-        Nat fineness, Visitor&& visitor) const {
-    const GridCell root=this->root_cell();
-    const SizeType extent=static_cast<SizeType>(root.root_extent());
-    const SizeType requested=static_cast<SizeType>(fineness);
-    const SizeType dimensions=static_cast<SizeType>(this->dimension());
-    const SizeType target=PavingDetail::checked_cell_depth(extent,requested,dimensions);
+    Nat fineness, Visitor&& visitor) const {
+    const GridCell root = this->root_cell();
+    const SizeType extent = static_cast<SizeType>(root.root_extent());
+    const SizeType requested = static_cast<SizeType>(fineness);
+    const SizeType dimensions = static_cast<SizeType>(this->dimension());
+    const SizeType target = PavingDetail::checked_cell_depth(extent, requested, dimensions);
 
     // A non-primary subview may begin below the requested cell size.
     // A nonempty clipped region cannot be represented by a larger
     // target cell without adding geometry outside its own root.
-    if (root.word().size()>target) {
-        ARIADNE_PRECONDITION_MSG(this->begin()==this->end(),
-            "Exact cell fineness is coarser than the nonempty view root");
+    if (root.word().size() > target) {
+        ARIADNE_PRECONDITION_MSG(this->begin() == this->end(),
+                                 "Exact cell fineness is coarser than the nonempty view root");
         return;
     }
 
-    auto ancestor_at_target=[&](GridCell const& cell) {
-        BinaryWord word=cell.word();
-        while (word.size()>target) { word.pop_back(); }
-        return GridCell(cell.grid(),cell.root_extent(),word);
+    auto ancestor_at_target = [&](const GridCell& cell) {
+        BinaryWord word = cell.word();
+        while (word.size() > target) {
+            word.pop_back();
+        }
+        return GridCell(cell.grid(), cell.root_extent(), word);
     };
 
     // Prevalidate all fine cells so that a rejected coarsening does not
     // call the visitor with a partially emitted result. A full target
     // cell can be reconstructed from multiple smaller enabled cells.
-    Bool validated=false;
-    GridCell previous=root;
-    for (auto it=this->begin(), end=this->end(); it!=end; ++it) {
-        if (it->word().size()<=target) { continue; }
-        GridCell parent=ancestor_at_target(*it);
-        if (not validated or parent!=previous) {
+    Bool validated = false;
+    GridCell previous = root;
+    for (auto it = this->begin(), end = this->end(); it != end; ++it) {
+        if (it->word().size() <= target) {
+            continue;
+        }
+        GridCell parent = ancestor_at_target(*it);
+        if (not validated or parent != previous) {
             ARIADNE_PRECONDITION_MSG(this->superset(parent),
-                "Requested exact fineness would discard finer set geometry");
-            previous=parent;
-            validated=true;
+                                     "Requested exact fineness would discard finer set geometry");
+            previous = parent;
+            validated = true;
         }
     }
 
     // Leaf traversal in both backends follows left-to-right depth-first
     // order, so descendants of the same target cell are consecutive.
-    Bool emitted=false;
-    GridCell last=root;
+    Bool emitted = false;
+    GridCell last = root;
     std::vector<GridCell> pending;
-    for (auto it=this->begin(), end=this->end(); it!=end; ++it) {
-        if (it->word().size()>target) {
-            GridCell parent=ancestor_at_target(*it);
-            if (not emitted or parent!=last) {
+    for (auto it = this->begin(), end = this->end(); it != end; ++it) {
+        if (it->word().size() > target) {
+            GridCell parent = ancestor_at_target(*it);
+            if (not emitted or parent != last) {
                 visitor(parent);
-                last=parent;
-                emitted=true;
+                last = parent;
+                emitted = true;
             }
         } else {
             pending.push_back(*it);
             while (not pending.empty()) {
-                GridCell cell=std::move(pending.back());
+                GridCell cell = std::move(pending.back());
                 pending.pop_back();
-                if (cell.word().size()==target) {
+                if (cell.word().size() == target) {
                     visitor(cell);
-                    last=cell;
-                    emitted=true;
+                    last = cell;
+                    emitted = true;
                 } else {
                     pending.push_back(cell.split(true));
                     pending.push_back(cell.split(false));
@@ -326,28 +358,38 @@ inline Bool intersect(const SubPavingInterface& p1, const SubPavingInterface& p2
 //! \brief A generic forward Iterator through constant data.
 //! \details Since the Iterator is through constant data, the data may be safely be returned by value rather than by reference,
 //! though this is not strictly standards-conforming, and means that operator->() cannot be provided.
-class SubPaving
-{
+class SubPaving {
     SubPavingInterface* _ptr;
+
   public:
     typedef ForwardConstantIteratorHandle<GridCell> ConstIterator;
+
   public:
     ~SubPaving() { delete _ptr; }
-    SubPaving(SubPavingInterface* p) : _ptr(p) { }
-    SubPaving(const SubPavingInterface& p) : _ptr(p.clone()) { }
+    SubPaving(SubPavingInterface* p) : _ptr(p) {}
+    SubPaving(const SubPavingInterface& p) : _ptr(p.clone()) {}
     // Copying snapshots a subpaving; moving transfers the live view.
     // This matters for Python value returns: copying would detach the view
     // from its original paving when crossing the binding boundary.
-    SubPaving(const SubPaving& other) : _ptr(other._ptr->clone()) { }
-    SubPaving(SubPaving&& other) noexcept : _ptr(std::exchange(other._ptr,nullptr)) { }
+    SubPaving(const SubPaving& other) : _ptr(other._ptr->clone()) {}
+    SubPaving(SubPaving&& other) noexcept : _ptr(std::exchange(other._ptr, nullptr)) {}
     SubPaving& operator=(const SubPaving& other) {
-        if(_ptr!=other._ptr) { auto* copied=other._ptr->clone(); delete _ptr; _ptr=copied; } return *this; }
-    SubPaving& operator=(SubPaving&& other) noexcept {
-        if(this!=&other) { delete _ptr; _ptr=std::exchange(other._ptr,nullptr); }
+        if (_ptr != other._ptr) {
+            auto* copied = other._ptr->clone();
+            delete _ptr;
+            _ptr = copied;
+        }
         return *this;
     }
-    operator SubPavingInterface& () { return *this->_ptr; }
-    operator const SubPavingInterface& () const { return *this->_ptr; }
+    SubPaving& operator=(SubPaving&& other) noexcept {
+        if (this != &other) {
+            delete _ptr;
+            _ptr = std::exchange(other._ptr, nullptr);
+        }
+        return *this;
+    }
+    operator SubPavingInterface&() { return *this->_ptr; }
+    operator const SubPavingInterface&() const { return *this->_ptr; }
 
     const Grid& grid() const { return this->_ptr->grid(); }
     SizeType size() const { return this->_ptr->size(); }
@@ -373,14 +415,16 @@ class SubPaving
     Void recombine() { this->_ptr->recombine(); }
     template<class Visitor>
     Void for_each_enabled_cell_at_exact_fineness(
-            Nat fineness, Visitor&& visitor) const {
+        Nat fineness, Visitor&& visitor) const {
         this->_ptr->for_each_enabled_cell_at_exact_fineness(
-            fineness,std::forward<Visitor>(visitor));
+            fineness, std::forward<Visitor>(visitor));
     }
     /** @brief Perform the paving operation. */
     Paving uniform_cell_paving(Nat fineness) const;
+
   private:
     OutputStream& _write(OutputStream& os) const { return this->_ptr->_write(os); }
+
   public:
     friend OutputStream& operator<<(OutputStream& os, const SubPaving& self) { return self._write(os); }
 };
@@ -388,19 +432,16 @@ class SubPaving
 inline SubPaving SubPavingInterface::branch(Bool left_or_right) const { return this->_branch(left_or_right); }
 inline SubPaving SubPaving::branch(Bool right) const { return this->_ptr->branch(right); }
 
-
-
 //! \ingroup DiscretisedSetSubModule
 //! \brief A paving, which is a set constructed as a finite union of non-overlapping cells, where the possible cells are obtained by successive subdivision.
 class PavingInterface
-    : public virtual SubPavingInterface
-{
+    : public virtual SubPavingInterface {
   public:
     using SubPavingInterface::superset;
     virtual GridCell smallest_enclosing_primary_cell(const UpperBoxType& bx) const = 0; // Useful query, but can also be implemented at the Grid level.
     virtual Void adjoin_cells(const PredicateInterface<ExactBoxType>&, const Nat) { ARIADNE_ABSTRACT_METHOD; }
     //! Full geometric box coverage, including adjacent enabled cells.
-    virtual Bool superset(ExactBoxType const& box) const = 0;
+    virtual Bool superset(const ExactBoxType& box) const = 0;
     /** @brief Modify the paving representation. */
     virtual Void adjoin_outer_approximation(const EffectiveEuclideanCompactSetInterface& set, const Nat fineness) = 0;
     /** @brief Modify the paving representation. */
@@ -427,38 +468,47 @@ class PavingInterface
     //! concurrent adjoin calls on one destination are serialized and a
     //! complete batch is published under one paving lock. The default loop
     //! is not an atomic batch for third-party backends.
-    virtual Void adjoin(std::vector<GridCell> const& cells) {
-        for(GridCell const& cell:cells) { this->adjoin(cell); }
+    virtual Void adjoin(const std::vector<GridCell>& cells) {
+        for (const GridCell& cell: cells) {
+            this->adjoin(cell);
+        }
     }
     virtual Void remove(const GridCell& cell) = 0; // Deprecated?
 };
 
 //! \ingroup DiscretisedSetSubModule
-class Paving
-{
+class Paving {
     PavingInterface* _ptr;
+
   public:
     typedef ForwardConstantIteratorHandle<GridCell> ConstIterator;
+
   public:
     ~Paving() { delete _ptr; }
-    Paving(PavingInterface* p) : _ptr(p) { }
-    Paving(const SubPavingInterface& p) : _ptr(&dynamic_cast<PavingInterface&>(*p.clone())) { }
-    Paving(const Paving& other) : _ptr(&dynamic_cast<PavingInterface&>(*other._ptr->clone())) { }
+    Paving(PavingInterface* p) : _ptr(p) {}
+    Paving(const SubPavingInterface& p) : _ptr(&dynamic_cast<PavingInterface&>(*p.clone())) {}
+    Paving(const Paving& other) : _ptr(&dynamic_cast<PavingInterface&>(*other._ptr->clone())) {}
     Paving& operator=(const Paving& other) {
-        if(_ptr!=other._ptr) { auto* copied=&dynamic_cast<PavingInterface&>(*other._ptr->clone()); delete _ptr; _ptr=copied; } return *this; }
-    operator PavingInterface& () { return *this->_ptr; }
-    operator const PavingInterface& () const { return *this->_ptr; }
+        if (_ptr != other._ptr) {
+            auto* copied = &dynamic_cast<PavingInterface&>(*other._ptr->clone());
+            delete _ptr;
+            _ptr = copied;
+        }
+        return *this;
+    }
+    operator PavingInterface&() { return *this->_ptr; }
+    operator const PavingInterface&() const { return *this->_ptr; }
 
     const Grid& grid() const { return this->_ptr->grid(); }
     DimensionType dimension() const { return this->_ptr->dimension(); }
-    Bool is_empty() const { return this->_ptr->size()==0u; }
+    Bool is_empty() const { return this->_ptr->size() == 0u; }
     Void clear() { this->_ptr->set_root_cell(false); }
     Void mince(Nat fineness) { this->_ptr->mince(fineness); }
     Void recombine() { this->_ptr->recombine(); }
     SizeType size() const { return this->_ptr->size(); }
     GridCell root_cell() const { return this->_ptr->root_cell(); }
     Bool superset(const GridCell& c) const { return this->_ptr->superset(c); }
-    Bool superset(ExactBoxType const& box) const { return this->_ptr->superset(box); }
+    Bool superset(const ExactBoxType& box) const { return this->_ptr->superset(box); }
     Bool subset(const SubPavingInterface& p) const { return this->_ptr->subset(p); }
     Bool intersects(const SubPavingInterface& p) const { return this->_ptr->intersects(p); }
     Void set_root_cell(Bool onoff) { return this->_ptr->set_root_cell(onoff); }
@@ -471,29 +521,29 @@ class Paving
     ValidatedLowerKleenean separated(const ExactBoxType& bx) const { return this->_ptr->separated(bx); }
     ValidatedLowerKleenean overlaps(const ExactBoxType& bx) const { return this->_ptr->overlaps(bx); }
 
-    //GridCell smallest_enclosing_primary_cell(const ExactBoxType& bx) const { return this->_ptr->smallest_enclosing_primary_cell(); }
-    Void adjoin_cells(const PredicateInterface<ExactBoxType>& predicate, const Nat fineness) { return this->_ptr->adjoin_cells(predicate,fineness); }
-    Void adjoin_outer_approximation(const EffectiveEuclideanCompactSetInterface& set, const Nat fineness) { return this->_ptr->adjoin_outer_approximation(set,fineness); }
-    Void adjoin_outer_approximation(const UpperBoxType& set, Nat fineness) { this->_ptr->adjoin_outer_approximation(set,fineness); }
-    Void adjoin_outer_approximation(const ValidatedEuclideanCompactSetInterface& set, Nat fineness) { this->_ptr->adjoin_outer_approximation(set,fineness); }
-    Void adjoin_lower_approximation(const EffectiveEuclideanOvertSetInterface& set, Nat extent, Nat fineness) { this->_ptr->adjoin_lower_approximation(set,extent,fineness); }
+    // GridCell smallest_enclosing_primary_cell(const ExactBoxType& bx) const { return this->_ptr->smallest_enclosing_primary_cell(); }
+    Void adjoin_cells(const PredicateInterface<ExactBoxType>& predicate, const Nat fineness) { return this->_ptr->adjoin_cells(predicate, fineness); }
+    Void adjoin_outer_approximation(const EffectiveEuclideanCompactSetInterface& set, const Nat fineness) { return this->_ptr->adjoin_outer_approximation(set, fineness); }
+    Void adjoin_outer_approximation(const UpperBoxType& set, Nat fineness) { this->_ptr->adjoin_outer_approximation(set, fineness); }
+    Void adjoin_outer_approximation(const ValidatedEuclideanCompactSetInterface& set, Nat fineness) { this->_ptr->adjoin_outer_approximation(set, fineness); }
+    Void adjoin_lower_approximation(const EffectiveEuclideanOvertSetInterface& set, Nat extent, Nat fineness) { this->_ptr->adjoin_lower_approximation(set, extent, fineness); }
     Void restrict_to_extent(Nat extent) { this->_ptr->restrict_to_extent(extent); }
-    Void adjoin_inner_approximation(const EffectiveEuclideanOpenSetInterface& set, const Nat extent, const Nat fineness) { return this->_ptr->adjoin_inner_approximation(set,extent,fineness); }
-    Void adjoin_inner_approximation(const EffectiveEuclideanSetInterface& set, const Nat fineness) { return this->_ptr->adjoin_inner_approximation(set,fineness); }
+    Void adjoin_inner_approximation(const EffectiveEuclideanOpenSetInterface& set, const Nat extent, const Nat fineness) { return this->_ptr->adjoin_inner_approximation(set, extent, fineness); }
+    Void adjoin_inner_approximation(const EffectiveEuclideanSetInterface& set, const Nat fineness) { return this->_ptr->adjoin_inner_approximation(set, fineness); }
     Void adjoin(const SubPavingInterface& paving) { return this->_ptr->adjoin(paving); }
     Void restrict(const SubPavingInterface& paving) { return this->_ptr->restrict(paving); }
     Void remove(const SubPavingInterface& paving) { return this->_ptr->remove(paving); }
     Void adjoin(const GridCell& cell) { return this->_ptr->adjoin(cell); }
     /** @brief Modify the paving representation. */
-    Void adjoin(std::vector<GridCell> const& cells) {
+    Void adjoin(const std::vector<GridCell>& cells) {
         return this->_ptr->adjoin(cells);
     }
     Void remove(const GridCell& cell) { return this->_ptr->remove(cell); }
     template<class Visitor>
     Void for_each_enabled_cell_at_exact_fineness(
-            Nat fineness, Visitor&& visitor) const {
+        Nat fineness, Visitor&& visitor) const {
         this->_ptr->for_each_enabled_cell_at_exact_fineness(
-            fineness,std::forward<Visitor>(visitor));
+            fineness, std::forward<Visitor>(visitor));
     }
     /** @brief Perform the paving operation. */
     Paving uniform_cell_paving(Nat fineness) const {
@@ -509,20 +559,29 @@ inline Paving SubPaving::uniform_cell_paving(Nat fineness) const {
 
 /** @brief Perform the paving operation. */
 inline Paving join(const SubPavingInterface& p1, const SubPavingInterface& p2) {
-    Paving r(p1); r.adjoin(p2); return r; }
+    Paving r(p1);
+    r.adjoin(p2);
+    return r;
+}
 /** @brief Perform the paving operation. */
 inline Paving geometric_union(const SubPavingInterface& p1, const SubPavingInterface& p2) {
-    Paving r(p1); r.adjoin(p2); return r; }
+    Paving r(p1);
+    r.adjoin(p2);
+    return r;
+}
 /** @brief Perform the paving operation. */
 inline Paving intersection(const SubPavingInterface& p1, const SubPavingInterface& p2) {
-    Paving r(p1); r.restrict(p2); return r; }
+    Paving r(p1);
+    r.restrict(p2);
+    return r;
+}
 /** @brief Perform the paving operation. */
 inline Paving difference(const SubPavingInterface& p1, const SubPavingInterface& p2) {
-    Paving r(p1); r.remove(p2); return r; }
-
-
+    Paving r(p1);
+    r.remove(p2);
+    return r;
+}
 
 } // namespace Ariadne
-
 
 #endif // ARIADNE_PAVING_INTERFACE_HPP

@@ -29,20 +29,21 @@
 #ifndef ARIADNE_PAVING_MODULE_HPP
 #define ARIADNE_PAVING_MODULE_HPP
 
-#include "ariadne-set.hpp"
-#include "ariadne-bdd.hpp"
-#include "tree/binary_tree.hpp"
+#include "paving/augmented_paving.hpp"
+#include "paving/binary_tree_paving.hpp"
+#include "paving/cached_binary_tree_paving.hpp"
 #include "paving/grid.hpp"
 #include "paving/grid_cell.hpp"
 #include "paving/grid_cell_alignment.hpp"
-#include "paving/paving_cell_operations.hpp"
-#include "paving/binary_tree_paving.hpp"
-#include "paving/augmented_paving.hpp"
-#include "paving/robdd_paving.hpp"
-#include "paving/cached_binary_tree_paving.hpp"
 #include "paving/paver.hpp"
 #include "paving/paver_interface.hpp"
+#include "paving/paving_cell_operations.hpp"
 #include "paving/paving_interface.hpp"
+#include "paving/robdd_paving.hpp"
 #include "paving/set_approximation.hpp"
+#include "tree/binary_tree.hpp"
+
+#include "ariadne-bdd.hpp"
+#include "ariadne-set.hpp"
 
 #endif // ARIADNE_PAVING_MODULE_HPP

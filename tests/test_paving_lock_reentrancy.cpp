@@ -26,9 +26,10 @@
  *  @brief Test paving geometry and backend behavior.
  */
 
-#include "ariadne-testing.hpp"
 #include "paving/binary_tree_paving.hpp"
 #include "tree/binary_tree.hpp"
+
+#include "ariadne-testing.hpp"
 
 using namespace Ariadne;
 
@@ -41,9 +42,9 @@ class TestPavingLockReentrancy : public Ariadne::Testing::ContextFixture {
 
     Void test_distinct_owner_restrict() {
         Grid grid(1u);
-        GridCell left(grid,0u,make_binary_word("0"));
-        GridCell right(grid,0u,make_binary_word("1"));
-        BinaryTreePaving destination(grid,false);
+        GridCell left(grid, 0u, make_binary_word("0"));
+        GridCell right(grid, 0u, make_binary_word("1"));
+        BinaryTreePaving destination(grid, false);
         destination.adjoin(left);
         destination.adjoin(right);
         BinaryTreePaving source(left);
@@ -54,20 +55,20 @@ class TestPavingLockReentrancy : public Ariadne::Testing::ContextFixture {
         ARIADNE_TESTING_PROVE(source.superset(left));
 
         // Exercise the virtual SubPavingInterface dispatch as well.
-        BinaryTreePaving through_interface(grid,false);
+        BinaryTreePaving through_interface(grid, false);
         through_interface.adjoin(left);
         through_interface.adjoin(right);
         through_interface.restrict(
-            static_cast<SubPavingInterface const&>(source));
+            static_cast<const SubPavingInterface &>(source));
         ARIADNE_TESTING_PROVE(through_interface.superset(left));
         ARIADNE_TESTING_PROVE(!through_interface.superset(right));
     }
 
     Void test_distinct_owner_remove() {
         Grid grid(1u);
-        GridCell left(grid,0u,make_binary_word("0"));
-        GridCell right(grid,0u,make_binary_word("1"));
-        BinaryTreePaving destination(grid,false);
+        GridCell left(grid, 0u, make_binary_word("0"));
+        GridCell right(grid, 0u, make_binary_word("1"));
+        BinaryTreePaving destination(grid, false);
         destination.adjoin(left);
         destination.adjoin(right);
         BinaryTreePaving source(right);
@@ -77,31 +78,31 @@ class TestPavingLockReentrancy : public Ariadne::Testing::ContextFixture {
         ARIADNE_TESTING_PROVE(!destination.superset(right));
         ARIADNE_TESTING_PROVE(source.superset(right));
 
-        BinaryTreePaving through_interface(grid,false);
+        BinaryTreePaving through_interface(grid, false);
         through_interface.adjoin(left);
         through_interface.adjoin(right);
         through_interface.remove(
-            static_cast<SubPavingInterface const&>(source));
+            static_cast<const SubPavingInterface &>(source));
         ARIADNE_TESTING_PROVE(through_interface.superset(left));
         ARIADNE_TESTING_PROVE(!through_interface.superset(right));
     }
 
     Void test_nonrecursive_is_empty_queries() {
         Grid grid(1u);
-        GridCell cell(grid,0u,make_binary_word("0"));
-        BinaryTreePaving paving(grid,false);
+        GridCell cell(grid, 0u, make_binary_word("0"));
+        BinaryTreePaving paving(grid, false);
         // A single-threaded query previously deadlocked because the locked
         // owner called the base is_empty(), whose virtual size() tried to
         // acquire the same mutex for a second time.
         ARIADNE_TESTING_PROVE(paving.is_empty());
-        ARIADNE_TESTING_PROVE(paving.size()==0u);
+        ARIADNE_TESTING_PROVE(paving.size() == 0u);
 
         paving.adjoin(cell);
         ARIADNE_TESTING_PROVE(!paving.is_empty());
-        ARIADNE_TESTING_PROVE(paving.size()!=0u);
+        ARIADNE_TESTING_PROVE(paving.size() != 0u);
 
         // The base view dispatches to the owner's locked size() exactly once.
-        BinaryTreeSubpaving const& base=paving;
+        const BinaryTreeSubpaving &base = paving;
         ARIADNE_TESTING_PROVE(!base.is_empty());
 
         paving.set_root_cell(false);
@@ -115,50 +116,49 @@ class TestPavingLockReentrancy : public Ariadne::Testing::ContextFixture {
         (void)paving.bounding_box();
     }
 
-
     Void test_restrict_to_extent_does_not_reenter_dimension_lock() {
         // The owner holds its non-recursive mutex throughout extent
         // restriction. Calling this->dimension() there re-entered that
         // mutex after dimension() became a synchronized owner query.
-        for(DimensionType dimensions : {1u,2u,4u}) {
+        for (DimensionType dimensions: {1u, 2u, 4u}) {
             Grid grid(dimensions);
-            BinaryTreePaving paving(grid,2u,new BinaryTreeNode(true));
+            BinaryTreePaving paving(grid, 2u, new BinaryTreeNode(true));
             BinaryTreePaving original(paving);
 
             // The no-op branch preserves structure and membership.
             paving.restrict_to_extent(3u);
-            ARIADNE_TESTING_PROVE(paving==original);
+            ARIADNE_TESTING_PROVE(paving == original);
 
             // The modification branch previously threw std::system_error
             // on MSVC and could hang on other standard libraries.
             paving.restrict_to_extent(1u);
             ARIADNE_TESTING_PROVE(!paving.is_empty());
-            ARIADNE_TESTING_PROVE(paving.root_cell().root_extent()==2u);
+            ARIADNE_TESTING_PROVE(paving.root_cell().root_extent() == 2u);
 
             paving.restrict_to_extent(0u);
             ARIADNE_TESTING_PROVE(!paving.is_empty());
-            ARIADNE_TESTING_PROVE(paving.root_cell().root_extent()==2u);
+            ARIADNE_TESTING_PROVE(paving.root_cell().root_extent() == 2u);
         }
     }
 
     Void test_self_set_operations() {
         Grid grid(1u);
-        GridCell cell(grid,0u,make_binary_word("0"));
+        GridCell cell(grid, 0u, make_binary_word("0"));
         BinaryTreePaving paving(cell);
 
-        paving.restrict(static_cast<SubPavingInterface const&>(paving));
+        paving.restrict(static_cast<const SubPavingInterface &>(paving));
         ARIADNE_TESTING_PROVE(paving.superset(cell));
-        paving.remove(static_cast<SubPavingInterface const&>(paving));
+        paving.remove(static_cast<const SubPavingInterface &>(paving));
         ARIADNE_TESTING_PROVE(!paving.superset(cell));
     }
 };
 
-int main(int argc, char** argv) {
+int main(int argc, char **argv) {
     ARIADNE_TESTING_SUITE("test_paving_lock_reentrancy");
-    ARIADNE_TESTING_ADD_TEST(TestPavingLockReentrancy,test_distinct_owner_restrict);
-    ARIADNE_TESTING_ADD_TEST(TestPavingLockReentrancy,test_distinct_owner_remove);
-    ARIADNE_TESTING_ADD_TEST(TestPavingLockReentrancy,test_self_set_operations);
-    ARIADNE_TESTING_ADD_TEST(TestPavingLockReentrancy,test_nonrecursive_is_empty_queries);
-    ARIADNE_TESTING_ADD_TEST(TestPavingLockReentrancy,test_restrict_to_extent_does_not_reenter_dimension_lock);
-    return ARIADNE_TESTING_RUN_TESTS_WITH_ARGS(argc,argv);
+    ARIADNE_TESTING_ADD_TEST(TestPavingLockReentrancy, test_distinct_owner_restrict);
+    ARIADNE_TESTING_ADD_TEST(TestPavingLockReentrancy, test_distinct_owner_remove);
+    ARIADNE_TESTING_ADD_TEST(TestPavingLockReentrancy, test_self_set_operations);
+    ARIADNE_TESTING_ADD_TEST(TestPavingLockReentrancy, test_nonrecursive_is_empty_queries);
+    ARIADNE_TESTING_ADD_TEST(TestPavingLockReentrancy, test_restrict_to_extent_does_not_reenter_dimension_lock);
+    return ARIADNE_TESTING_RUN_TESTS_WITH_ARGS(argc, argv);
 }
