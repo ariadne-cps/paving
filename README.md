@@ -203,16 +203,17 @@ region. Never rank strategies by elapsed time alone.
 The box-insertion hot path dispatches `ExactBoxSetType` to a
 specialized `BinaryTreePaving` traversal, retaining the general compact
 set's exact separation and coverage predicates, subdivision depth, and
-enabled-cell fast exits. The traversal now propagates each tree node's
-lattice box incrementally instead of reconstructing the cell from its
-complete binary path. The split axis, midpoint calculation, and conversion
-from lattice to physical coordinates match `GridCell` exactly. This
-preserves early exit for enabled branches and never precomputes a batch
-of cells. Other set types continue to use the general implementation.
-Tests compare the specialized box path against an independent
-regular-located-set wrapper using bidirectional exact cell containment,
-including grid-boundary, degenerate, repeated-union, and shifted/scaled
-grid cases.
+enabled-cell fast exits. The traversal propagates each tree node's
+lattice and physical boxes incrementally instead of reconstructing the
+complete binary path or converting all physical coordinates at each node.
+Each split converts only the new boundary along its split axis, using
+the same midpoint and directed floating-point operations as `GridCell`.
+This preserves early exits on already-enabled branches and never
+precomputes a batch of cells. Other set types continue to use the
+general implementation. Tests compare the specialized box path against
+an independent regular-located-set wrapper using bidirectional exact
+cell containment, and verify each incrementally reconstructed physical
+box against `GridCell` across different depths and shifted/scaled grids.
 
 `ConstraintPaver` constructs the joint map/constraint function only
 once per invocation, rather than once per recursive visit. `--diagnostics`

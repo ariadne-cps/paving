@@ -2171,22 +2171,20 @@ Void BinaryTreePaving::_adjoin_cell(const Nat theCellRootExtent, const BinaryWor
 }
 
 // Fast path for exact boxes: preserve the generic tree's enabled-cell
-// early exit and exact separation/coverage decisions. Keep each node's
-// lattice box incrementally instead of reconstructing the entire binary
-// word and its geometry at every recursion level.
+// early exit and exact separation/coverage decisions. Propagate both
+// lattice and physical bounds so each split converts only its one new
+// boundary, rather than rebuilding every coordinate at every node.
 Void BinaryTreePaving::_adjoin_outer_box_approximation(
-    const Grid& grid, BinaryTreeNode* node,
-    const LatticeBoxType& lattice_cell, Nat depth, Nat max_mince_tree_depth,
+    BinaryTreeNode* node, const LatticeBoxType& lattice_cell,
+    const ExactBoxType& physical_cell, const Vector<FloatDP>& origin,
+    const Vector<FloatDP>& lengths, Nat depth, Nat max_mince_tree_depth,
     const ExactBoxType& box, Bool can_prove_cover) {
     if (node->is_enabled())
         return;
 
-    const ExactBoxType cell_box =
-        GridAbstractCell::lattice_box_to_space(lattice_cell, grid);
-    if (definitely(box.separated(cell_box))) {
+    if (definitely(box.separated(physical_cell)))
         return;
-    }
-    if (can_prove_cover && definitely(box.covers(cell_box))) {
+    if (can_prove_cover && definitely(box.covers(physical_cell))) {
         node->make_leaf(true);
         return;
     }
@@ -2198,22 +2196,34 @@ Void BinaryTreePaving::_adjoin_outer_box_approximation(
         return;
     }
 
-    // GridCell::compute_lattice_box uses this same coordinate order,
-    // FloatDP midpoint and cast_exact rounding for each path bit.
-    const SizeType axis = depth % grid.dimension();
-    const FloatDP middle = lattice_cell[axis].midpoint();
-    LatticeBoxType left_cell(lattice_cell);
-    left_cell[axis].set_upper_bound(cast_exact(middle));
-    LatticeBoxType right_cell(lattice_cell);
-    right_cell[axis].set_lower_bound(cast_exact(middle));
+    // Reproduce GridCell::compute_lattice_box's dyadic midpoint and
+    // GridAbstractCell::lattice_box_to_space's coordinate conversion.
+    // Keeping the original endpoints is important on shifted/scaled grids
+    // and when the cell merely touches the box boundary.
+    const SizeType axis = depth % lattice_cell.size();
+    const FloatDP lattice_midpoint = lattice_cell[axis].midpoint();
+    const auto split_value = cast_exact(lattice_midpoint);
+    const FloatDP physical_midpoint =
+        add(approx, origin[axis], mul(approx, lengths[axis], split_value));
+
+    LatticeBoxType left_lattice(lattice_cell);
+    left_lattice[axis].set_upper_bound(split_value);
+    LatticeBoxType right_lattice(lattice_cell);
+    right_lattice[axis].set_lower_bound(split_value);
+
+    const auto physical_split_value = cast_exact(physical_midpoint);
+    ExactBoxType left_physical(physical_cell);
+    left_physical[axis].set_upper_bound(physical_split_value);
+    ExactBoxType right_physical(physical_cell);
+    right_physical[axis].set_lower_bound(physical_split_value);
 
     node->split();
     _adjoin_outer_box_approximation(
-        grid, node->left_node(), left_cell, depth + 1u,
-        max_mince_tree_depth, box, can_prove_cover);
+        node->left_node(), left_lattice, left_physical, origin, lengths,
+        depth + 1u, max_mince_tree_depth, box, can_prove_cover);
     _adjoin_outer_box_approximation(
-        grid, node->right_node(), right_cell, depth + 1u,
-        max_mince_tree_depth, box, can_prove_cover);
+        node->right_node(), right_lattice, right_physical, origin, lengths,
+        depth + 1u, max_mince_tree_depth, box, can_prove_cover);
 }
 
 Void BinaryTreePaving::_adjoin_outer_approximation(const Grid& theGrid, BinaryTreeNode* pBinaryTreeNode, const Nat primary_cell_extent,
@@ -2453,7 +2463,6 @@ Void BinaryTreePaving::adjoin_outer_approximation(const EffectiveEuclideanCompac
         const Nat max_mince_tree_depth = zero_cell_subdivisions_to_tree_subdivisions(numSubdivInDim, outer_approx_primary_cell_extent, 0);
 
         // Adjoin the outer approximation, computing it on the fly.
-        BinaryWord* pEmptyPath = new BinaryWord();
         if (const auto* box = dynamic_cast<const ExactBoxSetType*>(&theSet)) {
             // Preserve the generic path's conditional cover shortcut:
             // only geometrically open sets may certify full coverage.
@@ -2464,18 +2473,21 @@ Void BinaryTreePaving::adjoin_outer_approximation(const EffectiveEuclideanCompac
                 GridAbstractCell::primary_cell_lattice_box(
                     outer_approx_primary_cell_extent,
                     static_cast<dimension_type>(theGrid.dimension()));
+            const ExactBoxType primary_physical_cell =
+                GridAbstractCell::lattice_box_to_space(primary_lattice_cell, theGrid);
+            const Vector<FloatDP> grid_origin(theGrid.origin());
+            const Vector<FloatDP> grid_lengths(theGrid.lengths());
             _adjoin_outer_box_approximation(
-                BinaryTreeSubpaving::_theGridCell.grid(), pBinaryTreeNode,
-                primary_lattice_cell, 0u, max_mince_tree_depth,
+                pBinaryTreeNode, primary_lattice_cell, primary_physical_cell,
+                grid_origin, grid_lengths, 0u, max_mince_tree_depth,
                 static_cast<const ExactBoxType&>(*box), can_prove_cover);
         } else {
+            BinaryWord empty_path;
             _adjoin_outer_approximation(
                 BinaryTreeSubpaving::_theGridCell.grid(), pBinaryTreeNode,
                 outer_approx_primary_cell_extent, max_mince_tree_depth,
-                theSet, pEmptyPath, prepared ? &*prepared : nullptr);
+                theSet, &empty_path, prepared ? &*prepared : nullptr);
         }
-
-        delete pEmptyPath;
     }
 }
 

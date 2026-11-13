@@ -476,8 +476,9 @@ class BinaryTreePaving
     /** @brief Specialized exact-box traversal with the same separated/covers
      *  predicates and depth as the generic effective compact-set path. */
     static Void _adjoin_outer_box_approximation(
-        const Grid& grid, BinaryTreeNode* node,
-        const LatticeBoxType& lattice_cell, Nat depth, Nat max_mince_tree_depth,
+        BinaryTreeNode* node, const LatticeBoxType& lattice_cell,
+        const ExactBoxType& physical_cell, const Vector<FloatDP>& origin,
+        const Vector<FloatDP>& lengths, Nat depth, Nat max_mince_tree_depth,
         const ExactBoxType& box, Bool can_prove_cover);
     static Void _adjoin_outer_approximation(const Grid& theGrid, BinaryTreeNode* pBinaryTreeNode, const Nat primary_cell_extent,
                                             const Nat max_mince_tree_depth, const ValidatedEuclideanCompactSetInterface& theSet, BinaryWord* pPath);

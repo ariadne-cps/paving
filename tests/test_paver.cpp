@@ -27,6 +27,7 @@
  */
 
 #include <sstream>
+#include <vector>
 
 #include "function/taylor_function.hpp"
 #include "logging/logging.hpp"
@@ -191,6 +192,68 @@ class TestPaver : public Ariadne::Testing::ContextFixture {
             for (auto it = reference.begin(), end = reference.end();
                  it != end; ++it)
                 ARIADNE_TESTING_PROVE(fast.superset(*it));
+        }
+    }
+
+    Void test_incremental_physical_box_geometry() {
+        // Compare every propagated node box against GridCell's independent
+        // full-path reconstruction, including depth-dependent split axes,
+        // shifted origins, and nonuniform grid scales.
+        const std::vector<Grid> grids{
+            Grid(1u), Grid(2u), Grid(3u),
+            Grid(Vector<ApproximateDouble>{1.0, -2.0},
+                 Vector<ApproximateDouble>{0.5, 2.0}),
+            Grid(Vector<ApproximateDouble>{0.125, -1.5, 4.0},
+                 Vector<ApproximateDouble>{0.25, 0.75, 2.0})
+        };
+        struct CellGeometry {
+            BinaryWord word;
+            LatticeBoxType lattice;
+            ExactBoxType physical;
+        };
+        for (const Grid& grid: grids) {
+            const Vector<FloatDP> origin(grid.origin());
+            const Vector<FloatDP> lengths(grid.lengths());
+            for (Nat extent: {0u, 1u, 2u}) {
+                const auto root_lattice = GridAbstractCell::primary_cell_lattice_box(
+                    extent, static_cast<dimension_type>(grid.dimension()));
+                const auto root_physical =
+                    GridAbstractCell::lattice_box_to_space(root_lattice, grid);
+                std::vector<CellGeometry> frontier{
+                    {BinaryWord{}, root_lattice, root_physical}
+                };
+                for (Nat depth = 0u; depth <= 9u; ++depth) {
+                    std::vector<CellGeometry> next;
+                    if (depth != 9u)
+                        next.reserve(frontier.size() * 2u);
+                    for (const CellGeometry& candidate: frontier) {
+                        const ExactBoxType expected =
+                            GridCell(grid, extent, candidate.word).box();
+                        ARIADNE_TESTING_PROVE(same(candidate.physical, expected));
+                        if (depth == 9u)
+                            continue;
+                        const SizeType axis = depth % grid.dimension();
+                        const auto lattice_midpoint =
+                            cast_exact(candidate.lattice[axis].midpoint());
+                        const auto physical_midpoint = cast_exact(
+                            add(approx, origin[axis],
+                                mul(approx, lengths[axis], lattice_midpoint)));
+
+                        CellGeometry left(candidate);
+                        left.word.push_back(false);
+                        left.lattice[axis].set_upper_bound(lattice_midpoint);
+                        left.physical[axis].set_upper_bound(physical_midpoint);
+                        next.push_back(std::move(left));
+
+                        CellGeometry right(candidate);
+                        right.word.push_back(true);
+                        right.lattice[axis].set_lower_bound(lattice_midpoint);
+                        right.physical[axis].set_lower_bound(physical_midpoint);
+                        next.push_back(std::move(right));
+                    }
+                    frontier = std::move(next);
+                }
+            }
         }
     }
 
@@ -473,6 +536,7 @@ int main(int argc, char** argv) {
     ARIADNE_TESTING_ADD_TEST(TestPaver, test_instrumented_pavers);
     ARIADNE_TESTING_ADD_TEST(TestPaver, test_exact_box_fast_path);
     ARIADNE_TESTING_ADD_TEST(TestPaver, test_incremental_box_traversal_scaled_grid);
+    ARIADNE_TESTING_ADD_TEST(TestPaver, test_incremental_physical_box_geometry);
     ARIADNE_TESTING_ADD_TEST(TestPaver, test_nonlinear_pavers);
     return ARIADNE_TESTING_RUN_TESTS_WITH_ARGS(argc, argv);
 }
