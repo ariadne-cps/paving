@@ -235,6 +235,15 @@ Their total is the original `Reductions` count and aggregate
 contractor time. These refinements do not change the algorithms'
 acceptance or subdivision criteria.
 
+The `SubdivisionPaver` sensitivity kernel computes the same Jacobian
+and applies the same per-entry interval conversion, column summation,
+radius weighting, and strict maximum comparison as the general
+`lipschitz_index_and_error` implementation in Set. It accumulates the
+column norms directly from the validated Jacobian instead of allocating
+a second full upper-interval matrix. Its splitting decisions and
+error estimates are checked against the original implementation on
+affine, nonlinear, constant, and degenerate-domain inputs.
+
 Optional `--diagnostics` adds a separate **untimed** pass for
 `SubdivisionPaver`, `ReducePaver` and `ConstraintPaver`. It records
 recursive visits, parameter and cell splits, map and constraint
