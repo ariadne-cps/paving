@@ -38,17 +38,6 @@
 #include "ariadne-testing.hpp"
 using namespace Ariadne;
 
-// Internal optimized sensitivity kernel. The comparison test below checks
-// exact agreement with the existing Set implementation on every call.
-namespace Ariadne::SubdivisionPaverDetail {
-Pair<SizeType, FloatDPError> lipschitz_index_and_error_direct(
-    const ValidatedVectorMultivariateFunction&, const ExactBoxType&);
-}
-namespace Ariadne {
-Pair<SizeType, FloatDPError> lipschitz_index_and_error(
-    const ValidatedVectorMultivariateFunction&, const ExactBoxType&);
-}
-
 // Keep the generic geometric-set dispatch reachable as an independent
 // reference for checking the specialized ExactBoxSetType fast path.
 class ReferenceBoxSet : public virtual EffectiveEuclideanRegularLocatedSetInterface {
@@ -469,47 +458,6 @@ class TestPaver : public Ariadne::Testing::ContextFixture {
         }
     }
 
-    Void test_subdivision_lipschitz_exact_equivalence() {
-        // The optimized implementation must select exactly the same axis
-        // and return the same bound as the general sensitivity kernel,
-        // including ties, zero derivatives, and point domains.
-        auto check = [&](const ValidatedVectorMultivariateFunction& f,
-                         const ExactBoxType& domain) {
-            const auto reference = Ariadne::lipschitz_index_and_error(f, domain);
-            const auto optimized =
-                SubdivisionPaverDetail::lipschitz_index_and_error_direct(f, domain);
-            ARIADNE_TESTING_EXPECT_EQUAL(optimized.first, reference.first);
-            ARIADNE_TESTING_EXPECT_EQUAL(optimized.second.raw(), reference.second.raw());
-        };
-
-        auto x = ValidatedScalarMultivariateFunction::coordinate(2u, 0u);
-        auto y = ValidatedScalarMultivariateFunction::coordinate(2u, 1u);
-        const ValidatedVectorMultivariateFunction affine({x + 2 * y, 3 * y});
-        const ValidatedVectorMultivariateFunction nonlinear({x * x + y, x * y + y * y});
-        const auto constant = ValidatedVectorMultivariateFunction::zeros(2u, 2u);
-
-        const ExactBoxType domains[] = {
-            ExactBoxType{{-1.0_x, 1.0_x}, {-2.0_x, 2.0_x}},
-            ExactBoxType{{0.125_x, 0.375_x}, {0.5_x, 0.5_x}},
-            ExactBoxType{{-0.25_x, 0.25_x}, {-0.25_x, 0.25_x}},
-            ExactBoxType{{0.0_x, 0.0_x}, {0.0_x, 0.0_x}}
-        };
-        for (const auto& domain: domains) {
-            check(affine, domain);
-            check(nonlinear, domain);
-            check(constant, domain);
-        }
-
-        auto a = ValidatedScalarMultivariateFunction::coordinate(3u, 0u);
-        auto b = ValidatedScalarMultivariateFunction::coordinate(3u, 1u);
-        auto c = ValidatedScalarMultivariateFunction::coordinate(3u, 2u);
-        const ValidatedVectorMultivariateFunction mixed({a + b, a * b + c * c, 3 * c});
-        check(mixed, ExactBoxType{
-            {-1.0_x, 1.0_x}, {0.25_x, 0.75_x}, {-2.0_x, 2.0_x}});
-        check(mixed, ExactBoxType{
-            {0.0_x, 0.0_x}, {-0.25_x, 0.25_x}, {0.5_x, 0.5_x}});
-    }
-
     Void test_instrumented_pavers() {
         auto x = EffectiveScalarMultivariateFunction::coordinate(1u, 0u);
         ValidatedVectorMultivariateFunction identity({x});
@@ -798,7 +746,6 @@ int main(int argc, char** argv) {
     ARIADNE_TESTING_ADD_TEST(TestPaver, test_incremental_physical_box_geometry);
     ARIADNE_TESTING_ADD_TEST(TestPaver, test_inplace_box_geometry_restoration);
     ARIADNE_TESTING_ADD_TEST(TestPaver, test_incremental_exact_box_classification);
-    ARIADNE_TESTING_ADD_TEST(TestPaver, test_subdivision_lipschitz_exact_equivalence);
     ARIADNE_TESTING_ADD_TEST(TestPaver, test_pruned_exact_box_subtrees);
     ARIADNE_TESTING_ADD_TEST(TestPaver, test_nonlinear_pavers);
     return ARIADNE_TESTING_RUN_TESTS_WITH_ARGS(argc, argv);

@@ -57,35 +57,6 @@ inline Pair<SizeType, FloatDPError> lipschitz_index_and_error(const ValidatedVec
     return lipschitz_index_and_error(function, cast_exact_box(domain));
 }
 
-// Equivalent to the general sensitivity calculation in Set, but avoid
-// materializing a second Jacobian matrix of UpperIntervalType. Preserve
-// singleton conversion, per-entry make_interval, summation order, and
-// strict max comparison to obtain exactly the same selected split axis.
-namespace SubdivisionPaverDetail {
-Pair<SizeType, FloatDPError> lipschitz_index_and_error_direct(
-    const ValidatedVectorMultivariateFunction& function, const ExactBoxType& domain) {
-    const auto upper_domain = cast_vector(domain);
-    Vector<FloatDPBounds> singleton_domain(upper_domain.size(), FloatDPBounds(dp));
-    for (SizeType i = 0u; i != upper_domain.size(); ++i)
-        singleton_domain[i] = cast_singleton(upper_domain[i]);
-
-    const auto jacobian = Ariadne::jacobian(function, singleton_domain);
-    SizeType jmax = domain.size();
-    FloatDPError max_column_norm(0u, dp);
-    for (SizeType j = 0u; j != domain.size(); ++j) {
-        FloatDPError column_norm(0u, dp);
-        for (SizeType i = 0u; i != function.result_size(); ++i)
-            column_norm += mag(make_interval(jacobian.get(i, j)));
-        column_norm *= domain[j].radius().upper();
-        if (column_norm.raw() > max_column_norm.raw()) {
-            max_column_norm = column_norm;
-            jmax = j;
-        }
-    }
-    return make_pair(jmax, max_column_norm);
-}
-} // namespace SubdivisionPaverDetail
-
 namespace {
 
 // Time only the operation itself, in the explicitly instrumented replay.
@@ -249,7 +220,7 @@ Void SubdivisionPaver::_adjoin_outer_approximation_recursion(
             ++diagnostics->sensitivity_evaluations;
         const auto sensitivity = profile_paver_operation(
             diagnostics, &PaverDiagnostics::sensitivity_ns,
-            [&] { return SubdivisionPaverDetail::lipschitz_index_and_error_direct(function, subdomain); });
+            [&] { return lipschitz_index_and_error(function, subdomain); });
         FloatDP minimum_error = max_errors[0];
         for (SizeType i = 1u; i != max_errors.size(); ++i) {
             minimum_error = min(minimum_error, max_errors[i]);
