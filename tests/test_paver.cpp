@@ -145,6 +145,54 @@ class TestPaver : public Ariadne::Testing::ContextFixture {
         }
     }
 
+    Void test_batched_outer_boxes() {
+        // An independent generic-set reference checks exact boundary behavior
+        // as well as unions across different primary extents.
+        const ExactIntervalType intervals[] = {
+            ExactIntervalType(0.25_x, 0.75_x),
+            ExactIntervalType(0.5_x, 0.5_x),
+            ExactIntervalType(-0.25_x, 1.25_x),
+            ExactIntervalType(0.125_x, 0.375_x)
+        };
+        for (unsigned dimension = 1u; dimension <= 3u; ++dimension) {
+            const Grid grid(dimension);
+            std::vector<ExactBoxType> boxes;
+            for (const ExactIntervalType& interval: intervals)
+                boxes.emplace_back(dimension, interval);
+            // Include duplicate and nested boxes to test deduplication.
+            boxes.push_back(boxes[0]);
+            boxes.push_back(boxes[3]);
+            for (unsigned fineness: {0u, 1u, 2u}) {
+                BinaryTreePaving batched(grid), sequential(grid);
+                batched.adjoin_outer_approximations(boxes, fineness);
+                for (const ExactBoxType& box: boxes) {
+                    const ReferenceBoxSet reference(box);
+                    sequential.adjoin_outer_approximation(
+                        static_cast<const EffectiveEuclideanCompactSetInterface&>(reference),
+                        fineness);
+                }
+                for (auto it = batched.begin(), end = batched.end(); it != end; ++it)
+                    ARIADNE_TESTING_PROVE(sequential.superset(*it));
+                for (auto it = sequential.begin(), end = sequential.end();
+                     it != end; ++it)
+                    ARIADNE_TESTING_PROVE(batched.superset(*it));
+
+                batched.adjoin_outer_approximations({}, fineness);
+                batched.adjoin_outer_approximations(boxes, fineness);
+                for (auto it = batched.begin(), end = batched.end(); it != end; ++it)
+                    ARIADNE_TESTING_PROVE(sequential.superset(*it));
+                for (auto it = sequential.begin(), end = sequential.end();
+                     it != end; ++it)
+                    ARIADNE_TESTING_PROVE(batched.superset(*it));
+            }
+        }
+        // Reject inconsistent dimensions before changing the paving.
+        BinaryTreePaving wrong(Grid(2u));
+        const std::vector<ExactBoxType> boxes{ExactBoxType{{0.0_x, 1.0_x}}};
+        ARIADNE_TESTING_EXPECT_EXCEPTION(wrong.adjoin_outer_approximations(boxes, 1u));
+        ARIADNE_TESTING_PROVE(wrong.is_empty());
+    }
+
     Void test_instrumented_pavers() {
         auto x = EffectiveScalarMultivariateFunction::coordinate(1u, 0u);
         ValidatedVectorMultivariateFunction identity({x});
@@ -423,6 +471,7 @@ int main(int argc, char** argv) {
     ARIADNE_TESTING_ADD_TEST(TestPaver, test_paver_strategies);
     ARIADNE_TESTING_ADD_TEST(TestPaver, test_instrumented_pavers);
     ARIADNE_TESTING_ADD_TEST(TestPaver, test_exact_box_fast_path);
+    ARIADNE_TESTING_ADD_TEST(TestPaver, test_batched_outer_boxes);
     ARIADNE_TESTING_ADD_TEST(TestPaver, test_nonlinear_pavers);
     return ARIADNE_TESTING_RUN_TESTS_WITH_ARGS(argc, argv);
 }

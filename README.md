@@ -200,11 +200,18 @@ containment or incomparability). Geometry construction, recombination,
 result verification and pairwise comparisons are **outside** the timed
 region. Never rank strategies by elapsed time alone.
 
-The box-insertion hot path now dispatches `ExactBoxSetType` to a
+The box-insertion hot path dispatches `ExactBoxSetType` to a
 specialized `BinaryTreePaving` traversal, retaining the general compact
-set's exact separation and coverage predicates, subdivision depth, and
-enabled-cell fast exits. Other set types continue to use the general
-implementation. Tests compare the specialized box path against an
+set's exact separation and coverage predicates and subdivision depth.
+`BinaryTreePaving::adjoin_outer_approximations` now also accepts a list
+of exact boxes and inserts their outer-approximation cells in deduplicated
+batches under one lock. `SubdivisionPaver` uses this path for concrete
+`BinaryTreePaving` objects, flushing after at most 512 pending boxes;
+all other `PavingInterface` implementations (including derived/cached
+pavings) keep the original polymorphic insertion route. The diagnostic
+`Adjoins` counter still counts requested box insertions, while its
+`Adjoin (ms)` measures the bulk materialization and insertion work.
+Tests compare the specialized and batched box paths against an
 independent regular-located-set wrapper using bidirectional exact cell
 containment across grid-boundary, degenerate, and repeated-union cases.
 
