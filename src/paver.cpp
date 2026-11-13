@@ -109,7 +109,7 @@ Void adjoin_subdivision_box(PavingInterface& paving, const ExactBoxType& box,
     } else {
         pending_boxes->push_back(box);
         if (pending_boxes->size() >= 512u) {
-            auto& binary = static_cast<BinaryTreePaving&>(paving);
+            auto& binary = dynamic_cast<BinaryTreePaving&>(paving);
             profile_paver_operation(
                 diagnostics, &PaverDiagnostics::adjoin_ns,
                 [&] { binary.adjoin_outer_approximations(*pending_boxes, fineness); });
@@ -179,7 +179,7 @@ Void SubdivisionPaver::_adjoin_outer_approximation(PavingInterface& paving,
     // Preserve virtual dispatch (and cache invalidation) in derived pavings.
     // Only an exact BinaryTreePaving uses the specialized bulk operation.
     auto* binary = typeid(paving) == typeid(BinaryTreePaving)
-        ? static_cast<BinaryTreePaving*>(&paving) : nullptr;
+        ? dynamic_cast<BinaryTreePaving*>(&paving) : nullptr;
     std::vector<ExactBoxType> boxes;
     this->_adjoin_outer_approximation_recursion(
         paving, set, fineness, max_errors, diagnostics,
