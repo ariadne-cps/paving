@@ -93,7 +93,10 @@ struct PaverDiagnostics {
     SizeType constraint_evaluations = 0u;
     SizeType sensitivity_evaluations = 0u;
     SizeType reduction_calls = 0u;
+    SizeType box_reduction_calls = 0u;
+    SizeType hull_reduction_calls = 0u;
     SizeType constraint_reduction_calls = 0u;
+    SizeType join_constructions = 0u;
     SizeType disjoint_rejections = 0u;
     SizeType already_covered = 0u;
     SizeType adjoin_calls = 0u;
@@ -106,6 +109,9 @@ struct PaverDiagnostics {
     std::uint64_t joint_range_ns = 0u;
     std::uint64_t sensitivity_ns = 0u;
     std::uint64_t contractor_ns = 0u;
+    std::uint64_t box_reduction_ns = 0u;
+    std::uint64_t hull_reduction_ns = 0u;
+    std::uint64_t join_ns = 0u;
     std::uint64_t adjoin_ns = 0u;
 };
 

@@ -187,13 +187,14 @@ void run(const Bench::CommandLine& cli, const Bench::Matrix& matrix,
         {"Case"}, {"Dim"}, {"Fine"}, {"Paver"}, {"Visits"},
         {"Param splits"}, {"Cell splits"}, {"Map evals"},
         {"Constraint evals"}, {"Sensitivity"}, {"Reductions"},
-        {"Constraint reductions"}, {"Rejected"}, {"Covered"}, {"Adjoins"}
+        {"Constraint reductions"}, {"Box reducers"}, {"Hull reducers"},
+        {"Joins"}, {"Rejected"}, {"Covered"}, {"Adjoins"}
     });
     Bench::Table timings({
         {"Case"}, {"Dim"}, {"Fine"}, {"Paver"}, {"Map (ms)"},
         {"Constraints (ms)"}, {"Joint (ms)"}, {"Sensitivity (ms)"},
-        {"Contractors (ms)"}, {"Adjoin (ms)"}, {"Other (ms)"},
-        {"Profiled (ms)"}
+        {"Box red. (ms)"}, {"Hull red. (ms)"}, {"Join (ms)"},
+        {"Adjoin (ms)"}, {"Other (ms)"}, {"Profiled (ms)"}
     });
 
     matrix.for_each([&](const Bench::Configuration& configuration) {
@@ -355,6 +356,9 @@ void run(const Bench::CommandLine& cli, const Bench::Matrix& matrix,
                     std::to_string(counters.sensitivity_evaluations),
                     std::to_string(counters.reduction_calls),
                     std::to_string(counters.constraint_reduction_calls),
+                    std::to_string(counters.box_reduction_calls),
+                    std::to_string(counters.hull_reduction_calls),
+                    std::to_string(counters.join_constructions),
                     std::to_string(counters.disjoint_rejections),
                     std::to_string(counters.already_covered),
                     std::to_string(counters.adjoin_calls)
@@ -362,7 +366,8 @@ void run(const Bench::CommandLine& cli, const Bench::Matrix& matrix,
                 const std::uint64_t accounted_ns =
                     counters.map_range_ns + counters.constraint_range_ns +
                     counters.joint_range_ns + counters.sensitivity_ns +
-                    counters.contractor_ns + counters.adjoin_ns;
+                    counters.box_reduction_ns + counters.hull_reduction_ns +
+                    counters.join_ns + counters.adjoin_ns;
                 const auto ms = [](std::uint64_t ns) {
                     return Bench::Table::number(
                         static_cast<double>(ns) / 1000000.0, 3u);
@@ -380,7 +385,9 @@ void run(const Bench::CommandLine& cli, const Bench::Matrix& matrix,
                     ms(counters.constraint_range_ns),
                     ms(counters.joint_range_ns),
                     ms(counters.sensitivity_ns),
-                    ms(counters.contractor_ns),
+                    ms(counters.box_reduction_ns),
+                    ms(counters.hull_reduction_ns),
+                    ms(counters.join_ns),
                     ms(counters.adjoin_ns),
                     ms(other_ns), ms(total_ns)
                 });

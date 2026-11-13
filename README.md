@@ -200,6 +200,22 @@ containment or incomparability). Geometry construction, recombination,
 result verification and pairwise comparisons are **outside** the timed
 region. Never rank strategies by elapsed time alone.
 
+The box-insertion hot path now dispatches `ExactBoxSetType` to a
+specialized `BinaryTreePaving` traversal, retaining the general compact
+set's exact separation and coverage predicates, subdivision depth, and
+enabled-cell fast exits. Other set types continue to use the general
+implementation. Tests compare the specialized box path against an
+independent regular-located-set wrapper using bidirectional exact cell
+containment across grid-boundary, degenerate, and repeated-union cases.
+
+`ConstraintPaver` constructs the joint map/constraint function only
+once per invocation, rather than once per recursive visit. `--diagnostics`
+reports this in `Joins` and `Join (ms)`. `ReducePaver` now reports
+`Box reducers`/`Hull reducers` and their separate elapsed times.
+Their total is the original `Reductions` count and aggregate
+contractor time. These refinements do not change the algorithms'
+acceptance or subdivision criteria.
+
 Optional `--diagnostics` adds a separate **untimed** pass for
 `SubdivisionPaver`, `ReducePaver` and `ConstraintPaver`. It records
 recursive visits, parameter and cell splits, map and constraint
@@ -216,7 +232,8 @@ nonempty constraint functions; empty constraints are not counted.
 A combined function/constraint enclosure in `ConstraintPaver` is timed
 in its own `Joint (ms)` bucket; it is not double-counted as a map or
 constraint time. The other timing buckets distinguish map ranges,
-constraint ranges, sensitivities, contractor calls, and paving insertions.
+constraint ranges, sensitivities, **box/hull** contractor calls, the
+one-time joint-function construction, and paving insertions.
 `Other (ms)` is the remainder of the instrumented pass (including
 traversal, setup, splitting, and profiling overhead), not the cost of a
 specific named operation. Timings are inclusive of the clock instrumentation

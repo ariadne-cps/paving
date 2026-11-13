@@ -390,10 +390,12 @@ Void procedure_constraint_adjoin_outer_approximation_recursion(
     // ExactBoxType reduction steps
     for (SizeType i = 0; i != nf; ++i) {
         for (SizeType j = 0; j != m; ++j) {
-            if (diagnostics != nullptr)
+            if (diagnostics != nullptr) {
                 ++diagnostics->reduction_calls;
+                ++diagnostics->box_reduction_calls;
+            }
             profile_paver_operation(
-                diagnostics, &PaverDiagnostics::contractor_ns,
+                diagnostics, &PaverDiagnostics::box_reduction_ns,
                 [&] { constraint_solver.box_reduce(new_domain, f[i], cell_box[i], j); });
             if (definitely(new_domain.is_empty())) {
                 if (diagnostics != nullptr)
@@ -407,10 +409,11 @@ Void procedure_constraint_adjoin_outer_approximation_recursion(
         for (SizeType j = 0; j != m; ++j) {
             if (diagnostics != nullptr) {
                 ++diagnostics->reduction_calls;
+                ++diagnostics->box_reduction_calls;
                 ++diagnostics->constraint_reduction_calls;
             }
             profile_paver_operation(
-                diagnostics, &PaverDiagnostics::contractor_ns,
+                diagnostics, &PaverDiagnostics::box_reduction_ns,
                 [&] { constraint_solver.box_reduce(new_domain, g[i], codomain[i], j); });
             if (definitely(new_domain.is_empty())) {
                 if (diagnostics != nullptr)
@@ -427,10 +430,12 @@ Void procedure_constraint_adjoin_outer_approximation_recursion(
     do {
         olddomwdth = newdomwdth;
         for (SizeType i = 0; i != nf; ++i) {
-            if (diagnostics != nullptr)
+            if (diagnostics != nullptr) {
                 ++diagnostics->reduction_calls;
+                ++diagnostics->hull_reduction_calls;
+            }
             profile_paver_operation(
-                diagnostics, &PaverDiagnostics::contractor_ns,
+                diagnostics, &PaverDiagnostics::hull_reduction_ns,
                 [&] { constraint_solver.hull_reduce(new_domain, procedures[i], cell_box[i]); });
             if (definitely(new_domain.is_empty())) {
                 if (diagnostics != nullptr)
@@ -443,10 +448,11 @@ Void procedure_constraint_adjoin_outer_approximation_recursion(
         for (SizeType i = 0; i != ng; ++i) {
             if (diagnostics != nullptr) {
                 ++diagnostics->reduction_calls;
+                ++diagnostics->hull_reduction_calls;
                 ++diagnostics->constraint_reduction_calls;
             }
             profile_paver_operation(
-                diagnostics, &PaverDiagnostics::contractor_ns,
+                diagnostics, &PaverDiagnostics::hull_reduction_ns,
                 [&] { constraint_solver.hull_reduce(new_domain, procedures[nf + i], codomain[i]); });
             if (definitely(new_domain.is_empty())) {
                 if (diagnostics != nullptr)
@@ -530,8 +536,10 @@ Void procedure_constraint_adjoin_outer_approximation_recursion(
 Void interval_constraint_adjoin_outer_approximation_recursion(
     PavingInterface& paving, const ExactBoxType& domain,
     const ValidatedVectorMultivariateFunction& function,
-    const ValidatedVectorMultivariateFunction& constraints, const ExactBoxType& bounds,
-    const GridCell& cell, Nat fineness, PaverDiagnostics* diagnostics) {
+    const ValidatedVectorMultivariateFunction& constraints,
+    const ValidatedVectorMultivariateFunction& combined,
+    const ExactBoxType& bounds, const GridCell& cell, Nat fineness,
+    PaverDiagnostics* diagnostics) {
     if (diagnostics != nullptr)
         ++diagnostics->visited_nodes;
     if (paving.superset(cell)) {
@@ -539,7 +547,6 @@ Void interval_constraint_adjoin_outer_approximation_recursion(
             ++diagnostics->already_covered;
         return;
     }
-    const auto combined = join(function, constraints);
     if (diagnostics != nullptr) {
         ++diagnostics->map_evaluations;
         if (constraints.result_size() != 0u)
@@ -565,8 +572,8 @@ Void interval_constraint_adjoin_outer_approximation_recursion(
         if (diagnostics != nullptr)
             ++diagnostics->parameter_splits;
         const auto domains = domain.split(sensitivity.first);
-        interval_constraint_adjoin_outer_approximation_recursion(paving, domains.first, function, constraints, bounds, cell, fineness, diagnostics);
-        interval_constraint_adjoin_outer_approximation_recursion(paving, domains.second, function, constraints, bounds, cell, fineness, diagnostics);
+        interval_constraint_adjoin_outer_approximation_recursion(paving, domains.first, function, constraints, combined, bounds, cell, fineness, diagnostics);
+        interval_constraint_adjoin_outer_approximation_recursion(paving, domains.second, function, constraints, combined, bounds, cell, fineness, diagnostics);
     } else if (cell.depth() >= Int(fineness * cell.dimension())) {
         if (diagnostics != nullptr)
             ++diagnostics->adjoin_calls;
@@ -577,8 +584,8 @@ Void interval_constraint_adjoin_outer_approximation_recursion(
         if (diagnostics != nullptr)
             ++diagnostics->cell_splits;
         const auto cells = cell.split();
-        interval_constraint_adjoin_outer_approximation_recursion(paving, domain, function, constraints, bounds, cells.first, fineness, diagnostics);
-        interval_constraint_adjoin_outer_approximation_recursion(paving, domain, function, constraints, bounds, cells.second, fineness, diagnostics);
+        interval_constraint_adjoin_outer_approximation_recursion(paving, domain, function, constraints, combined, bounds, cells.first, fineness, diagnostics);
+        interval_constraint_adjoin_outer_approximation_recursion(paving, domain, function, constraints, combined, bounds, cells.second, fineness, diagnostics);
     }
 }
 
@@ -598,7 +605,14 @@ Void constraint_adjoin_outer_approximation(
         profile_constraint_range(constraints, domain, diagnostics);
     const ExactBoxType constraint_bounds = intersection(
         cast_exact_box(widen(initial_constraints, 1)), bounds);
-    interval_constraint_adjoin_outer_approximation_recursion(paving, domain, function, constraints, constraint_bounds, cell, fineness, diagnostics);
+    if (diagnostics != nullptr)
+        ++diagnostics->join_constructions;
+    const auto combined = profile_paver_operation(
+        diagnostics, &PaverDiagnostics::join_ns,
+        [&] { return join(function, constraints); });
+    interval_constraint_adjoin_outer_approximation_recursion(
+        paving, domain, function, constraints, combined, constraint_bounds,
+        cell, fineness, diagnostics);
 }
 
 Void procedure_constraint_adjoin_outer_approximation(PavingInterface& p, const ExactBoxType& d, const ValidatedVectorMultivariateFunction& f,
@@ -639,6 +653,8 @@ Void ReducePaver::adjoin_outer_approximation(
     PaverDiagnostics& diagnostics) const {
     diagnostics = {};
     this->_adjoin_outer_approximation(paving, set, fineness, &diagnostics);
+    diagnostics.contractor_ns =
+        diagnostics.box_reduction_ns + diagnostics.hull_reduction_ns;
 }
 
 Void ReducePaver::_adjoin_outer_approximation(

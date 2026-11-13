@@ -2170,6 +2170,44 @@ Void BinaryTreePaving::_adjoin_cell(const Nat theCellRootExtent, const BinaryWor
     this->adjoin(GridCell(this->grid(), theCellRootExtent, theCellPath));
 }
 
+// Fast path for exact boxes: use the identical certified classification
+// predicates as ExactBoxSetType, avoiding a virtual set query and RTTI at
+// every tree node. The path-pop convention is identical to the general path.
+Void BinaryTreePaving::_adjoin_outer_box_approximation(
+    const Grid& grid, BinaryTreeNode* node, Nat primary_cell_extent,
+    Nat max_mince_tree_depth, const ExactBoxType& box,
+    Bool can_prove_cover, BinaryWord* path) {
+    if (node->is_enabled()) {
+        if (path->size() > 0u)
+            path->pop_back();
+        return;
+    }
+    const GridCell current(grid, primary_cell_extent, *path);
+    const ExactBoxType cell_box = current.box();
+    if (definitely(box.separated(cell_box))) {
+        // The exact box cannot intersect the current cell.
+    } else if (can_prove_cover && definitely(box.covers(cell_box))) {
+        node->make_leaf(true);
+    } else if (path->size() < max_mince_tree_depth) {
+        node->split();
+        path->push_back(false);
+        _adjoin_outer_box_approximation(
+            grid, node->left_node(), primary_cell_extent,
+            max_mince_tree_depth, box, can_prove_cover, path);
+        path->push_back(true);
+        _adjoin_outer_box_approximation(
+            grid, node->right_node(), primary_cell_extent,
+            max_mince_tree_depth, box, can_prove_cover, path);
+    } else {
+        if (!node->is_leaf())
+            node->make_leaf(true);
+        else
+            node->set_enabled();
+    }
+    if (path->size() > 0u)
+        path->pop_back();
+}
+
 Void BinaryTreePaving::_adjoin_outer_approximation(const Grid& theGrid, BinaryTreeNode* pBinaryTreeNode, const Nat primary_cell_extent,
                                                    const Nat max_mince_tree_depth, const EffectiveEuclideanCompactSetInterface& theSet, BinaryWord* pPath,
                                                    const PreparedConstrainedImageSetSeparation* prepared) {
@@ -2408,9 +2446,23 @@ Void BinaryTreePaving::adjoin_outer_approximation(const EffectiveEuclideanCompac
 
         // Adjoin the outer approximation, computing it on the fly.
         BinaryWord* pEmptyPath = new BinaryWord();
-        _adjoin_outer_approximation(BinaryTreeSubpaving::_theGridCell.grid(), pBinaryTreeNode, outer_approx_primary_cell_extent,
-                                    max_mince_tree_depth, theSet, pEmptyPath,
-                                    prepared ? &*prepared : nullptr);
+        if (const auto* box = dynamic_cast<const ExactBoxSetType*>(&theSet)) {
+            // Preserve the generic path's conditional cover shortcut:
+            // only geometrically open sets may certify full coverage.
+            const Bool can_prove_cover =
+                dynamic_cast<const EffectiveEuclideanOpenSetInterface*>(
+                    static_cast<const EuclideanSetInterfaceBase*>(&theSet)) != nullptr;
+            _adjoin_outer_box_approximation(
+                BinaryTreeSubpaving::_theGridCell.grid(), pBinaryTreeNode,
+                outer_approx_primary_cell_extent, max_mince_tree_depth,
+                static_cast<const ExactBoxType&>(*box),
+                can_prove_cover, pEmptyPath);
+        } else {
+            _adjoin_outer_approximation(
+                BinaryTreeSubpaving::_theGridCell.grid(), pBinaryTreeNode,
+                outer_approx_primary_cell_extent, max_mince_tree_depth,
+                theSet, pEmptyPath, prepared ? &*prepared : nullptr);
+        }
 
         delete pEmptyPath;
     }

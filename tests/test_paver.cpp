@@ -37,6 +37,30 @@
 #include "ariadne-testing.hpp"
 using namespace Ariadne;
 
+// Keep the generic geometric-set dispatch reachable as an independent
+// reference for checking the specialized ExactBoxSetType fast path.
+class ReferenceBoxSet : public virtual EffectiveEuclideanRegularLocatedSetInterface {
+    ExactBoxType _box;
+  public:
+    explicit ReferenceBoxSet(const ExactBoxType& box) : _box(box) {}
+    ReferenceBoxSet* clone() const override { return new ReferenceBoxSet(*this); }
+    DimensionType dimension() const override { return _box.dimension(); }
+    LowerKleenean separated(const ExactBoxType& other) const override {
+        return _box.separated(other);
+    }
+    LowerKleenean overlaps(const ExactBoxType& other) const override {
+        return _box.overlaps(other);
+    }
+    LowerKleenean covers(const ExactBoxType& other) const override {
+        return _box.covers(other);
+    }
+    LowerKleenean inside(const ExactBoxType& other) const override {
+        return _box.inside(other);
+    }
+    UpperBoxType bounding_box() const override { return _box.bounding_box(); }
+    OutputStream& _write(OutputStream& os) const override { return os << _box; }
+};
+
 class TestPaver : public Ariadne::Testing::ContextFixture {
   public:
     using ContextFixture::ContextFixture;
@@ -88,6 +112,39 @@ class TestPaver : public Ariadne::Testing::ContextFixture {
         check_paver(Paver(ConstraintPaver()));
     }
 
+    Void test_exact_box_fast_path() {
+        // These boxes exercise interiors, grid boundaries, empty-interior
+        // intervals, out-of-unit extents, repeated unions, and nesting.
+        const ExactIntervalType intervals[] = {
+            ExactIntervalType(0.25_x, 0.75_x),
+            ExactIntervalType(0.5_x, 0.5_x),
+            ExactIntervalType(-0.25_x, 1.25_x),
+            ExactIntervalType(0.125_x, 0.375_x)
+        };
+        for (unsigned dimension = 1u; dimension <= 3u; ++dimension) {
+            const Grid grid(dimension);
+            BinaryTreePaving fast(grid), reference(grid);
+            for (const ExactIntervalType& interval: intervals) {
+                const ExactBoxType box(dimension, interval);
+                const ExactBoxSetType exact(box);
+                const ReferenceBoxSet proxy(box);
+                for (unsigned fineness: {0u, 1u, 2u}) {
+                    fast.adjoin_outer_approximation(
+                        static_cast<const EffectiveEuclideanCompactSetInterface&>(exact),
+                        fineness);
+                    reference.adjoin_outer_approximation(
+                        static_cast<const EffectiveEuclideanCompactSetInterface&>(proxy),
+                        fineness);
+                    for (auto it = fast.begin(), end = fast.end(); it != end; ++it)
+                        ARIADNE_TESTING_PROVE(reference.superset(*it));
+                    for (auto it = reference.begin(), end = reference.end();
+                         it != end; ++it)
+                        ARIADNE_TESTING_PROVE(fast.superset(*it));
+                }
+            }
+        }
+    }
+
     Void test_instrumented_pavers() {
         auto x = EffectiveScalarMultivariateFunction::coordinate(1u, 0u);
         ValidatedVectorMultivariateFunction identity({x});
@@ -130,6 +187,12 @@ class TestPaver : public Ariadne::Testing::ContextFixture {
             check_geometry(plain, instrumented);
             check_counters(counters);
             ARIADNE_TESTING_PROVE(counters.reduction_calls > 0u);
+            ARIADNE_TESTING_EXPECT_EQUAL(
+                counters.reduction_calls,
+                counters.box_reduction_calls + counters.hull_reduction_calls);
+            ARIADNE_TESTING_EXPECT_EQUAL(
+                counters.contractor_ns,
+                counters.box_reduction_ns + counters.hull_reduction_ns);
             ARIADNE_TESTING_EXPECT_EQUAL(counters.constraint_evaluations, 0u);
             ARIADNE_TESTING_EXPECT_EQUAL(counters.constraint_reduction_calls, 0u);
         }
@@ -142,6 +205,7 @@ class TestPaver : public Ariadne::Testing::ContextFixture {
             check_geometry(plain, instrumented);
             check_counters(counters);
             ARIADNE_TESTING_EXPECT_EQUAL(counters.reduction_calls, 0u);
+            ARIADNE_TESTING_EXPECT_EQUAL(counters.join_constructions, 1u);
             ARIADNE_TESTING_EXPECT_EQUAL(counters.constraint_evaluations, 0u);
             ARIADNE_TESTING_EXPECT_EQUAL(counters.constraint_reduction_calls, 0u);
         }
@@ -161,6 +225,7 @@ class TestPaver : public Ariadne::Testing::ContextFixture {
             ARIADNE_TESTING_PROVE(reduced.constraint_evaluations > 0u);
             ARIADNE_TESTING_PROVE(interval_only.constraint_evaluations > 0u);
             ARIADNE_TESTING_EXPECT_EQUAL(interval_only.constraint_reduction_calls, 0u);
+            ARIADNE_TESTING_EXPECT_EQUAL(interval_only.join_constructions, 1u);
             ARIADNE_TESTING_PROVE(
                 reduced.constraint_reduction_calls <= reduced.reduction_calls);
         }
@@ -357,6 +422,7 @@ int main(int argc, char** argv) {
     ARIADNE_TESTING_ADD_TEST(TestPaver, test_intrinsic_uncertainty);
     ARIADNE_TESTING_ADD_TEST(TestPaver, test_paver_strategies);
     ARIADNE_TESTING_ADD_TEST(TestPaver, test_instrumented_pavers);
+    ARIADNE_TESTING_ADD_TEST(TestPaver, test_exact_box_fast_path);
     ARIADNE_TESTING_ADD_TEST(TestPaver, test_nonlinear_pavers);
     return ARIADNE_TESTING_RUN_TESTS_WITH_ARGS(argc, argv);
 }
