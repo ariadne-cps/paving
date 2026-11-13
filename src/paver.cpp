@@ -94,15 +94,38 @@ OutputStream& ReducePaver::_write(OutputStream& os) const { return os << "Reduce
 OutputStream& ConstraintPaver::_write(OutputStream& os) const { return os << "ConstraintPaver()"; }
 
 Void SubdivisionPaver::adjoin_outer_approximation(PavingInterface& paving, const ValidatedConstrainedImageSet& set, Nat fineness) const {
+    this->_adjoin_outer_approximation(paving, set, fineness, nullptr);
+}
+
+Void SubdivisionPaver::adjoin_outer_approximation(PavingInterface& paving,
+                                                   const ValidatedConstrainedImageSet& set,
+                                                   Nat fineness,
+                                                   PaverDiagnostics& diagnostics) const {
+    diagnostics = {};
+    this->_adjoin_outer_approximation(paving, set, fineness, &diagnostics);
+}
+
+Void SubdivisionPaver::_adjoin_outer_approximation(PavingInterface& paving,
+                                                    const ValidatedConstrainedImageSet& set,
+                                                    Nat fineness,
+                                                    PaverDiagnostics* diagnostics) const {
     Vector<FloatDP> max_errors(paving.dimension(), dp);
     for (SizeType i = 0; i != max_errors.size(); ++i) {
         max_errors[i] = shft(static_cast<FloatDP>(paving.grid().lengths()[i]), -static_cast<int>(fineness));
     }
 
-    this->adjoin_outer_approximation_recursion(paving, set, fineness, max_errors);
+    this->_adjoin_outer_approximation_recursion(paving, set, fineness, max_errors, diagnostics);
 }
 
 Void SubdivisionPaver::adjoin_outer_approximation_recursion(PavingInterface& paving, const ValidatedConstrainedImageSet& set, Nat fineness, const Vector<FloatDP>& max_errors) const {
+    this->_adjoin_outer_approximation_recursion(paving, set, fineness, max_errors, nullptr);
+}
+
+Void SubdivisionPaver::_adjoin_outer_approximation_recursion(
+    PavingInterface& paving, const ValidatedConstrainedImageSet& set, Nat fineness,
+    const Vector<FloatDP>& max_errors, PaverDiagnostics* diagnostics) const {
+    if (diagnostics != nullptr)
+        ++diagnostics->visited_nodes;
     // How small an over-approximating box needs to be relative to the cell size
     static const ExactDouble RELATIVE_SMALLNESS = 0.5_x;
 
@@ -120,12 +143,18 @@ Void SubdivisionPaver::adjoin_outer_approximation_recursion(PavingInterface& pav
 
     for (List<ValidatedConstraint>::ConstIterator iter = constraints.begin();
          iter != constraints.end(); ++iter) {
+        if (diagnostics != nullptr)
+            ++diagnostics->constraint_evaluations;
         UpperIntervalType constraint_range = apply(iter->function(), subdomain);
         if (definitely(constraint_range.lower_bound() > iter->bounds().upper_bound() || constraint_range.upper_bound() < iter->bounds().lower_bound())) {
+            if (diagnostics != nullptr)
+                ++diagnostics->disjoint_rejections;
             return;
         }
     }
 
+    if (diagnostics != nullptr)
+        ++diagnostics->map_evaluations;
     UpperBoxType range = apply(function, subdomain);
     Bool small = true;
     for (SizeType i = 0; i != range.size(); ++i) {
@@ -136,8 +165,12 @@ Void SubdivisionPaver::adjoin_outer_approximation_recursion(PavingInterface& pav
     }
 
     if (small) {
+        if (diagnostics != nullptr)
+            ++diagnostics->adjoin_calls;
         paving.adjoin_outer_approximation(cast_exact_box(range), fineness);
     } else {
+        if (diagnostics != nullptr)
+            ++diagnostics->sensitivity_evaluations;
         const auto sensitivity = lipschitz_index_and_error(function, subdomain);
         FloatDP minimum_error = max_errors[0];
         for (SizeType i = 1u; i != max_errors.size(); ++i) {
@@ -146,12 +179,16 @@ Void SubdivisionPaver::adjoin_outer_approximation_recursion(PavingInterface& pav
         if (sensitivity.first == subdomain.dimension() || sensitivity.second.raw() <= mul(down, minimum_error, FloatDP(RELATIVE_SMALLNESS, dp))) {
             // Further parameter subdivision cannot remove intrinsic output
             // uncertainty. Discretise its enclosing box at the requested grid resolution.
+            if (diagnostics != nullptr)
+                ++diagnostics->adjoin_calls;
             paving.adjoin_outer_approximation(cast_exact_box(range), fineness);
             return;
         }
+        if (diagnostics != nullptr)
+            ++diagnostics->parameter_splits;
         Pair<ValidatedConstrainedImageSet, ValidatedConstrainedImageSet> subsets = set.split(sensitivity.first);
-        this->adjoin_outer_approximation_recursion(paving, subsets.first, fineness, max_errors);
-        this->adjoin_outer_approximation_recursion(paving, subsets.second, fineness, max_errors);
+        this->_adjoin_outer_approximation_recursion(paving, subsets.first, fineness, max_errors, diagnostics);
+        this->_adjoin_outer_approximation_recursion(paving, subsets.second, fineness, max_errors, diagnostics);
     }
 }
 
@@ -259,8 +296,10 @@ FloatDP cell_splitting_radius(const GridCell& cell) {
 // Adjoin an over-approximation to the solution of $f(dom)$ such that $g(D) in C$ to the paving p, looking only at solutions in b.
 Void procedure_constraint_adjoin_outer_approximation_recursion(
     PavingInterface& paving, const ExactBoxType& domain, const ValidatedVectorMultivariateFunction& f,
-    const ValidatedVectorMultivariateFunction& g, const ExactBoxType& codomain, const GridCell& cell, Int max_dpth, SizeType splt, const List<ValidatedProcedure>& procedures) {
+    const ValidatedVectorMultivariateFunction& g, const ExactBoxType& codomain, const GridCell& cell, Int max_dpth, SizeType splt, const List<ValidatedProcedure>& procedures, PaverDiagnostics* diagnostics) {
     LOGGING_SCOPE_CREATE;
+    if (diagnostics != nullptr)
+        ++diagnostics->visited_nodes;
 
     const SizeType m = domain.size();
     const SizeType nf = f.result_size();
@@ -269,6 +308,8 @@ Void procedure_constraint_adjoin_outer_approximation_recursion(
     const ExactBoxType& cell_box = cell.box();
     const Vector<PositiveFloatDP> scalings = Vector<PositiveFloatDP>(paving.grid().lengths());
 
+    if (diagnostics != nullptr)
+        ++diagnostics->map_evaluations;
     UpperBoxType bbox = apply(f, domain);
 
     FloatDP domwdth = average_width(domain).raw();
@@ -281,6 +322,8 @@ Void procedure_constraint_adjoin_outer_approximation_recursion(
     ConstraintSolver constraint_solver;
 
     if (paving.superset(cell)) {
+        if (diagnostics != nullptr)
+            ++diagnostics->already_covered;
         LOGGING_PRINTLN("Cell is already a subset of paving");
         return;
     }
@@ -296,8 +339,12 @@ Void procedure_constraint_adjoin_outer_approximation_recursion(
     // ExactBoxType reduction steps
     for (SizeType i = 0; i != nf; ++i) {
         for (SizeType j = 0; j != m; ++j) {
+            if (diagnostics != nullptr)
+                ++diagnostics->reduction_calls;
             constraint_solver.box_reduce(new_domain, f[i], cell_box[i], j);
             if (definitely(new_domain.is_empty())) {
+                if (diagnostics != nullptr)
+                    ++diagnostics->disjoint_rejections;
                 LOGGING_PRINTLN("Proved disjointness using box reduce");
                 return;
             }
@@ -305,8 +352,14 @@ Void procedure_constraint_adjoin_outer_approximation_recursion(
     }
     for (SizeType i = 0; i != ng; ++i) {
         for (SizeType j = 0; j != m; ++j) {
+            if (diagnostics != nullptr) {
+                ++diagnostics->reduction_calls;
+                ++diagnostics->constraint_evaluations;
+            }
             constraint_solver.box_reduce(new_domain, g[i], codomain[i], j);
             if (definitely(new_domain.is_empty())) {
+                if (diagnostics != nullptr)
+                    ++diagnostics->disjoint_rejections;
                 LOGGING_PRINTLN("Proved disjointness using box reduce");
                 return;
             }
@@ -319,16 +372,26 @@ Void procedure_constraint_adjoin_outer_approximation_recursion(
     do {
         olddomwdth = newdomwdth;
         for (SizeType i = 0; i != nf; ++i) {
+            if (diagnostics != nullptr)
+                ++diagnostics->reduction_calls;
             constraint_solver.hull_reduce(new_domain, procedures[i], cell_box[i]);
             if (definitely(new_domain.is_empty())) {
+                if (diagnostics != nullptr)
+                    ++diagnostics->disjoint_rejections;
                 LOGGING_PRINTLN("Proved disjointness using hull reduce");
                 return;
             }
             // constraint_solver.hull_reduce(new_domain,f[i],cell_box[i]);
         }
         for (SizeType i = 0; i != ng; ++i) {
+            if (diagnostics != nullptr) {
+                ++diagnostics->reduction_calls;
+                ++diagnostics->constraint_evaluations;
+            }
             constraint_solver.hull_reduce(new_domain, procedures[nf + i], codomain[i]);
             if (definitely(new_domain.is_empty())) {
+                if (diagnostics != nullptr)
+                    ++diagnostics->disjoint_rejections;
                 LOGGING_PRINTLN("Proved disjointness using hull reduce");
                 return;
             }
@@ -342,9 +405,15 @@ Void procedure_constraint_adjoin_outer_approximation_recursion(
     LOGGING_PRINTLN_AT(1, "new_domain=" << new_domain);
 
     domwdth = average_scaled_width(new_domain, RawFloatDPVector(new_domain.size(), FloatDP(1.0_x, dp)));
+    if (diagnostics != nullptr)
+        ++diagnostics->map_evaluations;
     bbox = apply(f, new_domain);
     bbxwdth = average_scaled_width(bbox, paving.grid().lengths());
+    if (diagnostics != nullptr)
+        ++diagnostics->constraint_evaluations;
     if (definitely(bbox.disjoint(cell_box)) || definitely(codomain.disjoint(apply(g, new_domain)))) {
+        if (diagnostics != nullptr)
+            ++diagnostics->disjoint_rejections;
         LOGGING_PRINTLN("Proved disjointness using image of new domain");
         return;
     }
@@ -361,23 +430,31 @@ Void procedure_constraint_adjoin_outer_approximation_recursion(
     ExactDouble RELATIVE_SPLITTING_SIZE = 4.0_x;
 
     if (!strictly_smaller_by_factor(bbxmaxwdth, clmaxwdth, RELATIVE_SPLITTING_SIZE) || (cell.depth() >= max_dpth && strictly_smaller(clmaxwdth, bbxmaxwdth))) {
+        if (diagnostics != nullptr)
+            ++diagnostics->sensitivity_evaluations;
         const auto sensitivity = lipschitz_index_and_error(f, new_domain);
         if (sensitivity.first < m && sensitivity.second.raw() > cell_splitting_radius(cell)) {
+            if (diagnostics != nullptr)
+                ++diagnostics->parameter_splits;
             LOGGING_PRINTLN("Splitting domain on coordinate " << sensitivity.first);
             const auto domains = cast_exact_box(new_domain).split(sensitivity.first);
-            procedure_constraint_adjoin_outer_approximation_recursion(paving, domains.first, f, g, codomain, cell, max_dpth, splt + 1, procedures);
-            procedure_constraint_adjoin_outer_approximation_recursion(paving, domains.second, f, g, codomain, cell, max_dpth, splt + 1, procedures);
+            procedure_constraint_adjoin_outer_approximation_recursion(paving, domains.first, f, g, codomain, cell, max_dpth, splt + 1, procedures, diagnostics);
+            procedure_constraint_adjoin_outer_approximation_recursion(paving, domains.second, f, g, codomain, cell, max_dpth, splt + 1, procedures, diagnostics);
             return;
         }
     }
     if (cell.depth() >= max_dpth) {
+        if (diagnostics != nullptr)
+            ++diagnostics->adjoin_calls;
         LOGGING_PRINTLN("Adjoining cell " << cell_box);
         paving.adjoin(cell);
     } else {
+        if (diagnostics != nullptr)
+            ++diagnostics->cell_splits;
         LOGGING_PRINTLN("Splitting cell " << cell_box);
         Pair<GridCell, GridCell> sb = cell.split();
-        procedure_constraint_adjoin_outer_approximation_recursion(paving, cast_exact_box(new_domain), f, g, codomain, sb.first, max_dpth, splt, procedures);
-        procedure_constraint_adjoin_outer_approximation_recursion(paving, cast_exact_box(new_domain), f, g, codomain, sb.second, max_dpth, splt, procedures);
+        procedure_constraint_adjoin_outer_approximation_recursion(paving, cast_exact_box(new_domain), f, g, codomain, sb.first, max_dpth, splt, procedures, diagnostics);
+        procedure_constraint_adjoin_outer_approximation_recursion(paving, cast_exact_box(new_domain), f, g, codomain, sb.second, max_dpth, splt, procedures, diagnostics);
     }
 }
 
@@ -388,40 +465,68 @@ Void interval_constraint_adjoin_outer_approximation_recursion(
     PavingInterface& paving, const ExactBoxType& domain,
     const ValidatedVectorMultivariateFunction& function,
     const ValidatedVectorMultivariateFunction& constraints, const ExactBoxType& bounds,
-    const GridCell& cell, Nat fineness) {
+    const GridCell& cell, Nat fineness, PaverDiagnostics* diagnostics) {
+    if (diagnostics != nullptr)
+        ++diagnostics->visited_nodes;
     if (paving.superset(cell)) {
+        if (diagnostics != nullptr)
+            ++diagnostics->already_covered;
         return;
     }
     const auto combined = join(function, constraints);
+    if (diagnostics != nullptr) {
+        ++diagnostics->map_evaluations;
+        if (constraints.result_size() != 0u)
+            ++diagnostics->constraint_evaluations;
+    }
     if (definitely(disjoint(apply(combined, domain), product(cell.box(), bounds)))) {
+        if (diagnostics != nullptr)
+            ++diagnostics->disjoint_rejections;
         return;
     }
 
+    if (diagnostics != nullptr)
+        ++diagnostics->sensitivity_evaluations;
     const auto sensitivity = lipschitz_index_and_error(function, domain);
     if (sensitivity.first < domain.dimension() && sensitivity.second.raw() > cell_splitting_radius(cell)) {
+        if (diagnostics != nullptr)
+            ++diagnostics->parameter_splits;
         const auto domains = domain.split(sensitivity.first);
-        interval_constraint_adjoin_outer_approximation_recursion(paving, domains.first, function, constraints, bounds, cell, fineness);
-        interval_constraint_adjoin_outer_approximation_recursion(paving, domains.second, function, constraints, bounds, cell, fineness);
+        interval_constraint_adjoin_outer_approximation_recursion(paving, domains.first, function, constraints, bounds, cell, fineness, diagnostics);
+        interval_constraint_adjoin_outer_approximation_recursion(paving, domains.second, function, constraints, bounds, cell, fineness, diagnostics);
     } else if (cell.depth() >= Int(fineness * cell.dimension())) {
+        if (diagnostics != nullptr)
+            ++diagnostics->adjoin_calls;
         paving.adjoin(cell);
     } else {
+        if (diagnostics != nullptr)
+            ++diagnostics->cell_splits;
         const auto cells = cell.split();
-        interval_constraint_adjoin_outer_approximation_recursion(paving, domain, function, constraints, bounds, cells.first, fineness);
-        interval_constraint_adjoin_outer_approximation_recursion(paving, domain, function, constraints, bounds, cells.second, fineness);
+        interval_constraint_adjoin_outer_approximation_recursion(paving, domain, function, constraints, bounds, cells.first, fineness, diagnostics);
+        interval_constraint_adjoin_outer_approximation_recursion(paving, domain, function, constraints, bounds, cells.second, fineness, diagnostics);
     }
 }
 
 Void constraint_adjoin_outer_approximation(
     PavingInterface& paving, const ExactBoxType& domain,
     const ValidatedVectorMultivariateFunction& function,
-    const ValidatedVectorMultivariateFunction& constraints, const ExactBoxType& bounds, Nat fineness) {
+    const ValidatedVectorMultivariateFunction& constraints, const ExactBoxType& bounds, Nat fineness,
+    PaverDiagnostics* diagnostics) {
+    if (diagnostics != nullptr) {
+        ++diagnostics->map_evaluations;
+        if (constraints.result_size() != 0u)
+            ++diagnostics->constraint_evaluations;
+    }
     const GridCell cell = GridCell::smallest_enclosing_primary_cell(cast_exact_box(apply(function, domain)), paving.grid());
     const ExactBoxType constraint_bounds = intersection(cast_exact_box(widen(apply(constraints, domain), 1)), bounds);
-    interval_constraint_adjoin_outer_approximation_recursion(paving, domain, function, constraints, constraint_bounds, cell, fineness);
+    interval_constraint_adjoin_outer_approximation_recursion(paving, domain, function, constraints, constraint_bounds, cell, fineness, diagnostics);
 }
 
 Void procedure_constraint_adjoin_outer_approximation(PavingInterface& p, const ExactBoxType& d, const ValidatedVectorMultivariateFunction& f,
-                                                     const ValidatedVectorMultivariateFunction& g, const ExactBoxType& c, Nat e) {
+                                                     const ValidatedVectorMultivariateFunction& g, const ExactBoxType& c, Nat e,
+                                                     PaverDiagnostics* diagnostics) {
+    if (diagnostics != nullptr)
+        ++diagnostics->map_evaluations;
     GridCell b = p.smallest_enclosing_primary_cell(cast_exact_box(apply(f, d)));
 
     List<ValidatedProcedure> procedures;
@@ -433,7 +538,7 @@ Void procedure_constraint_adjoin_outer_approximation(PavingInterface& p, const E
         procedures.append(make_procedure(g[i]));
     }
 
-    Ariadne::procedure_constraint_adjoin_outer_approximation_recursion(p, d, f, g, c, b, static_cast<Int>(e * p.dimension()), 0, procedures);
+    Ariadne::procedure_constraint_adjoin_outer_approximation_recursion(p, d, f, g, c, b, static_cast<Int>(e * p.dimension()), 0, procedures, diagnostics);
     // std::cerr<<"Computing outer approximation considered a total of "<<COUNT_TESTS<<" domains/cells\n";
     // std::cerr<<"Measure of paving is "<<p.measure()<<"\n";
 
@@ -442,27 +547,56 @@ Void procedure_constraint_adjoin_outer_approximation(PavingInterface& p, const E
 
 } // namespace
 
-Void ReducePaver::adjoin_outer_approximation(PavingInterface& paving, const ValidatedConstrainedImageSet& set, Nat fineness) const {
+Void ReducePaver::adjoin_outer_approximation(
+    PavingInterface& paving, const ValidatedConstrainedImageSet& set, Nat fineness) const {
+    this->_adjoin_outer_approximation(paving, set, fineness, nullptr);
+}
+
+Void ReducePaver::adjoin_outer_approximation(
+    PavingInterface& paving, const ValidatedConstrainedImageSet& set, Nat fineness,
+    PaverDiagnostics& diagnostics) const {
+    diagnostics = {};
+    this->_adjoin_outer_approximation(paving, set, fineness, &diagnostics);
+}
+
+Void ReducePaver::_adjoin_outer_approximation(
+    PavingInterface& paving, const ValidatedConstrainedImageSet& set, Nat fineness,
+    PaverDiagnostics* diagnostics) const {
     ARIADNE_PRECONDITION(paving.dimension() == set.dimension());
-    if (definitely(set.reduced_domain().is_empty())) {
+    if (definitely(set.reduced_domain().is_empty()))
         return;
-    }
-    // With no parameters there is no domain to reduce. Procedure reduction
-    // requires variables, while interval enclosure handles constant images.
+    // With no parameters there is no domain to reduce. Use interval enclosure.
     if (set.reduced_domain().dimension() == 0u) {
-        return ConstraintPaver().adjoin_outer_approximation(paving, set, fineness);
+        return constraint_adjoin_outer_approximation(
+            paving, set.reduced_domain(), set.function(),
+            set.constraint_function(), set.constraint_bounds(), fineness, diagnostics);
     }
-    return procedure_constraint_adjoin_outer_approximation(paving, set.reduced_domain(), set.function(), set.constraint_function(), set.constraint_bounds(), fineness);
+    return procedure_constraint_adjoin_outer_approximation(
+        paving, set.reduced_domain(), set.function(),
+        set.constraint_function(), set.constraint_bounds(), fineness, diagnostics);
 }
 
-Void ConstraintPaver::adjoin_outer_approximation(PavingInterface& paving, const ValidatedConstrainedImageSet& set, Nat fineness) const {
+Void ConstraintPaver::adjoin_outer_approximation(
+    PavingInterface& paving, const ValidatedConstrainedImageSet& set, Nat fineness) const {
+    this->_adjoin_outer_approximation(paving, set, fineness, nullptr);
+}
+
+Void ConstraintPaver::adjoin_outer_approximation(
+    PavingInterface& paving, const ValidatedConstrainedImageSet& set, Nat fineness,
+    PaverDiagnostics& diagnostics) const {
+    diagnostics = {};
+    this->_adjoin_outer_approximation(paving, set, fineness, &diagnostics);
+}
+
+Void ConstraintPaver::_adjoin_outer_approximation(
+    PavingInterface& paving, const ValidatedConstrainedImageSet& set, Nat fineness,
+    PaverDiagnostics* diagnostics) const {
     ARIADNE_PRECONDITION(paving.dimension() == set.dimension());
-    if (definitely(set.reduced_domain().is_empty())) {
+    if (definitely(set.reduced_domain().is_empty()))
         return;
-    }
-    return constraint_adjoin_outer_approximation(paving, set.reduced_domain(), set.function(), set.constraint_function(), set.constraint_bounds(), fineness);
+    return constraint_adjoin_outer_approximation(
+        paving, set.reduced_domain(), set.function(), set.constraint_function(),
+        set.constraint_bounds(), fineness, diagnostics);
 }
-
 
 } // namespace Ariadne
-

@@ -88,6 +88,70 @@ class TestPaver : public Ariadne::Testing::ContextFixture {
         check_paver(Paver(ConstraintPaver()));
     }
 
+    Void test_instrumented_pavers() {
+        auto x = EffectiveScalarMultivariateFunction::coordinate(1u, 0u);
+        ValidatedVectorMultivariateFunction identity({x});
+        ValidatedConstrainedImageSet set(
+            ExactBoxType{{0.125_x, 0.375_x}}, identity);
+        Grid grid(1u);
+
+        auto check_geometry = [&](const BinaryTreePaving& expected,
+                                  const BinaryTreePaving& actual) {
+            for (auto it = expected.begin(), end = expected.end(); it != end; ++it)
+                ARIADNE_TESTING_PROVE(actual.superset(*it));
+            for (auto it = actual.begin(), end = actual.end(); it != end; ++it)
+                ARIADNE_TESTING_PROVE(expected.superset(*it));
+        };
+        auto check_counters = [&](const PaverDiagnostics& counters) {
+            ARIADNE_TESTING_PROVE(counters.visited_nodes > 0u);
+            ARIADNE_TESTING_PROVE(counters.map_evaluations > 0u);
+            ARIADNE_TESTING_PROVE(counters.adjoin_calls > 0u);
+        };
+
+        {
+            BinaryTreePaving plain(grid), instrumented(grid);
+            SubdivisionPaver strategy;
+            strategy.adjoin_outer_approximation(plain, set, 2u);
+            PaverDiagnostics counters;
+            strategy.adjoin_outer_approximation(instrumented, set, 2u, counters);
+            check_geometry(plain, instrumented);
+            check_counters(counters);
+            ARIADNE_TESTING_EXPECT_EQUAL(
+                counters.visited_nodes, 2u * counters.parameter_splits + 1u);
+        }
+        {
+            BinaryTreePaving plain(grid), instrumented(grid);
+            ReducePaver strategy;
+            strategy.adjoin_outer_approximation(plain, set, 2u);
+            PaverDiagnostics counters;
+            strategy.adjoin_outer_approximation(instrumented, set, 2u, counters);
+            check_geometry(plain, instrumented);
+            check_counters(counters);
+            ARIADNE_TESTING_PROVE(counters.reduction_calls > 0u);
+        }
+        {
+            BinaryTreePaving plain(grid), instrumented(grid);
+            ConstraintPaver strategy;
+            strategy.adjoin_outer_approximation(plain, set, 2u);
+            PaverDiagnostics counters;
+            strategy.adjoin_outer_approximation(instrumented, set, 2u, counters);
+            check_geometry(plain, instrumented);
+            check_counters(counters);
+            ARIADNE_TESTING_EXPECT_EQUAL(counters.reduction_calls, 0u);
+        }
+        {
+            PaverDiagnostics counters;
+            counters.visited_nodes = 42u;
+            BinaryTreePaving empty(grid);
+            SubdivisionPaver().adjoin_outer_approximation(
+                empty, ValidatedConstrainedImageSet(ExactBoxType(1u), identity),
+                2u, counters);
+            ARIADNE_TESTING_PROVE(empty.is_empty());
+            ARIADNE_TESTING_EXPECT_EQUAL(counters.visited_nodes, 1u);
+            ARIADNE_TESTING_EXPECT_EQUAL(counters.adjoin_calls, 0u);
+        }
+    }
+
     Void test_nonlinear_pavers() {
         auto x = EffectiveScalarMultivariateFunction::coordinate(1u, 0u);
         ExactBoxType square{
@@ -267,6 +331,7 @@ int main(int argc, char** argv) {
     ARIADNE_TESTING_ADD_TEST(TestPaver, test_reduce_contractors);
     ARIADNE_TESTING_ADD_TEST(TestPaver, test_intrinsic_uncertainty);
     ARIADNE_TESTING_ADD_TEST(TestPaver, test_paver_strategies);
+    ARIADNE_TESTING_ADD_TEST(TestPaver, test_instrumented_pavers);
     ARIADNE_TESTING_ADD_TEST(TestPaver, test_nonlinear_pavers);
     return ARIADNE_TESTING_RUN_TESTS_WITH_ARGS(argc, argv);
 }

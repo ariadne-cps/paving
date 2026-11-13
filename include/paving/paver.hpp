@@ -78,15 +78,43 @@ class AffinePaver : public PaverInterface {
                                     AffinePaverDiagnostics* diagnostics) const;
 };
 
+/** @brief Work counters for one instrumented Paver execution.
+ *  Visits are recursive calls (parameter subdomains in SubdivisionPaver,
+ *  domain/cell pairs in ReducePaver and ConstraintPaver). Evaluation counts
+ *  denote vector/interval range evaluations, not scalar arithmetic steps.
+ */
+struct PaverDiagnostics {
+    SizeType visited_nodes = 0u;
+    SizeType parameter_splits = 0u;
+    SizeType cell_splits = 0u;
+    SizeType map_evaluations = 0u;
+    SizeType constraint_evaluations = 0u;
+    SizeType sensitivity_evaluations = 0u;
+    SizeType reduction_calls = 0u;
+    SizeType disjoint_rejections = 0u;
+    SizeType already_covered = 0u;
+    SizeType adjoin_calls = 0u;
+};
+
 //! \brief A class for computing outer approximations to sets defined by functions.
 class SubdivisionPaver : public PaverInterface {
   public:
     /** @brief Modify the paving representation. */
     Void adjoin_outer_approximation(PavingInterface& paving, const SetType& set, Nat fineness) const;
-    /** @brief Modify the paving representation. */
+    /** @brief Run with per-execution operation counters. */
+    Void adjoin_outer_approximation(PavingInterface& paving, const SetType& set,
+                                    Nat fineness, PaverDiagnostics& diagnostics) const;
+    /** @brief Modify the paving representation using specified output errors. */
     Void adjoin_outer_approximation_recursion(PavingInterface& paving, const ValidatedConstrainedImageSet& set, Nat fineness, const Vector<FloatDP>& max_errors) const;
     /** @brief Perform the paving operation. */
     OutputStream& _write(OutputStream& os) const;
+  private:
+    Void _adjoin_outer_approximation(PavingInterface& paving, const SetType& set,
+                                    Nat fineness, PaverDiagnostics* diagnostics) const;
+    Void _adjoin_outer_approximation_recursion(PavingInterface& paving,
+                                               const ValidatedConstrainedImageSet& set,
+                                               Nat fineness, const Vector<FloatDP>& max_errors,
+                                               PaverDiagnostics* diagnostics) const;
 };
 
 //! \brief A class for computing outer approximations to sets defined by functions.
@@ -94,8 +122,14 @@ class ReducePaver : public PaverInterface {
   public:
     /** @brief Modify the paving representation. */
     Void adjoin_outer_approximation(PavingInterface& paving, const SetType& set, Nat fineness) const;
+    /** @brief Run with per-execution operation counters. */
+    Void adjoin_outer_approximation(PavingInterface& paving, const SetType& set,
+                                    Nat fineness, PaverDiagnostics& diagnostics) const;
     /** @brief Perform the paving operation. */
     OutputStream& _write(OutputStream& os) const;
+  private:
+    Void _adjoin_outer_approximation(PavingInterface& paving, const SetType& set,
+                                    Nat fineness, PaverDiagnostics* diagnostics) const;
 };
 
 //! \brief A class for computing outer approximations to sets defined by functions.
@@ -103,8 +137,14 @@ class ConstraintPaver : public PaverInterface {
   public:
     /** @brief Modify the paving representation. */
     Void adjoin_outer_approximation(PavingInterface& paving, const SetType& set, Nat fineness) const;
+    /** @brief Run with per-execution operation counters. */
+    Void adjoin_outer_approximation(PavingInterface& paving, const SetType& set,
+                                    Nat fineness, PaverDiagnostics& diagnostics) const;
     /** @brief Perform the paving operation. */
     OutputStream& _write(OutputStream& os) const;
+  private:
+    Void _adjoin_outer_approximation(PavingInterface& paving, const SetType& set,
+                                    Nat fineness, PaverDiagnostics* diagnostics) const;
 };
 
 

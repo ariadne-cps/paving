@@ -153,7 +153,8 @@ void run(const Bench::CommandLine& cli, const Bench::Matrix& matrix,
          const Bench::Parameter<std::string>& shapes,
          const Bench::Parameter<unsigned>& samples,
          bool verify_only, unsigned max_case_ms,
-         const std::vector<Strategy>& implementations) {
+         const std::vector<Strategy>& implementations,
+         bool show_diagnostics) {
     if (implementations.empty())
         throw std::invalid_argument("at least one Paver must be selected");
     Bench::Runner runner(cli, matrix.combinations());
@@ -180,6 +181,12 @@ void run(const Bench::CommandLine& cli, const Bench::Matrix& matrix,
     Bench::Table geometry({
         {"Case"}, {"Dimension"}, {"Fineness"},
         {"A"}, {"B"}, {"Geometric relation"}
+    });
+    Bench::Table work({
+        {"Case"}, {"Dim"}, {"Fine"}, {"Paver"}, {"Visits"},
+        {"Param splits"}, {"Cell splits"}, {"Map evals"},
+        {"Constraint evals"}, {"Sensitivity"}, {"Reductions"},
+        {"Rejected"}, {"Covered"}, {"Adjoins"}
     });
 
     matrix.for_each([&](const Bench::Configuration& configuration) {
@@ -308,6 +315,39 @@ void run(const Bench::CommandLine& cli, const Bench::Matrix& matrix,
                     budget_hit ? "SOFT LIMIT" : "complete"
                 }, stats);
             }
+            if (show_diagnostics and not strategy.affine) {
+                // Instrumentation is deliberately outside every timed sample.
+                // Compare the complete cell geometry, not only count/volume.
+                BinaryTreePaving instrumented(grid);
+                PaverDiagnostics counters;
+                if (strategy.name == "subdivision") {
+                    SubdivisionPaver().adjoin_outer_approximation(instrumented, set, f, counters);
+                } else if (strategy.name == "reduce") {
+                    ReducePaver().adjoin_outer_approximation(instrumented, set, f, counters);
+                } else {
+                    ConstraintPaver().adjoin_outer_approximation(instrumented, set, f, counters);
+                }
+                instrumented.recombine();
+                verify_result(instrumented, test_case, shape, strategy.name);
+                if (not contains(instrumented, *paving) or
+                    not contains(*paving, instrumented))
+                    throw std::runtime_error(
+                        "Instrumentation changed the paving geometry: " +
+                        shape + "/" + strategy.name);
+                work.add_row({
+                    shape, std::to_string(d), std::to_string(f), strategy.name,
+                    std::to_string(counters.visited_nodes),
+                    std::to_string(counters.parameter_splits),
+                    std::to_string(counters.cell_splits),
+                    std::to_string(counters.map_evaluations),
+                    std::to_string(counters.constraint_evaluations),
+                    std::to_string(counters.sensitivity_evaluations),
+                    std::to_string(counters.reduction_calls),
+                    std::to_string(counters.disjoint_rejections),
+                    std::to_string(counters.already_covered),
+                    std::to_string(counters.adjoin_calls)
+                });
+            }
             outcomes.push_back({strategy.name, std::move(paving)});
         }
         for (std::size_t i = 0u; i != outcomes.size(); ++i) {
@@ -323,6 +363,10 @@ void run(const Bench::CommandLine& cli, const Bench::Matrix& matrix,
     });
     if (not verify_only)
         report.print();
+    if (show_diagnostics) {
+        LOGGING_PRINTLN("Paver operation counts (separate, untimed execution):")
+        LOGGING_PRINTLN(work.str())
+    }
     if (implementations.size() > 1u) {
         LOGGING_PRINTLN("Pairwise geometric containment (exact cell coverage):")
         LOGGING_PRINTLN(geometry.str())
@@ -359,6 +403,7 @@ int main(int argc, const char* argv[]) {
         matrix.add(dimensions).add(finenesses).add(shapes).add(samples);
 
         bool verify_only = false;
+        bool show_diagnostics = false;
         unsigned max_case_ms = 2000u;
         std::vector<Strategy> selected_pavers = strategies();
         Bench::CommandLine cli;
@@ -376,6 +421,10 @@ int main(int argc, const char* argv[]) {
         options.append(make_unvalued_argument_parser(
             "", "verify-only", "Validate all selected cases without timing",
             [&verify_only] { verify_only = true; }));
+        options.append(make_unvalued_argument_parser(
+            "", "diagnostics",
+            "Collect Paver work counters in a separate untimed run",
+            [&show_diagnostics] { show_diagnostics = true; }));
         options.append(make_valued_argument_parser(
             "", "max-case-ms",
             "Soft per-strategy timed budget in ms (0 disables; default 2000)",
@@ -388,7 +437,7 @@ int main(int argc, const char* argv[]) {
             return 0;
 
         run(cli, matrix, dimensions, finenesses, shapes, samples,
-            verify_only, max_case_ms, selected_pavers);
+            verify_only, max_case_ms, selected_pavers, show_diagnostics);
         return 0;
     } catch (const std::exception& error) {
         LOGGING_PRINTLN("benchmark_pavers: " << error.what())

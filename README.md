@@ -169,6 +169,7 @@ cmake --build build-release --target benchmark_pavers
 ./build-release/benchmarks/benchmark_pavers --dimensions 2 --finenesses 1 --samples 5
 ./build-release/benchmarks/benchmark_pavers --dimensions 2 --finenesses 2 --shapes affine-shear,uv-triangle,correlated-strip --samples 5
 ./build-release/benchmarks/benchmark_pavers --dimensions 2 --finenesses 3,4 --shapes uv-triangle,correlated-strip,product-cap,folded-quadratic --pavers subdivision,reduce,constraint --samples 5 --max-case-ms 2000
+./build-release/benchmarks/benchmark_pavers --dimensions 3 --finenesses 4 --shapes uv-triangle,correlated-strip,product-cap,folded-quadratic --pavers subdivision,reduce,constraint --samples 5 --max-case-ms 2000 --diagnostics
 ./build-release/benchmarks/benchmark_pavers --dimensions 2 --finenesses 3 --shapes uv-triangle --pavers constraint --samples 5
 ./build-release/benchmarks/benchmark_pavers --dimensions 2 --finenesses 1 --shapes parabolic-curve,empty-constraints --pavers subdivision,reduce,constraint --verify-only
 ```
@@ -198,6 +199,27 @@ table compares all six pairs by exact cell coverage (equality, strict
 containment or incomparability). Geometry construction, recombination,
 result verification and pairwise comparisons are **outside** the timed
 region. Never rank strategies by elapsed time alone.
+
+Optional `--diagnostics` adds a separate **untimed** pass for
+`SubdivisionPaver`, `ReducePaver` and `ConstraintPaver`. It records
+recursive visits, parameter and cell splits, map and constraint
+evaluations, sensitivity computations, contractor invocations, proven
+disjoint rejections, previously covered cells, and paving insertion
+calls. For `SubdivisionPaver`, a visit is a parameter subdomain; for
+`ReducePaver` and `ConstraintPaver`, a visit is a domain/cell pair.
+`Reductions` counts individual box/hull contractor calls, not
+high-level reduction iterations. `Map evals` and `Constraint evals`
+count selected range evaluations, not low-level scalar operations;
+for Reduce, constraint-related contractor calls are counted as constraint
+work. These counters therefore describe workloads, but are not
+interchangeable measures of work between different strategies.
+
+The instrumented replay uses a fresh empty paving, checks the same
+correctness conditions, and verifies *bidirectional exact cell coverage*
+against the measured result. No counter increments are included in
+reported times. Diagnostics are opt-in because replay may itself be
+costly, and are intentionally unavailable for `AffinePaver`, which
+retains its dedicated depth-limit diagnostics.
 
 These are manual benchmarks; they are not CTest performance tests.
 
