@@ -128,6 +128,40 @@ performing an outer/inner approximation. A subview cannot use cells
 coarser than its own nonempty root. The detached result uses the primary
 root cell at the source's root extent, even for child views.
 
+## Comparative Paver benchmark
+
+The standalone `benchmark_pavers` executable compares four distinct strategies:
+`AffinePaver`, `SubdivisionPaver`, `ReducePaver` and `ConstraintPaver`.
+It shares the exact five shape factories with the backend benchmark via
+`benchmarks/paving_benchmark_shapes.hpp`: aligned/rotated boxes,
+aligned/rotated ellipsoids and a ball. All shapes use the same identity
+mapping, unit parameter domain and parameter constraints. The validated
+sets supplied to Paver are constructed before timing. Each execution
+starts from a fresh empty `BinaryTreePaving`.
+
+Build and run manually in Release mode:
+
+```bash
+cmake -S . -B build-release -DCMAKE_BUILD_TYPE=Release
+cmake --build build-release --target benchmark_pavers
+./build-release/benchmarks/benchmark_pavers --help
+./build-release/benchmarks/benchmark_pavers --dimensions 2 --finenesses 1 --samples 5
+./build-release/benchmarks/benchmark_pavers --dimensions 2,3 --finenesses 1,2 --shapes aligned-box,rotated-box,ball --samples 5
+./build-release/benchmarks/benchmark_pavers --verify-only --dimensions 2 --finenesses 0 --shapes aligned-box
+```
+
+The table reports median time in milliseconds (and other selected statistics),
+compact enabled-cell count after recombination, and approximate enclosure
+volume. Recombination, geometry construction and correctness checks are
+outside the timed region. The validation requires coverage of a known exact
+interior box for each shape, and checks identical results across repeated
+runs. This is a targeted sanity check, **not** a complete proof of soundness.
+
+**Do not rank strategies solely by elapsed time:** Pavers may produce
+different valid outer approximations at the same fineness. Compare both
+time and enclosure volume/cell count. These manual benchmarks are not
+registered with CTest and do not run as performance tests in CI.
+
 ## Comparative backend benchmark
 
 Build explicitly with:

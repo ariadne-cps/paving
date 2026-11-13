@@ -8,6 +8,11 @@ add_executable(benchmark_paving_superset benchmark_paving_superset.cpp)
 target_link_libraries(benchmark_paving_superset PRIVATE
     ariadne-paving paving ariadne-benchmarking)
 add_dependencies(benchmarks benchmark_paving_backends benchmark_paving_superset)
+# Manual-only comparison of Paver algorithms on shared certified geometry.
+add_executable(benchmark_pavers benchmark_pavers.cpp)
+target_link_libraries(benchmark_pavers PRIVATE
+    ariadne-paving paving ariadne-benchmarking)
+add_dependencies(benchmarks benchmark_pavers)
 
 # Manual-only Tree snapshot, BDD compilation and query break-even study.
 add_executable(benchmark_cached_binary_tree_paving benchmark_cached_binary_tree_paving.cpp)
