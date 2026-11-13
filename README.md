@@ -130,14 +130,28 @@ root cell at the source's root extent, even for child views.
 
 ## Comparative Paver benchmark
 
-The standalone `benchmark_pavers` executable compares four distinct strategies:
-`AffinePaver`, `SubdivisionPaver`, `ReducePaver` and `ConstraintPaver`.
-It shares the exact five shape factories with the backend benchmark via
-`benchmarks/paving_benchmark_shapes.hpp`: aligned/rotated boxes,
-aligned/rotated ellipsoids and a ball. All shapes use the same identity
-mapping, unit parameter domain and parameter constraints. The validated
-sets supplied to Paver are constructed before timing. Each execution
-starts from a fresh empty `BinaryTreePaving`.
+The standalone `benchmark_pavers` executable compares `AffinePaver`,
+`SubdivisionPaver`, `ReducePaver`, and `ConstraintPaver`. The original
+five aligned/rotated box and ellipsoid, and ball cases remain shared with
+`benchmark_paving_backends` through `benchmarks/paving_benchmark_shapes.hpp`.
+Nine **Paver-only** cases extend the workload beyond identity maps:
+
+| Case | Geometry (unit parameter domains) | Exact output volume |
+| --- | --- | --- |
+| `affine-shear` | (u, v + u/4), remaining coordinates unchanged | 1 |
+| `quadratic-shear` | (u, v + (u-1/2)^2/4), remaining unchanged | 1 |
+| `folded-quadratic` | (4(u-1/2)^2, v), remaining unchanged | 1 |
+| `uv-triangle` | (u, uv), remaining unchanged | 1/2 |
+| `affine-projection` | d+1 parameters projected onto d coordinates | 1 |
+| `correlated-strip` | Identity, 3/4 <= u+v <= 5/4 | 7/16 |
+| `product-cap` | Identity, uv >= 1/4 | 3/4 + ln(1/4)/4 |
+| `parabolic-curve` | d-1 parameters mapped to (u, u^2, ...) | 0 |
+| `empty-constraints` | Identity, impossible u <= -1 | 0 |
+
+`--dimensions` refers to the **output** dimension (2..6), not necessarily
+the number of parameters. The default matrix includes all 14 cases. Use
+`--shapes` to select a subset; existing five-shape invocations still work.
+The backend comparison still uses exclusively the original five shapes.
 
 Build and run manually in Release mode:
 
@@ -146,36 +160,37 @@ cmake -S . -B build-release -DCMAKE_BUILD_TYPE=Release
 cmake --build build-release --target benchmark_pavers
 ./build-release/benchmarks/benchmark_pavers --help
 ./build-release/benchmarks/benchmark_pavers --dimensions 2 --finenesses 1 --samples 5
-./build-release/benchmarks/benchmark_pavers --dimensions 2,3 --finenesses 1,2 --shapes aligned-box,rotated-box,ball --samples 5
-./build-release/benchmarks/benchmark_pavers --verify-only --dimensions 2 --finenesses 0 --shapes aligned-box
+./build-release/benchmarks/benchmark_pavers --dimensions 2 --finenesses 2 --shapes affine-shear,uv-triangle,correlated-strip --samples 5
+./build-release/benchmarks/benchmark_pavers --dimensions 2 --finenesses 1 --shapes parabolic-curve,empty-constraints --verify-only
 ```
 
-The time report defaults to median, min, max, mean and MAD (the usual
-`--summary` option still overrides the columns). It also gives compact
-enabled-cell count, outer volume, the theoretical shape volume, and the
-outer-to-shape volume ratio (at least 1 for a sound outer enclosure).
-The shared shapes are not clipped by the unit parameter domain, so the
-box products and rotated/unrotated ellipsoid and ball formulas apply.
+The per-strategy, per-case `--max-case-ms N` option (default 2000,
+`0` disables) sets a **soft budget** for the accumulated *timed* samples.
+After each completed invocation the budget is checked; a partial row
+reports `SOFT LIMIT` with the actual sample count, e.g. `1/5`. It cannot
+interrupt an already running Paver call, so an individual sample can
+exceed the budget. Warm-ups are outside that budget and execute once
+per strategy. `--verify-only` performs each case once without timing
+or budget. Use `--max-case-ms 0` for unrestricted timing.
 
-`AffinePaver` additionally records the number of parameter-domain splits,
-the number of unresolved subdomains after its depth cap, and a \"HIT\"
-status when the requested affine error cannot be achieved. For other
-strategies these fields are \"n/a\", not a claim that no limit exists.
-The original production warning is preserved.
+The report shows median, min, max, mean and MAD by default (customizable
+with `--summary`), compact cell counts, approximate outer volume and
+analytic set volume, and the outer/set volume ratio. For zero-volume
+or empty sets the ratio is `n/a`, rather than a divide-by-zero number.
+Known interior witness boxes are checked where available; empty sets
+must yield empty pavings and lower-dimensional images must be nonempty.
+The necessary volume lower bound and deterministic repeatability are
+also checked. These are sanity checks, not a complete proof of soundness.
 
-A second table reports **all six pairwise geometric relations** per
-configuration. Relations are computed from exact coverage of enabled
-grid cells after recombination: equal, strictly contains, or incomparable.
-Equality of cell counts or volumes alone is not used to infer equality.
+`AffinePaver` additionally reports split counts, unresolved domains,
+and whether its depth limit was reached. The original warning is
+preserved; unrelated Pavers display `n/a` for those fields. The second
+table compares all six pairs by exact cell coverage (equality, strict
+containment or incomparability). Geometry construction, recombination,
+result verification and pairwise comparisons are **outside** the timed
+region. Never rank strategies by elapsed time alone.
 
-Geometry construction, recombination, verification, and pairwise checks
-occur **outside** the timed Paver operation. Validation checks a known
-interior box, reproducible outputs, and the necessary volume lower bound;
-it is not a complete proof of outer-approximation soundness.
-
-**Do not rank strategies solely by elapsed time:** different Pavers may
-produce different outer approximations at the same fineness. These
-benchmarks are manual-only and do not run as performance tests in CI.
+These are manual benchmarks; they are not CTest performance tests.
 
 ## Comparative backend benchmark
 

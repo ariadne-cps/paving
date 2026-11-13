@@ -68,24 +68,6 @@ bool contains(const BinaryTreePaving& outer, const BinaryTreePaving& inner) {
     return true;
 }
 
-// The geometries are fully contained in the unit box; in higher dimensions
-// boxes have additional width 1/2, ellipsoids and balls have radius 1/4.
-// Rotation is orthogonal, so it preserves their Euclidean volume.
-double analytical_volume(unsigned dimension, const std::string& shape) {
-    const double half_dimensions = static_cast<double>(dimension) / 2.0;
-    if (shape == "aligned-box" or shape == "rotated-box")
-        return 0.125 * std::pow(0.5, static_cast<double>(dimension - 2u));
-    const double unit_ball_volume =
-        std::pow(std::acos(-1.0), half_dimensions) /
-        std::tgamma(half_dimensions + 1.0);
-    if (shape == "ball")
-        return unit_ball_volume * std::pow(0.25, static_cast<double>(dimension));
-    if (shape == "aligned-ellipsoid" or shape == "rotated-ellipsoid")
-        return unit_ball_volume * 0.5 *
-               std::pow(0.25, static_cast<double>(dimension));
-    throw std::invalid_argument("unknown benchmark geometry");
-}
-
 std::string relation(const BinaryTreePaving& first,
                      const BinaryTreePaving& second) {
     const bool first_contains_second = contains(first, second);
@@ -108,17 +90,25 @@ std::vector<Strategy> strategies() {
     };
 }
 
-// These exact dyadic boxes lie strictly inside every benchmark shape,
-// including rotated ellipsoids. This verifies a known interior region rather
-// than demanding equality between two different valid outer approximations.
-void verify_result(const BinaryTreePaving& paving, unsigned dimension,
-                   const std::string& shape, const std::string& strategy) {
-    const ExactBoxType interior(
-        dimension, ExactIntervalType(0.49609375_x, 0.50390625_x));
-    if (paving.is_empty() or not paving.superset(interior))
-        throw std::runtime_error(
-            "Missing certified interior: shape=" + shape +
-            " paver=" + strategy + " dimension=" + std::to_string(dimension));
+// Independently verified interior regions are optional: curves have no
+// full-dimensional interior, and empty sets must stay empty.
+void verify_result(const BinaryTreePaving& paving,
+                   const PavingBenchmarkCases::PaverBenchmarkCase& test_case,
+                   const std::string& name, const std::string& strategy) {
+    if (test_case.expected_empty) {
+        if (not paving.is_empty())
+            throw std::runtime_error(
+                "Nonempty approximation of a proven empty set: " +
+                name + "/" + strategy);
+    } else {
+        if (paving.is_empty())
+            throw std::runtime_error(
+                "Empty approximation of a nonempty set: " +
+                name + "/" + strategy);
+        if (test_case.interior and not paving.superset(*test_case.interior))
+            throw std::runtime_error(
+                "Missing certified interior: " + name + "/" + strategy);
+    }
 }
 
 double measured_volume(const BinaryTreePaving& paving) {
@@ -130,8 +120,9 @@ void run(const Bench::CommandLine& cli, const Bench::Matrix& matrix,
          const Bench::Parameter<unsigned>& finenesses,
          const Bench::Parameter<std::string>& shapes,
          const Bench::Parameter<unsigned>& samples,
-         bool verify_only) {
+         bool verify_only, unsigned max_case_ms) {
     Bench::Runner runner(cli, matrix.combinations());
+    Bench::Runner sample_runner(0u, matrix.combinations());
     Bench::SummaryFields fields = cli.summary_fields();
     if (fields == Bench::default_summary_fields())
         fields.insert(fields.begin(), Bench::SummaryField::Median);
@@ -139,13 +130,13 @@ void run(const Bench::CommandLine& cli, const Bench::Matrix& matrix,
                          fields);
     report.set_time_unit(Bench::ReportTimeUnit::Milliseconds);
     report.set_dimension_columns({
-        {"Shape"}, {"Dimension"}, {"Fineness"}, {"Paver"},
-        {"Cells"}, {"Outer volume"}, {"Shape volume"}, {"Outer/shape"},
-        {"Depth cap"}, {"Unresolved"}, {"Splits"}
+        {"Case"}, {"Dimension"}, {"Fineness"}, {"Paver"},
+        {"Cells"}, {"Outer volume"}, {"Case volume"}, {"Outer/case"},
+        {"Depth cap"}, {"Unresolved"}, {"Splits"}, {"Samples"}, {"Budget"}
     });
     report.set_parameter_header(matrix.header());
     Bench::Table geometry({
-        {"Shape"}, {"Dimension"}, {"Fineness"},
+        {"Case"}, {"Dimension"}, {"Fineness"},
         {"A"}, {"B"}, {"Geometric relation"}
     });
 
@@ -160,11 +151,11 @@ void run(const Bench::CommandLine& cli, const Bench::Matrix& matrix,
             throw std::invalid_argument(
                 "dimensions must be 2..6, finenesses 0..4, samples positive");
 
-        // Not measured: geometry, constraints and the validated input.
-        const ValidatedConstrainedImageSet set =
-            PavingBenchmarkCases::make_validated_shape(d, shape);
+        // Geometry and validation data are constructed outside the timer.
+        const auto test_case = PavingBenchmarkCases::make_paver_case(d, shape);
+        const auto& set = test_case.set;
         const Grid grid(d);
-        const double shape_volume = analytical_volume(d, shape);
+        const double shape_volume = test_case.exact_volume;
         std::vector<Outcome> outcomes;
         runner.configuration_started(configuration);
 
@@ -192,7 +183,7 @@ void run(const Bench::CommandLine& cli, const Bench::Matrix& matrix,
                 // Canonicalization, correctness checks and size/volume
                 // accounting are outside the Paver execution timer.
                 paving->recombine();
-                verify_result(*paving, d, shape, strategy.name);
+                verify_result(*paving, test_case, shape, strategy.name);
                 const SizeType cells = paving->size();
                 const double volume = measured_volume(*paving);
                 if (not std::isfinite(volume) or
@@ -222,29 +213,58 @@ void run(const Bench::CommandLine& cli, const Bench::Matrix& matrix,
                 prepare();
                 operate();
                 verify();
-                LOGGING_PRINTLN("PAVER_VERIFY shape=" << shape
+                LOGGING_PRINTLN("PAVER_VERIFY case=" << shape
                                 << " d=" << d << " f=" << f
                                 << " paver=" << strategy.name
                                 << " cells=" << expected_cells
                                 << " volume=" << expected_volume
-                                << " volume_ratio=" << expected_volume / shape_volume
+                                << " ratio=" << (shape_volume > 0.0
+                                                      ? Bench::Table::number(
+                                                            expected_volume / shape_volume, 3u)
+                                                      : "n/a")
                                 << " depth_capped=" << (strategy.affine and expected_diagnostics.depth_limit_reached())
                                 << " unresolved=" << (strategy.affine ? expected_diagnostics.unresolved_domains : 0u))
             } else {
-                auto measured = runner.run(
-                    strategy.name, n, prepare, operate, verify);
+                // The framework Runner executes one sample at a time so
+                // the soft budget can be checked between completed calls.
+                // No safe cancellation of a Paver already running is possible.
+                for (unsigned i = 0u; i < cli.warmups(); ++i) {
+                    prepare();
+                    operate();
+                    verify();
+                }
+                Bench::Samples measured;
+                double measured_ms = 0.0;
+                bool budget_hit = false;
+                for (unsigned i = 0u; i < n; ++i) {
+                    const Bench::Samples sample = sample_runner.run(
+                        strategy.name, 1u, prepare, operate, verify);
+                    const double nanoseconds = sample.values().front();
+                    measured.add(nanoseconds);
+                    measured_ms += nanoseconds / 1e6;
+                    if (max_case_ms != 0u and measured_ms >= max_case_ms and
+                        i + 1u < n) {
+                        budget_hit = true;
+                        break;
+                    }
+                }
                 const Bench::Statistics stats = Bench::summarize(measured);
                 if (not std::isfinite(stats.median) or stats.median <= 0.0)
                     throw std::runtime_error("Invalid Paver timing");
+                const std::string ratio = shape_volume > 0.0
+                    ? Bench::Table::number(expected_volume / shape_volume, 3u)
+                    : "n/a";
                 report.add_row({
                     shape, std::to_string(d), std::to_string(f),
                     strategy.name, std::to_string(expected_cells),
                     Bench::Table::number(expected_volume, 6u),
                     Bench::Table::number(shape_volume, 6u),
-                    Bench::Table::number(expected_volume / shape_volume, 3u),
+                    ratio,
                     strategy.affine ? (expected_diagnostics.depth_limit_reached() ? "HIT" : "no") : "n/a",
                     strategy.affine ? std::to_string(expected_diagnostics.unresolved_domains) : "n/a",
-                    strategy.affine ? std::to_string(expected_diagnostics.split_domains) : "n/a"
+                    strategy.affine ? std::to_string(expected_diagnostics.split_domains) : "n/a",
+                    std::to_string(measured.size()) + "/" + std::to_string(n),
+                    budget_hit ? "SOFT LIMIT" : "complete"
                 }, stats);
             }
             outcomes.push_back({strategy.name, std::move(paving)});
@@ -274,13 +294,18 @@ int main(int argc, const char* argv[]) {
         Bench::Parameter<unsigned> finenesses(
             "finenesses", "Grid fineness (0..4)", {1u});
         Bench::Parameter<std::string> shapes(
-            "shapes", "Geometry (aligned-box, rotated-box, aligned-ellipsoid, rotated-ellipsoid, ball)",
+            "shapes", "Paver cases: five geometric, affine-shear, quadratic-shear,"
+            " folded-quadratic, uv-triangle, affine-projection, correlated-strip,"
+            " product-cap, parabolic-curve, empty-constraints",
             {"aligned-box", "rotated-box", "aligned-ellipsoid",
-             "rotated-ellipsoid", "ball"},
+             "rotated-ellipsoid", "ball", "affine-shear", "quadratic-shear",
+             "folded-quadratic", "uv-triangle", "affine-projection",
+             "correlated-strip", "product-cap", "parabolic-curve",
+             "empty-constraints"},
             [](const std::string& name) {
-                const auto accepted = PavingBenchmarkCases::parse_shapes(String(name));
+                const auto accepted = PavingBenchmarkCases::parse_paver_cases(String(name));
                 if (accepted.size() != 1u)
-                    throw std::invalid_argument("one shape per matrix value");
+                    throw std::invalid_argument("one case per matrix value");
                 return accepted.front();
             });
         Bench::Parameter<unsigned> samples(
@@ -289,17 +314,26 @@ int main(int argc, const char* argv[]) {
         matrix.add(dimensions).add(finenesses).add(shapes).add(samples);
 
         bool verify_only = false;
+        unsigned max_case_ms = 2000u;
         Bench::CommandLine cli;
         cli.add_parameters(matrix);
         List<ArgumentParser> options;
         options.append(make_unvalued_argument_parser(
             "", "verify-only", "Validate all selected cases without timing",
             [&verify_only] { verify_only = true; }));
+        options.append(make_valued_argument_parser(
+            "", "max-case-ms",
+            "Soft per-strategy timed budget in ms (0 disables; default 2000)",
+            [&max_case_ms](const String& value) -> VoidFunction {
+                const unsigned ms = Bench::parse_unsigned<unsigned>(value);
+                return [&max_case_ms, ms] { max_case_ms = ms; };
+            }));
         cli.add(CommandLineContribution("pavers-benchmark", options));
         if (not cli.acquire(argc, argv))
             return 0;
 
-        run(cli, matrix, dimensions, finenesses, shapes, samples, verify_only);
+        run(cli, matrix, dimensions, finenesses, shapes, samples,
+            verify_only, max_case_ms);
         return 0;
     } catch (const std::exception& error) {
         LOGGING_PRINTLN("benchmark_pavers: " << error.what())

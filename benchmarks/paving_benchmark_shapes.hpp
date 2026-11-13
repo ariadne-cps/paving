@@ -30,6 +30,8 @@
 #define ARIADNE_PAVING_BENCHMARK_SHAPES_HPP
 
 #include <algorithm>
+#include <cmath>
+#include <optional>
 #include <iterator>
 #include <stdexcept>
 #include <string>
@@ -128,6 +130,132 @@ inline ValidatedConstrainedImageSet make_validated_shape(
     return ValidatedConstrainedImageSet(
         ExactBoxType(dimension, ExactIntervalType(0, 1)),
         effective.function(), effective.constraints());
+}
+
+// Benchmark-only mapped and constrained workloads. The five original
+// shapes remain unchanged for the independent backend benchmark.
+inline std::vector<std::string> parse_paver_cases(const String& value) {
+    const std::string input(value);
+    if (input.empty() or input.front() == ',' or input.back() == ',')
+        throw std::invalid_argument("invalid Paver case list");
+    constexpr const char* known[] = {
+        "aligned-box", "rotated-box", "aligned-ellipsoid",
+        "rotated-ellipsoid", "ball", "affine-shear", "quadratic-shear",
+        "folded-quadratic", "uv-triangle", "affine-projection",
+        "correlated-strip", "product-cap", "parabolic-curve",
+        "empty-constraints"
+    };
+    std::vector<std::string> result;
+    std::size_t start = 0u;
+    do {
+        const std::size_t end = input.find(',', start);
+        const auto name = input.substr(
+            start, end == std::string::npos ? end : end - start);
+        if (std::find(std::begin(known), std::end(known), name) ==
+                std::end(known) or
+            std::find(result.begin(), result.end(), name) != result.end())
+            throw std::invalid_argument("unknown or duplicate Paver case: " + name);
+        result.push_back(name);
+        if (end == std::string::npos)
+            break;
+        start = end + 1u;
+    } while (true);
+    return result;
+}
+
+// Zero-volume and empty sets have no full-dimensional interior box. They
+// are validated separately rather than requiring a fictitious witness.
+struct PaverBenchmarkCase {
+    ValidatedConstrainedImageSet set;
+    double exact_volume;
+    bool expected_empty = false;
+    std::optional<ExactBoxType> interior;
+};
+
+inline PaverBenchmarkCase make_paver_case(unsigned dimension,
+                                          const std::string& name) {
+    if (dimension < 2u or dimension > 6u)
+        throw std::invalid_argument("Paver case dimension must be 2..6");
+    (void)parse_paver_cases(String(name));
+    const ExactBoxType centered(
+        dimension, ExactIntervalType(0.49609375_x, 0.50390625_x));
+    const double h = static_cast<double>(dimension) / 2.0;
+    const double unit_ball_volume =
+        std::pow(std::acos(-1.0), h) / std::tgamma(h + 1.0);
+
+    if (name == "aligned-box" or name == "rotated-box")
+        return {make_validated_shape(dimension, name),
+                0.125 * std::pow(0.5, static_cast<double>(dimension - 2u)),
+                false, centered};
+    if (name == "aligned-ellipsoid" or name == "rotated-ellipsoid")
+        return {make_validated_shape(dimension, name),
+                unit_ball_volume * 0.5 *
+                    std::pow(0.25, static_cast<double>(dimension)),
+                false, centered};
+    if (name == "ball")
+        return {make_validated_shape(dimension, name),
+                unit_ball_volume * std::pow(0.25, static_cast<double>(dimension)),
+                false, centered};
+
+    const bool curve = name == "parabolic-curve";
+    const unsigned parameters = dimension +
+                                (name == "affine-projection" ? 1u : 0u) -
+                                (curve ? 1u : 0u);
+    const auto x = EffectiveScalarMultivariateFunction::coordinates(parameters);
+    List<EffectiveScalarMultivariateFunction> components;
+    for (unsigned i = 0u; i != dimension; ++i) {
+        if (name == "affine-shear" and i == 1u) {
+            components.append(x[1] + x[0] * 0.25_x);
+        } else if (name == "quadratic-shear" and i == 1u) {
+            const auto u = x[0] - 0.5_x;
+            components.append(x[1] + u * u * 0.25_x);
+        } else if (name == "folded-quadratic" and i == 0u) {
+            const auto u = x[0] - 0.5_x;
+            components.append(4 * u * u);
+        } else if (name == "uv-triangle" and i == 1u) {
+            components.append(x[0] * x[1]);
+        } else if (curve and i == 1u) {
+            components.append(x[0] * x[0]);
+        } else {
+            components.append(x[i - (curve and i > 1u ? 1u : 0u)]);
+        }
+    }
+    EffectiveConstrainedImageSet effective(
+        RealBox(parameters, RealInterval(0, 1)),
+        EffectiveVectorMultivariateFunction(components));
+    if (name == "correlated-strip") {
+        effective.new_parameter_constraint(x[0] + x[1] >= 0.75_x);
+        effective.new_parameter_constraint(x[0] + x[1] <= 1.25_x);
+    } else if (name == "product-cap") {
+        effective.new_parameter_constraint(x[0] * x[1] >= 0.25_x);
+    } else if (name == "empty-constraints") {
+        effective.new_parameter_constraint(x[0] <= -1.0_x);
+    }
+
+    ValidatedConstrainedImageSet validated(
+        ExactBoxType(parameters, ExactIntervalType(0, 1)),
+        effective.function(), effective.constraints());
+    if (name == "empty-constraints")
+        return {validated, 0.0, true, std::nullopt};
+    if (curve)
+        return {validated, 0.0, false, std::nullopt};
+    if (name == "uv-triangle") {
+        ExactBoxType witness = centered;
+        witness[0] = ExactIntervalType(0.74609375_x, 0.75390625_x);
+        witness[1] = ExactIntervalType(0.24609375_x, 0.25390625_x);
+        return {validated, 0.5, false, witness};
+    }
+    if (name == "product-cap") {
+        ExactBoxType witness = centered;
+        witness[0] = ExactIntervalType(0.74609375_x, 0.75390625_x);
+        witness[1] = ExactIntervalType(0.74609375_x, 0.75390625_x);
+        return {validated, 0.75 + 0.25 * std::log(0.25), false, witness};
+    }
+    if (name == "correlated-strip")
+        return {validated, 0.4375, false, centered};
+    // Affine/quadratic shear (unit Jacobian), folding (surjective onto
+    // [0,1]), and projection all have unit output-volume.
+    return {validated, 1.0, false, centered};
 }
 
 } // namespace Ariadne::PavingBenchmarkCases
