@@ -72,12 +72,14 @@ auto profile_paver_operation(PaverDiagnostics* diagnostics,
         operation();
         diagnostics->*nanoseconds += static_cast<std::uint64_t>(
             std::chrono::duration_cast<std::chrono::nanoseconds>(
-                std::chrono::steady_clock::now() - begin).count());
+                std::chrono::steady_clock::now() - begin)
+                .count());
     } else {
         auto result = operation();
         diagnostics->*nanoseconds += static_cast<std::uint64_t>(
             std::chrono::duration_cast<std::chrono::nanoseconds>(
-                std::chrono::steady_clock::now() - begin).count());
+                std::chrono::steady_clock::now() - begin)
+                .count());
         return result;
     }
 }
@@ -137,17 +139,17 @@ Void SubdivisionPaver::adjoin_outer_approximation(PavingInterface& paving, const
 }
 
 Void SubdivisionPaver::adjoin_outer_approximation(PavingInterface& paving,
-                                                   const ValidatedConstrainedImageSet& set,
-                                                   Nat fineness,
-                                                   PaverDiagnostics& diagnostics) const {
+                                                  const ValidatedConstrainedImageSet& set,
+                                                  Nat fineness,
+                                                  PaverDiagnostics& diagnostics) const {
     diagnostics = {};
     this->_adjoin_outer_approximation(paving, set, fineness, &diagnostics);
 }
 
 Void SubdivisionPaver::_adjoin_outer_approximation(PavingInterface& paving,
-                                                    const ValidatedConstrainedImageSet& set,
-                                                    Nat fineness,
-                                                    PaverDiagnostics* diagnostics) const {
+                                                   const ValidatedConstrainedImageSet& set,
+                                                   Nat fineness,
+                                                   PaverDiagnostics* diagnostics) const {
     Vector<FloatDP> max_errors(paving.dimension(), dp);
     for (SizeType i = 0; i != max_errors.size(); ++i) {
         max_errors[i] = shft(static_cast<FloatDP>(paving.grid().lengths()[i]), -static_cast<int>(fineness));
@@ -211,8 +213,8 @@ Void SubdivisionPaver::_adjoin_outer_approximation_recursion(
         if (diagnostics != nullptr)
             ++diagnostics->adjoin_calls;
         profile_paver_operation(
-                diagnostics, &PaverDiagnostics::adjoin_ns,
-                [&] { paving.adjoin_outer_approximation(cast_exact_box(range), fineness); });
+            diagnostics, &PaverDiagnostics::adjoin_ns,
+            [&] { paving.adjoin_outer_approximation(cast_exact_box(range), fineness); });
     } else {
         if (diagnostics != nullptr)
             ++diagnostics->sensitivity_evaluations;
@@ -555,7 +557,7 @@ Void interval_constraint_adjoin_outer_approximation_recursion(
     const auto combined_range = profile_paver_operation(
         diagnostics,
         constraints.result_size() != 0u ? &PaverDiagnostics::joint_range_ns
-                                         : &PaverDiagnostics::map_range_ns,
+                                        : &PaverDiagnostics::map_range_ns,
         [&] { return apply(combined, domain); });
     if (definitely(disjoint(combined_range, product(cell.box(), bounds)))) {
         if (diagnostics != nullptr)

@@ -2220,9 +2220,9 @@ Void BinaryTreePaving::_adjoin_outer_box_approximation(
     // separation: cells touching the boundary must remain covered by
     // the outer approximation.
     const Bool visit_left = !left_enabled &&
-        !definitely(box[axis].lower_bound() > physical_split_value);
+                            !definitely(box[axis].lower_bound() > physical_split_value);
     const Bool visit_right = !right_enabled &&
-        !definitely(box[axis].upper_bound() < physical_split_value);
+                             !definitely(box[axis].upper_bound() < physical_split_value);
     if (!visit_left && !visit_right)
         return;
 
@@ -2230,7 +2230,7 @@ Void BinaryTreePaving::_adjoin_outer_box_approximation(
     const ExactIntervalType saved_physical(physical_cell[axis]);
 
     const Bool was_uncovered = can_prove_cover &&
-        !definitely(Ariadne::covers(box[axis], physical_cell[axis]));
+                               !definitely(Ariadne::covers(box[axis], physical_cell[axis]));
     const Nat other_uncovered_axes =
         uncovered_axes - static_cast<Nat>(was_uncovered);
 
@@ -2238,8 +2238,8 @@ Void BinaryTreePaving::_adjoin_outer_box_approximation(
         lattice_cell[axis].set_upper_bound(split_value);
         physical_cell[axis].set_upper_bound(physical_split_value);
         const Nat left_uncovered_axes = other_uncovered_axes +
-            static_cast<Nat>(can_prove_cover &&
-                !definitely(Ariadne::covers(box[axis], physical_cell[axis])));
+                                        static_cast<Nat>(can_prove_cover &&
+                                                         !definitely(Ariadne::covers(box[axis], physical_cell[axis])));
         _adjoin_outer_box_approximation(
             left_node, lattice_cell, physical_cell, origin, lengths,
             depth + 1u, max_mince_tree_depth, box, can_prove_cover,
@@ -2252,8 +2252,8 @@ Void BinaryTreePaving::_adjoin_outer_box_approximation(
         lattice_cell[axis].set_lower_bound(split_value);
         physical_cell[axis].set_lower_bound(physical_split_value);
         const Nat right_uncovered_axes = other_uncovered_axes +
-            static_cast<Nat>(can_prove_cover &&
-                !definitely(Ariadne::covers(box[axis], physical_cell[axis])));
+                                         static_cast<Nat>(can_prove_cover &&
+                                                          !definitely(Ariadne::covers(box[axis], physical_cell[axis])));
         _adjoin_outer_box_approximation(
             right_node, lattice_cell, physical_cell, origin, lengths,
             depth + 1u, max_mince_tree_depth, box, can_prove_cover,

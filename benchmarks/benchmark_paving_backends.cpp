@@ -50,8 +50,8 @@
 #include "paving/cached_binary_tree_paving.hpp"
 #include "paving/paving_cell_operations.hpp"
 #include "paving/robdd_paving.hpp"
-#include "set/function_set.hpp"
 #include "paving_benchmark_shapes.hpp"
+#include "set/function_set.hpp"
 #include "threading/thread_manager.hpp"
 #include "threading/threading_command_line_interface.hpp"
 
@@ -225,7 +225,6 @@ List<ArgumentParser> parsers(Selection& selection) {
         }));
     return result;
 }
-
 
 using Bench::keep_alive;
 // Calibration can stop at the iteration cap before the requested duration.

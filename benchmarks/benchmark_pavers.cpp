@@ -32,16 +32,16 @@
 #include <memory>
 #include <sstream>
 #include <stdexcept>
-#include <utility>
 #include <string>
+#include <utility>
 #include <vector>
 
 #include "logging/logging.hpp"
 #include "paving/binary_tree_paving.hpp"
 #include "paving/paver.hpp"
+#include "paving_benchmark_shapes.hpp"
 
 #include "ariadne-benchmarking.hpp"
-#include "paving_benchmark_shapes.hpp"
 
 using namespace Ariadne;
 namespace Bench = Ariadne::Benchmarking;
@@ -166,11 +166,7 @@ void run(const Bench::CommandLine& cli, const Bench::Matrix& matrix,
     Bench::Report report("Paver outer approximations: time, tightness and depth limits",
                          fields);
     report.set_time_unit(Bench::ReportTimeUnit::Milliseconds);
-    report.set_dimension_columns({
-        {"Case"}, {"Dimension"}, {"Fineness"}, {"Paver"},
-        {"Cells"}, {"Outer volume"}, {"Case volume"}, {"Outer/case"},
-        {"Depth cap"}, {"Unresolved"}, {"Splits"}, {"Samples"}, {"Budget"}
-    });
+    report.set_dimension_columns({{"Case"}, {"Dimension"}, {"Fineness"}, {"Paver"}, {"Cells"}, {"Outer volume"}, {"Case volume"}, {"Outer/case"}, {"Depth cap"}, {"Unresolved"}, {"Splits"}, {"Samples"}, {"Budget"}});
     std::string report_header = matrix.header() + " | pavers=[";
     for (const Strategy& strategy: implementations) {
         if (&strategy != &implementations.front())
@@ -179,23 +175,9 @@ void run(const Bench::CommandLine& cli, const Bench::Matrix& matrix,
     }
     report_header += "]";
     report.set_parameter_header(report_header);
-    Bench::Table geometry({
-        {"Case"}, {"Dimension"}, {"Fineness"},
-        {"A"}, {"B"}, {"Geometric relation"}
-    });
-    Bench::Table work({
-        {"Case"}, {"Dim"}, {"Fine"}, {"Paver"}, {"Visits"},
-        {"Param splits"}, {"Cell splits"}, {"Map evals"},
-        {"Constraint evals"}, {"Sensitivity"}, {"Reductions"},
-        {"Constraint reductions"}, {"Box reducers"}, {"Hull reducers"},
-        {"Joins"}, {"Rejected"}, {"Covered"}, {"Adjoins"}
-    });
-    Bench::Table timings({
-        {"Case"}, {"Dim"}, {"Fine"}, {"Paver"}, {"Map (ms)"},
-        {"Constraints (ms)"}, {"Joint (ms)"}, {"Sensitivity (ms)"},
-        {"Box red. (ms)"}, {"Hull red. (ms)"}, {"Join (ms)"},
-        {"Adjoin (ms)"}, {"Other (ms)"}, {"Profiled (ms)"}
-    });
+    Bench::Table geometry({{"Case"}, {"Dimension"}, {"Fineness"}, {"A"}, {"B"}, {"Geometric relation"}});
+    Bench::Table work({{"Case"}, {"Dim"}, {"Fine"}, {"Paver"}, {"Visits"}, {"Param splits"}, {"Cell splits"}, {"Map evals"}, {"Constraint evals"}, {"Sensitivity"}, {"Reductions"}, {"Constraint reductions"}, {"Box reducers"}, {"Hull reducers"}, {"Joins"}, {"Rejected"}, {"Covered"}, {"Adjoins"}});
+    Bench::Table timings({{"Case"}, {"Dim"}, {"Fine"}, {"Paver"}, {"Map (ms)"}, {"Constraints (ms)"}, {"Joint (ms)"}, {"Sensitivity (ms)"}, {"Box red. (ms)"}, {"Hull red. (ms)"}, {"Join (ms)"}, {"Adjoin (ms)"}, {"Other (ms)"}, {"Profiled (ms)"}});
 
     matrix.for_each([&](const Bench::Configuration& configuration) {
         const unsigned d = configuration.value(dimensions);
@@ -270,16 +252,13 @@ void run(const Bench::CommandLine& cli, const Bench::Matrix& matrix,
                 operate();
                 verify();
                 LOGGING_PRINTLN("PAVER_VERIFY case=" << shape
-                                << " d=" << d << " f=" << f
-                                << " paver=" << strategy.name
-                                << " cells=" << expected_cells
-                                << " volume=" << expected_volume
-                                << " ratio=" << (shape_volume > 0.0
-                                                      ? Bench::Table::number(
-                                                            expected_volume / shape_volume, 3u)
-                                                      : "n/a")
-                                << " depth_capped=" << (strategy.affine and expected_diagnostics.depth_limit_reached())
-                                << " unresolved=" << (strategy.affine ? expected_diagnostics.unresolved_domains : 0u))
+                                                     << " d=" << d << " f=" << f
+                                                     << " paver=" << strategy.name
+                                                     << " cells=" << expected_cells
+                                                     << " volume=" << expected_volume
+                                                     << " ratio=" << (shape_volume > 0.0 ? Bench::Table::number(expected_volume / shape_volume, 3u) : "n/a")
+                                                     << " depth_capped=" << (strategy.affine and expected_diagnostics.depth_limit_reached())
+                                                     << " unresolved=" << (strategy.affine ? expected_diagnostics.unresolved_domains : 0u))
             } else {
                 // The framework Runner executes one sample at a time so
                 // the soft budget can be checked between completed calls.
@@ -308,20 +287,19 @@ void run(const Bench::CommandLine& cli, const Bench::Matrix& matrix,
                 if (not std::isfinite(stats.median) or stats.median <= 0.0)
                     throw std::runtime_error("Invalid Paver timing");
                 const std::string ratio = shape_volume > 0.0
-                    ? Bench::Table::number(expected_volume / shape_volume, 3u)
-                    : "n/a";
-                report.add_row({
-                    shape, std::to_string(d), std::to_string(f),
-                    strategy.name, std::to_string(expected_cells),
-                    Bench::Table::number(expected_volume, 6u),
-                    Bench::Table::number(shape_volume, 6u),
-                    ratio,
-                    strategy.affine ? (expected_diagnostics.depth_limit_reached() ? "HIT" : "no") : "n/a",
-                    strategy.affine ? std::to_string(expected_diagnostics.unresolved_domains) : "n/a",
-                    strategy.affine ? std::to_string(expected_diagnostics.split_domains) : "n/a",
-                    std::to_string(measured.size()) + "/" + std::to_string(n),
-                    budget_hit ? "SOFT LIMIT" : "complete"
-                }, stats);
+                                            ? Bench::Table::number(expected_volume / shape_volume, 3u)
+                                            : "n/a";
+                report.add_row({shape, std::to_string(d), std::to_string(f),
+                                strategy.name, std::to_string(expected_cells),
+                                Bench::Table::number(expected_volume, 6u),
+                                Bench::Table::number(shape_volume, 6u),
+                                ratio,
+                                strategy.affine ? (expected_diagnostics.depth_limit_reached() ? "HIT" : "no") : "n/a",
+                                strategy.affine ? std::to_string(expected_diagnostics.unresolved_domains) : "n/a",
+                                strategy.affine ? std::to_string(expected_diagnostics.split_domains) : "n/a",
+                                std::to_string(measured.size()) + "/" + std::to_string(n),
+                                budget_hit ? "SOFT LIMIT" : "complete"},
+                               stats);
             }
             if (show_diagnostics and not strategy.affine) {
                 // Instrumentation is deliberately outside every timed sample.
@@ -337,8 +315,9 @@ void run(const Bench::CommandLine& cli, const Bench::Matrix& matrix,
                     ConstraintPaver().adjoin_outer_approximation(instrumented, set, f, counters);
                 }
                 const auto profile_elapsed = std::chrono::duration_cast<
-                    std::chrono::nanoseconds>(std::chrono::steady_clock::now() -
-                                              profile_begin).count();
+                                                 std::chrono::nanoseconds>(std::chrono::steady_clock::now() -
+                                                                           profile_begin)
+                                                 .count();
                 instrumented.recombine();
                 verify_result(instrumented, test_case, shape, strategy.name);
                 if (not contains(instrumented, *paving) or
@@ -346,23 +325,21 @@ void run(const Bench::CommandLine& cli, const Bench::Matrix& matrix,
                     throw std::runtime_error(
                         "Instrumentation changed the paving geometry: " +
                         shape + "/" + strategy.name);
-                work.add_row({
-                    shape, std::to_string(d), std::to_string(f), strategy.name,
-                    std::to_string(counters.visited_nodes),
-                    std::to_string(counters.parameter_splits),
-                    std::to_string(counters.cell_splits),
-                    std::to_string(counters.map_evaluations),
-                    std::to_string(counters.constraint_evaluations),
-                    std::to_string(counters.sensitivity_evaluations),
-                    std::to_string(counters.reduction_calls),
-                    std::to_string(counters.constraint_reduction_calls),
-                    std::to_string(counters.box_reduction_calls),
-                    std::to_string(counters.hull_reduction_calls),
-                    std::to_string(counters.join_constructions),
-                    std::to_string(counters.disjoint_rejections),
-                    std::to_string(counters.already_covered),
-                    std::to_string(counters.adjoin_calls)
-                });
+                work.add_row({shape, std::to_string(d), std::to_string(f), strategy.name,
+                              std::to_string(counters.visited_nodes),
+                              std::to_string(counters.parameter_splits),
+                              std::to_string(counters.cell_splits),
+                              std::to_string(counters.map_evaluations),
+                              std::to_string(counters.constraint_evaluations),
+                              std::to_string(counters.sensitivity_evaluations),
+                              std::to_string(counters.reduction_calls),
+                              std::to_string(counters.constraint_reduction_calls),
+                              std::to_string(counters.box_reduction_calls),
+                              std::to_string(counters.hull_reduction_calls),
+                              std::to_string(counters.join_constructions),
+                              std::to_string(counters.disjoint_rejections),
+                              std::to_string(counters.already_covered),
+                              std::to_string(counters.adjoin_calls)});
                 const std::uint64_t accounted_ns =
                     counters.map_range_ns + counters.constraint_range_ns +
                     counters.joint_range_ns + counters.sensitivity_ns +
@@ -379,28 +356,24 @@ void run(const Bench::CommandLine& cli, const Bench::Matrix& matrix,
                 // recombination (inside Reduce), and profiling overhead.
                 const std::uint64_t other_ns =
                     total_ns > accounted_ns ? total_ns - accounted_ns : 0u;
-                timings.add_row({
-                    shape, std::to_string(d), std::to_string(f), strategy.name,
-                    ms(counters.map_range_ns),
-                    ms(counters.constraint_range_ns),
-                    ms(counters.joint_range_ns),
-                    ms(counters.sensitivity_ns),
-                    ms(counters.box_reduction_ns),
-                    ms(counters.hull_reduction_ns),
-                    ms(counters.join_ns),
-                    ms(counters.adjoin_ns),
-                    ms(other_ns), ms(total_ns)
-                });
+                timings.add_row({shape, std::to_string(d), std::to_string(f), strategy.name,
+                                 ms(counters.map_range_ns),
+                                 ms(counters.constraint_range_ns),
+                                 ms(counters.joint_range_ns),
+                                 ms(counters.sensitivity_ns),
+                                 ms(counters.box_reduction_ns),
+                                 ms(counters.hull_reduction_ns),
+                                 ms(counters.join_ns),
+                                 ms(counters.adjoin_ns),
+                                 ms(other_ns), ms(total_ns)});
             }
             outcomes.push_back({strategy.name, std::move(paving)});
         }
         for (std::size_t i = 0u; i != outcomes.size(); ++i) {
             for (std::size_t j = i + 1u; j != outcomes.size(); ++j) {
-                geometry.add_row({
-                    shape, std::to_string(d), std::to_string(f),
-                    outcomes[i].name, outcomes[j].name,
-                    relation(*outcomes[i].paving, *outcomes[j].paving)
-                });
+                geometry.add_row({shape, std::to_string(d), std::to_string(f),
+                                  outcomes[i].name, outcomes[j].name,
+                                  relation(*outcomes[i].paving, *outcomes[j].paving)});
             }
         }
         runner.configuration_completed(configuration);
@@ -430,8 +403,8 @@ int main(int argc, const char* argv[]) {
             "finenesses", "Grid fineness (0..4)", {1u});
         Bench::Parameter<std::string> shapes(
             "shapes", "Paver cases: five geometric, affine-shear, quadratic-shear,"
-            " folded-quadratic, uv-triangle, affine-projection, correlated-strip,"
-            " product-cap, parabolic-curve, empty-constraints",
+                      " folded-quadratic, uv-triangle, affine-projection, correlated-strip,"
+                      " product-cap, parabolic-curve, empty-constraints",
             {"aligned-box", "rotated-box", "aligned-ellipsoid",
              "rotated-ellipsoid", "ball", "affine-shear", "quadratic-shear",
              "folded-quadratic", "uv-triangle", "affine-projection",

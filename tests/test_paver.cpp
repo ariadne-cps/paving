@@ -42,6 +42,7 @@ using namespace Ariadne;
 // reference for checking the specialized ExactBoxSetType fast path.
 class ReferenceBoxSet : public virtual EffectiveEuclideanRegularLocatedSetInterface {
     ExactBoxType _box;
+
   public:
     explicit ReferenceBoxSet(const ExactBoxType& box) : _box(box) {}
     ReferenceBoxSet* clone() const override { return new ReferenceBoxSet(*this); }
@@ -120,8 +121,7 @@ class TestPaver : public Ariadne::Testing::ContextFixture {
             ExactIntervalType(0.25_x, 0.75_x),
             ExactIntervalType(0.5_x, 0.5_x),
             ExactIntervalType(-0.25_x, 1.25_x),
-            ExactIntervalType(0.125_x, 0.375_x)
-        };
+            ExactIntervalType(0.125_x, 0.375_x)};
         for (unsigned dimension = 1u; dimension <= 3u; ++dimension) {
             const Grid grid(dimension);
             BinaryTreePaving fast(grid), reference(grid);
@@ -153,10 +153,10 @@ class TestPaver : public Ariadne::Testing::ContextFixture {
             Vector<ApproximateDouble>{1.0, -2.0},
             Vector<ApproximateDouble>{0.5, 2.0});
         const ExactBoxType boxes[] = {
-            ExactBoxType{{0.875_x, 1.125_x}, {-3.0_x, 1.5_x}},
-            ExactBoxType{{1.0_x, 1.0_x}, {-2.0_x, -2.0_x}},
-            ExactBoxType{{-0.25_x, 2.25_x}, {-5.0_x, -1.0_x}},
-            ExactBoxType{{1.125_x, 1.375_x}, {-1.5_x, 0.5_x}}
+            ExactBoxType{{0.875_x, 1.125_x},  {-3.0_x, 1.5_x}},
+            ExactBoxType{    {1.0_x, 1.0_x}, {-2.0_x, -2.0_x}},
+            ExactBoxType{ {-0.25_x, 2.25_x}, {-5.0_x, -1.0_x}},
+            ExactBoxType{{1.125_x, 1.375_x},  {-1.5_x, 0.5_x}}
         };
         for (unsigned fineness: {0u, 1u, 2u, 3u}) {
             BinaryTreePaving fast(grid), reference(grid);
@@ -204,8 +204,7 @@ class TestPaver : public Ariadne::Testing::ContextFixture {
             Grid(Vector<ApproximateDouble>{1.0, -2.0},
                  Vector<ApproximateDouble>{0.5, 2.0}),
             Grid(Vector<ApproximateDouble>{0.125, -1.5, 4.0},
-                 Vector<ApproximateDouble>{0.25, 0.75, 2.0})
-        };
+                 Vector<ApproximateDouble>{0.25, 0.75, 2.0})};
         struct CellGeometry {
             BinaryWord word;
             LatticeBoxType lattice;
@@ -265,8 +264,7 @@ class TestPaver : public Ariadne::Testing::ContextFixture {
             Grid(Vector<ApproximateDouble>{1.0, -2.0},
                  Vector<ApproximateDouble>{0.5, 2.0}),
             Grid(Vector<ApproximateDouble>{0.125, -1.5, 4.0},
-                 Vector<ApproximateDouble>{0.25, 0.75, 2.0})
-        };
+                 Vector<ApproximateDouble>{0.25, 0.75, 2.0})};
         for (const Grid& grid: grids) {
             const Vector<FloatDP> origin(grid.origin());
             const Vector<FloatDP> lengths(grid.lengths());
@@ -325,14 +323,12 @@ class TestPaver : public Ariadne::Testing::ContextFixture {
         const std::vector<Grid> grids{
             Grid(1u), Grid(2u), Grid(3u),
             Grid(Vector<ApproximateDouble>{1.0, -2.0},
-                 Vector<ApproximateDouble>{0.5, 2.0})
-        };
+                 Vector<ApproximateDouble>{0.5, 2.0})};
         const ExactIntervalType intervals[] = {
             ExactIntervalType(0.25_x, 0.75_x),
             ExactIntervalType(0.5_x, 0.5_x),
             ExactIntervalType(-0.25_x, 1.25_x),
-            ExactIntervalType(0.125_x, 0.375_x)
-        };
+            ExactIntervalType(0.125_x, 0.375_x)};
         for (const Grid& grid: grids) {
             const Vector<FloatDP> origin(grid.origin());
             const Vector<FloatDP> lengths(grid.lengths());
@@ -391,7 +387,7 @@ class TestPaver : public Ariadne::Testing::ContextFixture {
                         self(self, depth + 1u,
                              expected_left_separated,
                              other_uncovered + static_cast<Nat>(
-                                 !definitely(Ariadne::covers(box[axis], physical[axis]))));
+                                                   !definitely(Ariadne::covers(box[axis], physical[axis]))));
 
                         lattice[axis] = saved_lattice;
                         physical[axis] = saved_physical;
@@ -403,7 +399,7 @@ class TestPaver : public Ariadne::Testing::ContextFixture {
                         self(self, depth + 1u,
                              expected_right_separated,
                              other_uncovered + static_cast<Nat>(
-                                 !definitely(Ariadne::covers(box[axis], physical[axis]))));
+                                                   !definitely(Ariadne::covers(box[axis], physical[axis]))));
 
                         lattice[axis] = saved_lattice;
                         physical[axis] = saved_physical;
@@ -422,14 +418,12 @@ class TestPaver : public Ariadne::Testing::ContextFixture {
             Grid(2u),
             Grid(4u),
             Grid(Vector<ApproximateDouble>{1.0, -2.0},
-                 Vector<ApproximateDouble>{0.5, 2.0})
-        };
+                 Vector<ApproximateDouble>{0.5, 2.0})};
         const ExactIntervalType intervals[] = {
             ExactIntervalType(0.25_x, 0.75_x),
             ExactIntervalType(0.5_x, 0.5_x),
             ExactIntervalType(-0.25_x, 1.25_x),
-            ExactIntervalType(0.0_x, 0.0_x)
-        };
+            ExactIntervalType(0.0_x, 0.0_x)};
         for (const Grid& grid: grids) {
             for (Nat fineness: {0u, 1u, 2u}) {
                 BinaryTreePaving fast(grid), reference(grid);
@@ -447,10 +441,12 @@ class TestPaver : public Ariadne::Testing::ContextFixture {
                     for (unsigned repetition = 0u; repetition != 2u; ++repetition) {
                         fast.adjoin_outer_approximation(
                             static_cast<const EffectiveEuclideanCompactSetInterface&>(
-                                exact), fineness);
+                                exact),
+                            fineness);
                         reference.adjoin_outer_approximation(
                             static_cast<const EffectiveEuclideanCompactSetInterface&>(
-                                proxy), fineness);
+                                proxy),
+                            fineness);
                         for (auto it = fast.begin(), end = fast.end(); it != end; ++it)
                             ARIADNE_TESTING_PROVE(reference.superset(*it));
                         for (auto it = reference.begin(), end = reference.end();
@@ -466,7 +462,10 @@ class TestPaver : public Ariadne::Testing::ContextFixture {
         auto x = EffectiveScalarMultivariateFunction::coordinate(1u, 0u);
         ValidatedVectorMultivariateFunction identity({x});
         ValidatedConstrainedImageSet set(
-            ExactBoxType{{0.125_x, 0.375_x}}, identity);
+            ExactBoxType{
+                {0.125_x, 0.375_x}
+        },
+            identity);
         Grid grid(1u);
 
         auto check_geometry = [&](const BinaryTreePaving& expected,
@@ -530,7 +529,10 @@ class TestPaver : public Ariadne::Testing::ContextFixture {
             // Real constraints are counted separately from calls to the
             // box/hull contractors that process those constraints.
             const ValidatedConstrainedImageSet constrained(
-                ExactBoxType{{0.0_x, 1.0_x}}, identity,
+                ExactBoxType{
+                    {0.0_x, 1.0_x}
+            },
+                identity,
                 List<ValidatedConstraint>{x >= 0.125_x, x <= 0.375_x});
             BinaryTreePaving reduction(grid), interval(grid);
             PaverDiagnostics reduced, interval_only;

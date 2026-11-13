@@ -31,8 +31,8 @@
 
 #include <algorithm>
 #include <cmath>
-#include <optional>
 #include <iterator>
+#include <optional>
 #include <stdexcept>
 #include <string>
 #include <vector>
@@ -143,8 +143,7 @@ inline std::vector<std::string> parse_paver_cases(const String& value) {
         "rotated-ellipsoid", "ball", "affine-shear", "quadratic-shear",
         "folded-quadratic", "uv-triangle", "affine-projection",
         "correlated-strip", "product-cap", "parabolic-curve",
-        "empty-constraints"
-    };
+        "empty-constraints"};
     std::vector<std::string> result;
     std::size_t start = 0u;
     do {
