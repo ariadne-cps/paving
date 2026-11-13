@@ -2202,7 +2202,7 @@ Void BinaryTreePaving::_adjoin_outer_box_approximation(
 
     const SizeType axis = depth % lattice_cell.size();
     const Bool was_uncovered = can_prove_cover &&
-        !definitely(covers(box[axis], physical_cell[axis]));
+        !definitely(Ariadne::covers(box[axis], physical_cell[axis]));
     const Nat other_uncovered_axes =
         uncovered_axes - static_cast<Nat>(was_uncovered);
 
@@ -2220,10 +2220,10 @@ Void BinaryTreePaving::_adjoin_outer_box_approximation(
     lattice_cell[axis].set_upper_bound(split_value);
     physical_cell[axis].set_upper_bound(physical_split_value);
     const Bool left_separated =
-        definitely(separated(box[axis], physical_cell[axis]));
+        definitely(Ariadne::separated(box[axis], physical_cell[axis]));
     const Nat left_uncovered_axes = other_uncovered_axes +
         static_cast<Nat>(can_prove_cover &&
-            !definitely(covers(box[axis], physical_cell[axis])));
+            !definitely(Ariadne::covers(box[axis], physical_cell[axis])));
     _adjoin_outer_box_approximation(
         node->left_node(), lattice_cell, physical_cell, origin, lengths,
         depth + 1u, max_mince_tree_depth, box, can_prove_cover,
@@ -2234,10 +2234,10 @@ Void BinaryTreePaving::_adjoin_outer_box_approximation(
     lattice_cell[axis].set_lower_bound(split_value);
     physical_cell[axis].set_lower_bound(physical_split_value);
     const Bool right_separated =
-        definitely(separated(box[axis], physical_cell[axis]));
+        definitely(Ariadne::separated(box[axis], physical_cell[axis]));
     const Nat right_uncovered_axes = other_uncovered_axes +
         static_cast<Nat>(can_prove_cover &&
-            !definitely(covers(box[axis], physical_cell[axis])));
+            !definitely(Ariadne::covers(box[axis], physical_cell[axis])));
     _adjoin_outer_box_approximation(
         node->right_node(), lattice_cell, physical_cell, origin, lengths,
         depth + 1u, max_mince_tree_depth, box, can_prove_cover,
@@ -2505,7 +2505,7 @@ Void BinaryTreePaving::adjoin_outer_approximation(const EffectiveEuclideanCompac
             if (can_prove_cover) {
                 for (SizeType axis = 0u; axis != theGrid.dimension(); ++axis) {
                     uncovered_axes += static_cast<Nat>(
-                        !definitely(covers(exact_box[axis], primary_physical_cell[axis])));
+                        !definitely(Ariadne::covers(exact_box[axis], primary_physical_cell[axis])));
                 }
             }
             _adjoin_outer_box_approximation(

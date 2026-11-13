@@ -354,7 +354,7 @@ class TestPaver : public Ariadne::Testing::ContextFixture {
                     Nat uncovered_axes = 0u;
                     for (SizeType i = 0u; i != grid.dimension(); ++i)
                         uncovered_axes += static_cast<Nat>(
-                            !definitely(covers(box[i], physical[i])));
+                            !definitely(Ariadne::covers(box[i], physical[i])));
 
                     auto visit = [&](auto&& self, Nat depth, Bool is_separated,
                                      Nat uncovered_count) -> Void {
@@ -369,7 +369,7 @@ class TestPaver : public Ariadne::Testing::ContextFixture {
 
                         const SizeType axis = depth % grid.dimension();
                         const Bool was_uncovered =
-                            !definitely(covers(box[axis], physical[axis]));
+                            !definitely(Ariadne::covers(box[axis], physical[axis]));
                         const Nat other_uncovered =
                             uncovered_count - static_cast<Nat>(was_uncovered);
                         const ExactIntervalType saved_lattice(lattice[axis]);
@@ -382,18 +382,18 @@ class TestPaver : public Ariadne::Testing::ContextFixture {
                         lattice[axis].set_upper_bound(split_value);
                         physical[axis].set_upper_bound(physical_split);
                         self(self, depth + 1u,
-                             definitely(separated(box[axis], physical[axis])),
+                             definitely(Ariadne::separated(box[axis], physical[axis])),
                              other_uncovered + static_cast<Nat>(
-                                 !definitely(covers(box[axis], physical[axis]))));
+                                 !definitely(Ariadne::covers(box[axis], physical[axis]))));
 
                         lattice[axis] = saved_lattice;
                         physical[axis] = saved_physical;
                         lattice[axis].set_lower_bound(split_value);
                         physical[axis].set_lower_bound(physical_split);
                         self(self, depth + 1u,
-                             definitely(separated(box[axis], physical[axis])),
+                             definitely(Ariadne::separated(box[axis], physical[axis])),
                              other_uncovered + static_cast<Nat>(
-                                 !definitely(covers(box[axis], physical[axis]))));
+                                 !definitely(Ariadne::covers(box[axis], physical[axis]))));
 
                         lattice[axis] = saved_lattice;
                         physical[axis] = saved_physical;
