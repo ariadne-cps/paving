@@ -277,5 +277,43 @@ The next requested work item is **parallelization**, beginning with
    Retain parallel mode only with a repeatable gain and no semantic
    regressions.
 
-This section specifies the *next experiment*, not an implementation
-or a measured speedup. Update the journal with each actual result.
+### 2026-11-13 - Initial ThreadManager-backed frontier experiment
+
+The first candidate is implemented in `src/paver.cpp`, guarded by the
+**existing process-wide `ThreadManager::instance().concurrency()`**, not by
+a new constructor argument or a separate `--workers` setting. This
+corrects the initial plan to add a `SubdivisionPaver(max_workers)`
+parameter; that interface was **never committed**. The normal
+`benchmark_pavers` executable now exposes the shared
+`threading_command_line_contribution()` with `--concurrency`.
+
+- At concurrency **0**, run the unmodified sequential recursion.
+- For positive concurrency, traverse the same parameter recursion
+  sequentially until a bounded frontier of at most 32 subdomains is
+  formed (the depth ceiling is based on approximately twice the configured
+  concurrency). Fully resolved branches finish immediately.
+- Dispatch frontier subdomains through the existing `ThreadManager`
+  and structured `TaskGroup`. The calling thread also processes one
+  subdomain. Each worker then uses the same original recursive splitting
+  and insertion code, targeting the **same thread-safe paving**.
+- Each task accumulates diagnostics in an independent structure;
+  combine counters and operation durations only after joining. The
+  frontier-building portion is counted exactly once. Worker exceptions
+  propagate after all tasks have joined.
+- Dedicated tests compare serial/parallel exact cell coverage and
+  parameter-work counts on unconstrained, constrained, and constant
+  maps. Existing serial tests remain unchanged.
+
+**Status: experimental, no measured speedup yet.** It is not known
+whether contention on `BinaryTreePaving::_adjoin_mutex`, task scheduling,
+or function-evaluation thread-safety under different numerical
+rounding environments will be limiting. The timed diagnostic buckets
+are *summed CPU-operation durations*, not parallel wall-clock time;
+their sum may exceed the elapsed profile duration. Do not infer a
+parallel speedup from the diagnostic bucket sum. Confirm on CI and
+via benchmarks at concurrency 0/1/2/4/8 before promoting the
+parallel path as a demonstrated performance improvement.
+
+This milestone does **not** parallelize `ReducePaver`,
+`ConstraintPaver`, or `AffinePaver`. Continue updating this journal
+with actual validation failures, fixes and measurements.
