@@ -257,6 +257,67 @@ class TestPaver : public Ariadne::Testing::ContextFixture {
         }
     }
 
+    Void test_inplace_box_geometry_restoration() {
+        // Check every in-place update against the full GridCell path, then
+        // check that both axes' intervals are restored after both children.
+        const std::vector<Grid> grids{
+            Grid(1u), Grid(2u), Grid(3u),
+            Grid(Vector<ApproximateDouble>{1.0, -2.0},
+                 Vector<ApproximateDouble>{0.5, 2.0}),
+            Grid(Vector<ApproximateDouble>{0.125, -1.5, 4.0},
+                 Vector<ApproximateDouble>{0.25, 0.75, 2.0})
+        };
+        for (const Grid& grid: grids) {
+            const Vector<FloatDP> origin(grid.origin());
+            const Vector<FloatDP> lengths(grid.lengths());
+            for (Nat extent: {0u, 1u, 2u}) {
+                LatticeBoxType lattice =
+                    GridAbstractCell::primary_cell_lattice_box(
+                        extent, static_cast<dimension_type>(grid.dimension()));
+                ExactBoxType physical =
+                    GridAbstractCell::lattice_box_to_space(lattice, grid);
+                BinaryWord path;
+                auto visit = [&](auto&& self, Nat depth) -> Void {
+                    const auto full_lattice = GridCell::compute_lattice_box(
+                        grid.dimension(), extent, path);
+                    const auto full_physical = GridCell(grid, extent, path).box();
+                    ARIADNE_TESTING_PROVE(same(lattice, full_lattice));
+                    ARIADNE_TESTING_PROVE(same(physical, full_physical));
+                    if (depth == 8u)
+                        return;
+
+                    const SizeType axis = depth % grid.dimension();
+                    const ExactIntervalType saved_lattice(lattice[axis]);
+                    const ExactIntervalType saved_physical(physical[axis]);
+                    const auto split = cast_exact(lattice[axis].midpoint());
+                    const auto physical_split = cast_exact(
+                        add(approx, origin[axis],
+                            mul(approx, lengths[axis], split)));
+
+                    lattice[axis].set_upper_bound(split);
+                    physical[axis].set_upper_bound(physical_split);
+                    path.push_back(false);
+                    self(self, depth + 1u);
+                    path.pop_back();
+
+                    lattice[axis] = saved_lattice;
+                    physical[axis] = saved_physical;
+                    lattice[axis].set_lower_bound(split);
+                    physical[axis].set_lower_bound(physical_split);
+                    path.push_back(true);
+                    self(self, depth + 1u);
+                    path.pop_back();
+
+                    lattice[axis] = saved_lattice;
+                    physical[axis] = saved_physical;
+                    ARIADNE_TESTING_PROVE(same(lattice, full_lattice));
+                    ARIADNE_TESTING_PROVE(same(physical, full_physical));
+                };
+                visit(visit, 0u);
+            }
+        }
+    }
+
     Void test_instrumented_pavers() {
         auto x = EffectiveScalarMultivariateFunction::coordinate(1u, 0u);
         ValidatedVectorMultivariateFunction identity({x});
@@ -537,6 +598,7 @@ int main(int argc, char** argv) {
     ARIADNE_TESTING_ADD_TEST(TestPaver, test_exact_box_fast_path);
     ARIADNE_TESTING_ADD_TEST(TestPaver, test_incremental_box_traversal_scaled_grid);
     ARIADNE_TESTING_ADD_TEST(TestPaver, test_incremental_physical_box_geometry);
+    ARIADNE_TESTING_ADD_TEST(TestPaver, test_inplace_box_geometry_restoration);
     ARIADNE_TESTING_ADD_TEST(TestPaver, test_nonlinear_pavers);
     return ARIADNE_TESTING_RUN_TESTS_WITH_ARGS(argc, argv);
 }

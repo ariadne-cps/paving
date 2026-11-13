@@ -2175,8 +2175,8 @@ Void BinaryTreePaving::_adjoin_cell(const Nat theCellRootExtent, const BinaryWor
 // lattice and physical bounds so each split converts only its one new
 // boundary, rather than rebuilding every coordinate at every node.
 Void BinaryTreePaving::_adjoin_outer_box_approximation(
-    BinaryTreeNode* node, const LatticeBoxType& lattice_cell,
-    const ExactBoxType& physical_cell, const Vector<FloatDP>& origin,
+    BinaryTreeNode* node, LatticeBoxType& lattice_cell,
+    ExactBoxType& physical_cell, const Vector<FloatDP>& origin,
     const Vector<FloatDP>& lengths, Nat depth, Nat max_mince_tree_depth,
     const ExactBoxType& box, Bool can_prove_cover) {
     if (node->is_enabled())
@@ -2206,24 +2206,32 @@ Void BinaryTreePaving::_adjoin_outer_box_approximation(
     const FloatDP physical_midpoint =
         add(approx, origin[axis], mul(approx, lengths[axis], split_value));
 
-    LatticeBoxType left_lattice(lattice_cell);
-    left_lattice[axis].set_upper_bound(split_value);
-    LatticeBoxType right_lattice(lattice_cell);
-    right_lattice[axis].set_lower_bound(split_value);
-
+    // Both child traversals are sequential. Change only the interval on
+    // this axis, restoring the original bounds between siblings. This
+    // avoids copying all coordinates of two lattice and two physical boxes
+    // at every internal node, while preserving the original rounding.
+    const ExactIntervalType old_lattice_interval(lattice_cell[axis]);
+    const ExactIntervalType old_physical_interval(physical_cell[axis]);
     const auto physical_split_value = cast_exact(physical_midpoint);
-    ExactBoxType left_physical(physical_cell);
-    left_physical[axis].set_upper_bound(physical_split_value);
-    ExactBoxType right_physical(physical_cell);
-    right_physical[axis].set_lower_bound(physical_split_value);
 
     node->split();
+
+    lattice_cell[axis].set_upper_bound(split_value);
+    physical_cell[axis].set_upper_bound(physical_split_value);
     _adjoin_outer_box_approximation(
-        node->left_node(), left_lattice, left_physical, origin, lengths,
+        node->left_node(), lattice_cell, physical_cell, origin, lengths,
         depth + 1u, max_mince_tree_depth, box, can_prove_cover);
+
+    lattice_cell[axis] = old_lattice_interval;
+    physical_cell[axis] = old_physical_interval;
+    lattice_cell[axis].set_lower_bound(split_value);
+    physical_cell[axis].set_lower_bound(physical_split_value);
     _adjoin_outer_box_approximation(
-        node->right_node(), right_lattice, right_physical, origin, lengths,
+        node->right_node(), lattice_cell, physical_cell, origin, lengths,
         depth + 1u, max_mince_tree_depth, box, can_prove_cover);
+
+    lattice_cell[axis] = old_lattice_interval;
+    physical_cell[axis] = old_physical_interval;
 }
 
 Void BinaryTreePaving::_adjoin_outer_approximation(const Grid& theGrid, BinaryTreeNode* pBinaryTreeNode, const Nat primary_cell_extent,
@@ -2469,11 +2477,11 @@ Void BinaryTreePaving::adjoin_outer_approximation(const EffectiveEuclideanCompac
             const Bool can_prove_cover =
                 dynamic_cast<const EffectiveEuclideanOpenSetInterface*>(
                     static_cast<const EuclideanSetInterfaceBase*>(&theSet)) != nullptr;
-            const LatticeBoxType primary_lattice_cell =
+            LatticeBoxType primary_lattice_cell =
                 GridAbstractCell::primary_cell_lattice_box(
                     outer_approx_primary_cell_extent,
                     static_cast<dimension_type>(theGrid.dimension()));
-            const ExactBoxType primary_physical_cell =
+            ExactBoxType primary_physical_cell =
                 GridAbstractCell::lattice_box_to_space(primary_lattice_cell, theGrid);
             const Vector<FloatDP> grid_origin(theGrid.origin());
             const Vector<FloatDP> grid_lengths(theGrid.lengths());

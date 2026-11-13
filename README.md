@@ -208,12 +208,15 @@ lattice and physical boxes incrementally instead of reconstructing the
 complete binary path or converting all physical coordinates at each node.
 Each split converts only the new boundary along its split axis, using
 the same midpoint and directed floating-point operations as `GridCell`.
-This preserves early exits on already-enabled branches and never
-precomputes a batch of cells. Other set types continue to use the
-general implementation. Tests compare the specialized box path against
-an independent regular-located-set wrapper using bidirectional exact
-cell containment, and verify each incrementally reconstructed physical
-box against `GridCell` across different depths and shifted/scaled grids.
+Sibling branches now share the same mutable lattice and physical boxes,
+restoring the original split-axis intervals between visits instead of
+copying all coordinates four times per node. This preserves early exits
+on already-enabled branches and never precomputes a batch of cells.
+Other set types continue to use the general implementation. Tests
+compare the specialized box path against an independent regular-located-
+set wrapper using bidirectional exact cell containment; additional
+tests verify both incremental geometry and restoration after every
+recursive branch on shifted and scaled grids.
 
 `ConstraintPaver` constructs the joint map/constraint function only
 once per invocation, rather than once per recursive visit. `--diagnostics`
