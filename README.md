@@ -215,14 +215,17 @@ and coverage are tracked incrementally: a non-separated parent can
 become separated only along the newly split axis, and a count of axes
 not strictly covered determines when a subtree can be enabled in one
 step. Thus the remaining classification work per node is independent
-of the number of dimensions. This preserves early exits on already-
-enabled branches and never precomputes a batch of cells. Other set
-types continue to use the general implementation. Tests compare the
-specialized box path against an independent regular-located-set wrapper
-using bidirectional exact cell containment, check incremental geometry
-and restoration, and validate coordinate-level classification against
-complete box predicates on boundary-touching, degenerate, and mixed-
-coordinate boxes.
+of the number of dimensions. Before visiting either child, the traversal
+also checks whether its node is already enabled or whether the box lies
+strictly beyond its split boundary; such a branch needs no geometry
+mutation or recursive call. Equality at the boundary never counts as
+separation, preserving the certified outer approximation. The general
+compact-set path is unchanged. Tests compare the specialized box path
+against an independent regular-located-set wrapper using bidirectional
+exact cell containment, check incremental geometry and restoration,
+validate split-boundary pruning against full interval separation, and
+exercise pre-enabled branches, boundary-touching and degenerate boxes
+on unit and shifted/scaled grids.
 
 `ConstraintPaver` constructs the joint map/constraint function only
 once per invocation, rather than once per recursive visit. `--diagnostics`

@@ -378,11 +378,18 @@ class TestPaver : public Ariadne::Testing::ContextFixture {
                         const auto physical_split = cast_exact(
                             add(approx, origin[axis],
                                 mul(approx, lengths[axis], split_value)));
+                        const Bool expected_left_separated = definitely(
+                            box[axis].lower_bound() > physical_split);
+                        const Bool expected_right_separated = definitely(
+                            box[axis].upper_bound() < physical_split);
 
                         lattice[axis].set_upper_bound(split_value);
                         physical[axis].set_upper_bound(physical_split);
+                        ARIADNE_TESTING_PROVE(
+                            expected_left_separated ==
+                            definitely(Ariadne::separated(box[axis], physical[axis])));
                         self(self, depth + 1u,
-                             definitely(Ariadne::separated(box[axis], physical[axis])),
+                             expected_left_separated,
                              other_uncovered + static_cast<Nat>(
                                  !definitely(Ariadne::covers(box[axis], physical[axis]))));
 
@@ -390,8 +397,11 @@ class TestPaver : public Ariadne::Testing::ContextFixture {
                         physical[axis] = saved_physical;
                         lattice[axis].set_lower_bound(split_value);
                         physical[axis].set_lower_bound(physical_split);
+                        ARIADNE_TESTING_PROVE(
+                            expected_right_separated ==
+                            definitely(Ariadne::separated(box[axis], physical[axis])));
                         self(self, depth + 1u,
-                             definitely(Ariadne::separated(box[axis], physical[axis])),
+                             expected_right_separated,
                              other_uncovered + static_cast<Nat>(
                                  !definitely(Ariadne::covers(box[axis], physical[axis]))));
 
@@ -400,6 +410,53 @@ class TestPaver : public Ariadne::Testing::ContextFixture {
                     };
                     visit(visit, 0u,
                           definitely(box.separated(physical)), uncovered_axes);
+                }
+            }
+        }
+    }
+
+    Void test_pruned_exact_box_subtrees() {
+        // The fast path must match generic insertion even with pre-enabled
+        // sibling branches and boxes touching subdivision boundaries.
+        const std::vector<Grid> grids{
+            Grid(2u),
+            Grid(4u),
+            Grid(Vector<ApproximateDouble>{1.0, -2.0},
+                 Vector<ApproximateDouble>{0.5, 2.0})
+        };
+        const ExactIntervalType intervals[] = {
+            ExactIntervalType(0.25_x, 0.75_x),
+            ExactIntervalType(0.5_x, 0.5_x),
+            ExactIntervalType(-0.25_x, 1.25_x),
+            ExactIntervalType(0.0_x, 0.0_x)
+        };
+        for (const Grid& grid: grids) {
+            for (Nat fineness: {0u, 1u, 2u}) {
+                BinaryTreePaving fast(grid), reference(grid);
+                // Enable both an entire sibling branch and a nested one.
+                const GridCell occupied_a(grid, 0u, BinaryWord("0"));
+                const GridCell occupied_b(grid, 0u, BinaryWord("101"));
+                fast.adjoin(occupied_a);
+                fast.adjoin(occupied_b);
+                reference.adjoin(occupied_a);
+                reference.adjoin(occupied_b);
+                for (const ExactIntervalType& interval: intervals) {
+                    const ExactBoxType box(grid.dimension(), interval);
+                    const ExactBoxSetType exact(box);
+                    const ReferenceBoxSet proxy(box);
+                    for (unsigned repetition = 0u; repetition != 2u; ++repetition) {
+                        fast.adjoin_outer_approximation(
+                            static_cast<const EffectiveEuclideanCompactSetInterface&>(
+                                exact), fineness);
+                        reference.adjoin_outer_approximation(
+                            static_cast<const EffectiveEuclideanCompactSetInterface&>(
+                                proxy), fineness);
+                        for (auto it = fast.begin(), end = fast.end(); it != end; ++it)
+                            ARIADNE_TESTING_PROVE(reference.superset(*it));
+                        for (auto it = reference.begin(), end = reference.end();
+                             it != end; ++it)
+                            ARIADNE_TESTING_PROVE(fast.superset(*it));
+                    }
                 }
             }
         }
@@ -687,6 +744,7 @@ int main(int argc, char** argv) {
     ARIADNE_TESTING_ADD_TEST(TestPaver, test_incremental_physical_box_geometry);
     ARIADNE_TESTING_ADD_TEST(TestPaver, test_inplace_box_geometry_restoration);
     ARIADNE_TESTING_ADD_TEST(TestPaver, test_incremental_exact_box_classification);
+    ARIADNE_TESTING_ADD_TEST(TestPaver, test_pruned_exact_box_subtrees);
     ARIADNE_TESTING_ADD_TEST(TestPaver, test_nonlinear_pavers);
     return ARIADNE_TESTING_RUN_TESTS_WITH_ARGS(argc, argv);
 }

@@ -2180,14 +2180,11 @@ Void BinaryTreePaving::_adjoin_outer_box_approximation(
     const Vector<FloatDP>& lengths, Nat depth, Nat max_mince_tree_depth,
     const ExactBoxType& box, Bool can_prove_cover,
     Bool is_separated, Nat uncovered_axes) {
-    if (node->is_enabled())
+    if (node->is_enabled() || is_separated)
         return;
 
-    // A child of a non-separated cell can become separated only along
-    // the coordinate split by its parent. Coverage, by contrast, must
-    // retain the number of coordinates that fail strict containment.
-    if (is_separated)
-        return;
+    // A cell is covered exactly when every coordinate is strictly inside
+    // the corresponding interval of the adjoining box.
     if (can_prove_cover && uncovered_axes == 0u) {
         node->make_leaf(true);
         return;
@@ -2200,51 +2197,70 @@ Void BinaryTreePaving::_adjoin_outer_box_approximation(
         return;
     }
 
+    node->split();
+    BinaryTreeNode* left_node = node->left_node();
+    BinaryTreeNode* right_node = node->right_node();
+    const Bool left_enabled = left_node->is_enabled();
+    const Bool right_enabled = right_node->is_enabled();
+
+    // Neither subtree can change when both are already enabled.
+    if (left_enabled && right_enabled)
+        return;
+
     const SizeType axis = depth % lattice_cell.size();
+    const auto split_value = cast_exact(lattice_cell[axis].midpoint());
+    const FloatDP physical_midpoint =
+        add(approx, origin[axis], mul(approx, lengths[axis], split_value));
+    const auto physical_split_value = cast_exact(physical_midpoint);
+
+    // The parent is not separated along any axis. Splitting this axis
+    // therefore creates a separated left child only if the box starts
+    // strictly to the right of the split; the right child is separated
+    // only if the box ends strictly to its left. Equality is not
+    // separation: cells touching the boundary must remain covered by
+    // the outer approximation.
+    const Bool visit_left = !left_enabled &&
+        !definitely(box[axis].lower_bound() > physical_split_value);
+    const Bool visit_right = !right_enabled &&
+        !definitely(box[axis].upper_bound() < physical_split_value);
+    if (!visit_left && !visit_right)
+        return;
+
+    const ExactIntervalType saved_lattice(lattice_cell[axis]);
+    const ExactIntervalType saved_physical(physical_cell[axis]);
+
     const Bool was_uncovered = can_prove_cover &&
         !definitely(Ariadne::covers(box[axis], physical_cell[axis]));
     const Nat other_uncovered_axes =
         uncovered_axes - static_cast<Nat>(was_uncovered);
 
-    // Match GridCell's midpoint and physical coordinate conversion exactly.
-    const FloatDP lattice_midpoint = lattice_cell[axis].midpoint();
-    const auto split_value = cast_exact(lattice_midpoint);
-    const FloatDP physical_midpoint =
-        add(approx, origin[axis], mul(approx, lengths[axis], split_value));
-    const auto physical_split_value = cast_exact(physical_midpoint);
+    if (visit_left) {
+        lattice_cell[axis].set_upper_bound(split_value);
+        physical_cell[axis].set_upper_bound(physical_split_value);
+        const Nat left_uncovered_axes = other_uncovered_axes +
+            static_cast<Nat>(can_prove_cover &&
+                !definitely(Ariadne::covers(box[axis], physical_cell[axis])));
+        _adjoin_outer_box_approximation(
+            left_node, lattice_cell, physical_cell, origin, lengths,
+            depth + 1u, max_mince_tree_depth, box, can_prove_cover,
+            false, left_uncovered_axes);
+        lattice_cell[axis] = saved_lattice;
+        physical_cell[axis] = saved_physical;
+    }
 
-    const ExactIntervalType old_lattice_interval(lattice_cell[axis]);
-    const ExactIntervalType old_physical_interval(physical_cell[axis]);
-    node->split();
-
-    lattice_cell[axis].set_upper_bound(split_value);
-    physical_cell[axis].set_upper_bound(physical_split_value);
-    const Bool left_separated =
-        definitely(Ariadne::separated(box[axis], physical_cell[axis]));
-    const Nat left_uncovered_axes = other_uncovered_axes +
-        static_cast<Nat>(can_prove_cover &&
-            !definitely(Ariadne::covers(box[axis], physical_cell[axis])));
-    _adjoin_outer_box_approximation(
-        node->left_node(), lattice_cell, physical_cell, origin, lengths,
-        depth + 1u, max_mince_tree_depth, box, can_prove_cover,
-        left_separated, left_uncovered_axes);
-
-    lattice_cell[axis] = old_lattice_interval;
-    physical_cell[axis] = old_physical_interval;
-    lattice_cell[axis].set_lower_bound(split_value);
-    physical_cell[axis].set_lower_bound(physical_split_value);
-    const Bool right_separated =
-        definitely(Ariadne::separated(box[axis], physical_cell[axis]));
-    const Nat right_uncovered_axes = other_uncovered_axes +
-        static_cast<Nat>(can_prove_cover &&
-            !definitely(Ariadne::covers(box[axis], physical_cell[axis])));
-    _adjoin_outer_box_approximation(
-        node->right_node(), lattice_cell, physical_cell, origin, lengths,
-        depth + 1u, max_mince_tree_depth, box, can_prove_cover,
-        right_separated, right_uncovered_axes);
-
-    lattice_cell[axis] = old_lattice_interval;
-    physical_cell[axis] = old_physical_interval;
+    if (visit_right) {
+        lattice_cell[axis].set_lower_bound(split_value);
+        physical_cell[axis].set_lower_bound(physical_split_value);
+        const Nat right_uncovered_axes = other_uncovered_axes +
+            static_cast<Nat>(can_prove_cover &&
+                !definitely(Ariadne::covers(box[axis], physical_cell[axis])));
+        _adjoin_outer_box_approximation(
+            right_node, lattice_cell, physical_cell, origin, lengths,
+            depth + 1u, max_mince_tree_depth, box, can_prove_cover,
+            false, right_uncovered_axes);
+        lattice_cell[axis] = saved_lattice;
+        physical_cell[axis] = saved_physical;
+    }
 }
 
 Void BinaryTreePaving::_adjoin_outer_approximation(const Grid& theGrid, BinaryTreeNode* pBinaryTreeNode, const Nat primary_cell_extent,
