@@ -29,6 +29,8 @@
 #ifndef ARIADNE_PAVER_HPP
 #define ARIADNE_PAVER_HPP
 
+#include <cstdint>
+
 #include "paving/paver_interface.hpp"
 #include "utility/handle.hpp"
 
@@ -91,9 +93,20 @@ struct PaverDiagnostics {
     SizeType constraint_evaluations = 0u;
     SizeType sensitivity_evaluations = 0u;
     SizeType reduction_calls = 0u;
+    SizeType constraint_reduction_calls = 0u;
     SizeType disjoint_rejections = 0u;
     SizeType already_covered = 0u;
     SizeType adjoin_calls = 0u;
+
+    // Exclusive measured durations of selected operations in the instrumented
+    // replay (nanoseconds). A joint f/g range evaluation has its own bucket;
+    // it is not counted twice as an individual f or g evaluation.
+    std::uint64_t map_range_ns = 0u;
+    std::uint64_t constraint_range_ns = 0u;
+    std::uint64_t joint_range_ns = 0u;
+    std::uint64_t sensitivity_ns = 0u;
+    std::uint64_t contractor_ns = 0u;
+    std::uint64_t adjoin_ns = 0u;
 };
 
 //! \brief A class for computing outer approximations to sets defined by functions.

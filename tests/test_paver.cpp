@@ -116,6 +116,8 @@ class TestPaver : public Ariadne::Testing::ContextFixture {
             strategy.adjoin_outer_approximation(instrumented, set, 2u, counters);
             check_geometry(plain, instrumented);
             check_counters(counters);
+            ARIADNE_TESTING_EXPECT_EQUAL(counters.constraint_evaluations, 0u);
+            ARIADNE_TESTING_EXPECT_EQUAL(counters.constraint_reduction_calls, 0u);
             ARIADNE_TESTING_EXPECT_EQUAL(
                 counters.visited_nodes, 2u * counters.parameter_splits + 1u);
         }
@@ -128,6 +130,8 @@ class TestPaver : public Ariadne::Testing::ContextFixture {
             check_geometry(plain, instrumented);
             check_counters(counters);
             ARIADNE_TESTING_PROVE(counters.reduction_calls > 0u);
+            ARIADNE_TESTING_EXPECT_EQUAL(counters.constraint_evaluations, 0u);
+            ARIADNE_TESTING_EXPECT_EQUAL(counters.constraint_reduction_calls, 0u);
         }
         {
             BinaryTreePaving plain(grid), instrumented(grid);
@@ -138,6 +142,27 @@ class TestPaver : public Ariadne::Testing::ContextFixture {
             check_geometry(plain, instrumented);
             check_counters(counters);
             ARIADNE_TESTING_EXPECT_EQUAL(counters.reduction_calls, 0u);
+            ARIADNE_TESTING_EXPECT_EQUAL(counters.constraint_evaluations, 0u);
+            ARIADNE_TESTING_EXPECT_EQUAL(counters.constraint_reduction_calls, 0u);
+        }
+        {
+            // Real constraints are counted separately from calls to the
+            // box/hull contractors that process those constraints.
+            const ValidatedConstrainedImageSet constrained(
+                ExactBoxType{{0.0_x, 1.0_x}}, identity,
+                List<ValidatedConstraint>{x >= 0.125_x, x <= 0.375_x});
+            BinaryTreePaving reduction(grid), interval(grid);
+            PaverDiagnostics reduced, interval_only;
+            ReducePaver().adjoin_outer_approximation(
+                reduction, constrained, 2u, reduced);
+            ConstraintPaver().adjoin_outer_approximation(
+                interval, constrained, 2u, interval_only);
+            ARIADNE_TESTING_PROVE(reduced.constraint_reduction_calls > 0u);
+            ARIADNE_TESTING_PROVE(reduced.constraint_evaluations > 0u);
+            ARIADNE_TESTING_PROVE(interval_only.constraint_evaluations > 0u);
+            ARIADNE_TESTING_EXPECT_EQUAL(interval_only.constraint_reduction_calls, 0u);
+            ARIADNE_TESTING_PROVE(
+                reduced.constraint_reduction_calls <= reduced.reduction_calls);
         }
         {
             PaverDiagnostics counters;

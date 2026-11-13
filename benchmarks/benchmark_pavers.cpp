@@ -27,6 +27,7 @@
  */
 
 #include <algorithm>
+#include <chrono>
 #include <cmath>
 #include <memory>
 #include <sstream>
@@ -186,7 +187,13 @@ void run(const Bench::CommandLine& cli, const Bench::Matrix& matrix,
         {"Case"}, {"Dim"}, {"Fine"}, {"Paver"}, {"Visits"},
         {"Param splits"}, {"Cell splits"}, {"Map evals"},
         {"Constraint evals"}, {"Sensitivity"}, {"Reductions"},
-        {"Rejected"}, {"Covered"}, {"Adjoins"}
+        {"Constraint reductions"}, {"Rejected"}, {"Covered"}, {"Adjoins"}
+    });
+    Bench::Table timings({
+        {"Case"}, {"Dim"}, {"Fine"}, {"Paver"}, {"Map (ms)"},
+        {"Constraints (ms)"}, {"Joint (ms)"}, {"Sensitivity (ms)"},
+        {"Contractors (ms)"}, {"Adjoin (ms)"}, {"Other (ms)"},
+        {"Profiled (ms)"}
     });
 
     matrix.for_each([&](const Bench::Configuration& configuration) {
@@ -320,6 +327,7 @@ void run(const Bench::CommandLine& cli, const Bench::Matrix& matrix,
                 // Compare the complete cell geometry, not only count/volume.
                 BinaryTreePaving instrumented(grid);
                 PaverDiagnostics counters;
+                const auto profile_begin = std::chrono::steady_clock::now();
                 if (strategy.name == "subdivision") {
                     SubdivisionPaver().adjoin_outer_approximation(instrumented, set, f, counters);
                 } else if (strategy.name == "reduce") {
@@ -327,6 +335,9 @@ void run(const Bench::CommandLine& cli, const Bench::Matrix& matrix,
                 } else {
                     ConstraintPaver().adjoin_outer_approximation(instrumented, set, f, counters);
                 }
+                const auto profile_elapsed = std::chrono::duration_cast<
+                    std::chrono::nanoseconds>(std::chrono::steady_clock::now() -
+                                              profile_begin).count();
                 instrumented.recombine();
                 verify_result(instrumented, test_case, shape, strategy.name);
                 if (not contains(instrumented, *paving) or
@@ -343,9 +354,35 @@ void run(const Bench::CommandLine& cli, const Bench::Matrix& matrix,
                     std::to_string(counters.constraint_evaluations),
                     std::to_string(counters.sensitivity_evaluations),
                     std::to_string(counters.reduction_calls),
+                    std::to_string(counters.constraint_reduction_calls),
                     std::to_string(counters.disjoint_rejections),
                     std::to_string(counters.already_covered),
                     std::to_string(counters.adjoin_calls)
+                });
+                const std::uint64_t accounted_ns =
+                    counters.map_range_ns + counters.constraint_range_ns +
+                    counters.joint_range_ns + counters.sensitivity_ns +
+                    counters.contractor_ns + counters.adjoin_ns;
+                const auto ms = [](std::uint64_t ns) {
+                    return Bench::Table::number(
+                        static_cast<double>(ns) / 1000000.0, 3u);
+                };
+                const std::uint64_t total_ns =
+                    static_cast<std::uint64_t>(profile_elapsed);
+                // Everything not in one of the six measured buckets:
+                // traversal, geometry tests, splitting, solver setup,
+                // recombination (inside Reduce), and profiling overhead.
+                const std::uint64_t other_ns =
+                    total_ns > accounted_ns ? total_ns - accounted_ns : 0u;
+                timings.add_row({
+                    shape, std::to_string(d), std::to_string(f), strategy.name,
+                    ms(counters.map_range_ns),
+                    ms(counters.constraint_range_ns),
+                    ms(counters.joint_range_ns),
+                    ms(counters.sensitivity_ns),
+                    ms(counters.contractor_ns),
+                    ms(counters.adjoin_ns),
+                    ms(other_ns), ms(total_ns)
                 });
             }
             outcomes.push_back({strategy.name, std::move(paving)});
@@ -366,6 +403,8 @@ void run(const Bench::CommandLine& cli, const Bench::Matrix& matrix,
     if (show_diagnostics) {
         LOGGING_PRINTLN("Paver operation counts (separate, untimed execution):")
         LOGGING_PRINTLN(work.str())
+        LOGGING_PRINTLN("Paver operation timings (instrumented replay only):")
+        LOGGING_PRINTLN(timings.str())
     }
     if (implementations.size() > 1u) {
         LOGGING_PRINTLN("Pairwise geometric containment (exact cell coverage):")
