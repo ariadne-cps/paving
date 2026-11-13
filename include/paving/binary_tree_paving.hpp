@@ -807,14 +807,6 @@ class BinaryTreePaving
     /** @brief Modify the paving or its subdivision. */
     Void adjoin_outer_approximation(const UpperBoxType& theBoxType, const Nat numSubdivInDim) override;
 
-    /** @brief Adjoin the union of exact-box outer approximations at a
-     *  shared grid resolution. Enumerate exactly the cells selected by
-     *  individual outer approximations, deduplicate them and insert them
-     *  under one lock. This preserves boundary-touching cells.
-     */
-    Void adjoin_outer_approximations(
-        const std::vector<ExactBoxType>& boxes, Nat fineness);
-
     //! \brief Adjoin a lower approximation to a given set, computing to the given extent and resolution:
     //! \a numSubdivInDim -- defines, how many subdivisions in each dimension from the level of the
     //! zero cell we should make to get the proper cells for outer approximating \a theSet.

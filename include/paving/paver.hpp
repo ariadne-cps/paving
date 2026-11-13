@@ -30,7 +30,6 @@
 #define ARIADNE_PAVER_HPP
 
 #include <cstdint>
-#include <vector>
 
 #include "paving/paver_interface.hpp"
 #include "utility/handle.hpp"
@@ -134,8 +133,7 @@ class SubdivisionPaver : public PaverInterface {
     Void _adjoin_outer_approximation_recursion(PavingInterface& paving,
                                                const ValidatedConstrainedImageSet& set,
                                                Nat fineness, const Vector<FloatDP>& max_errors,
-                                               PaverDiagnostics* diagnostics,
-                                               std::vector<ExactBoxType>* pending_boxes) const;
+                                               PaverDiagnostics* diagnostics) const;
 };
 
 //! \brief A class for computing outer approximations to sets defined by functions.

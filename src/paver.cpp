@@ -30,7 +30,6 @@
 
 #include <chrono>
 #include <type_traits>
-#include <typeinfo>
 
 #include "algebra/algebra.hpp"
 #include "algebra/polynomial.hpp"
@@ -96,28 +95,6 @@ auto profile_constraint_range(const ValidatedVectorMultivariateFunction& constra
                                    [&] { return apply(constraints, domain); });
 }
 
-// Keep pending subdomain boxes bounded even in very large recursions.
-// adjoin_outer_approximations adds their union, so flushing early cannot
-// change geometric coverage; it merely creates further insertion batches.
-Void adjoin_subdivision_box(PavingInterface& paving, const ExactBoxType& box,
-                            Nat fineness, PaverDiagnostics* diagnostics,
-                            std::vector<ExactBoxType>* pending_boxes) {
-    if (pending_boxes == nullptr) {
-        profile_paver_operation(
-            diagnostics, &PaverDiagnostics::adjoin_ns,
-            [&] { paving.adjoin_outer_approximation(box, fineness); });
-    } else {
-        pending_boxes->push_back(box);
-        if (pending_boxes->size() >= 512u) {
-            auto& binary = dynamic_cast<BinaryTreePaving&>(paving);
-            profile_paver_operation(
-                diagnostics, &PaverDiagnostics::adjoin_ns,
-                [&] { binary.adjoin_outer_approximations(*pending_boxes, fineness); });
-            pending_boxes->clear();
-        }
-    }
-}
-
 PositiveFloatDPUpperBound average_width(const UpperBoxType& bx) {
     PositiveFloatDPUpperBound res(0u, double_precision);
     for (SizeType i = 0; i != bx.size(); ++i) {
@@ -176,30 +153,16 @@ Void SubdivisionPaver::_adjoin_outer_approximation(PavingInterface& paving,
         max_errors[i] = shft(static_cast<FloatDP>(paving.grid().lengths()[i]), -static_cast<int>(fineness));
     }
 
-    // Preserve virtual dispatch (and cache invalidation) in derived pavings.
-    // Only an exact BinaryTreePaving uses the specialized bulk operation.
-    auto* binary = typeid(paving) == typeid(BinaryTreePaving)
-        ? dynamic_cast<BinaryTreePaving*>(&paving) : nullptr;
-    std::vector<ExactBoxType> boxes;
-    this->_adjoin_outer_approximation_recursion(
-        paving, set, fineness, max_errors, diagnostics,
-        binary != nullptr ? &boxes : nullptr);
-    if (binary != nullptr and not boxes.empty()) {
-        profile_paver_operation(
-            diagnostics, &PaverDiagnostics::adjoin_ns,
-            [&] { binary->adjoin_outer_approximations(boxes, fineness); });
-    }
+    this->_adjoin_outer_approximation_recursion(paving, set, fineness, max_errors, diagnostics);
 }
 
 Void SubdivisionPaver::adjoin_outer_approximation_recursion(PavingInterface& paving, const ValidatedConstrainedImageSet& set, Nat fineness, const Vector<FloatDP>& max_errors) const {
-    this->_adjoin_outer_approximation_recursion(
-        paving, set, fineness, max_errors, nullptr, nullptr);
+    this->_adjoin_outer_approximation_recursion(paving, set, fineness, max_errors, nullptr);
 }
 
 Void SubdivisionPaver::_adjoin_outer_approximation_recursion(
     PavingInterface& paving, const ValidatedConstrainedImageSet& set, Nat fineness,
-    const Vector<FloatDP>& max_errors, PaverDiagnostics* diagnostics,
-    std::vector<ExactBoxType>* pending_boxes) const {
+    const Vector<FloatDP>& max_errors, PaverDiagnostics* diagnostics) const {
     if (diagnostics != nullptr)
         ++diagnostics->visited_nodes;
     // How small an over-approximating box needs to be relative to the cell size
@@ -247,8 +210,9 @@ Void SubdivisionPaver::_adjoin_outer_approximation_recursion(
     if (small) {
         if (diagnostics != nullptr)
             ++diagnostics->adjoin_calls;
-        adjoin_subdivision_box(
-            paving, cast_exact_box(range), fineness, diagnostics, pending_boxes);
+        profile_paver_operation(
+                diagnostics, &PaverDiagnostics::adjoin_ns,
+                [&] { paving.adjoin_outer_approximation(cast_exact_box(range), fineness); });
     } else {
         if (diagnostics != nullptr)
             ++diagnostics->sensitivity_evaluations;
@@ -264,17 +228,16 @@ Void SubdivisionPaver::_adjoin_outer_approximation_recursion(
             // uncertainty. Discretise its enclosing box at the requested grid resolution.
             if (diagnostics != nullptr)
                 ++diagnostics->adjoin_calls;
-            adjoin_subdivision_box(
-                paving, cast_exact_box(range), fineness, diagnostics, pending_boxes);
+            profile_paver_operation(
+                diagnostics, &PaverDiagnostics::adjoin_ns,
+                [&] { paving.adjoin_outer_approximation(cast_exact_box(range), fineness); });
             return;
         }
         if (diagnostics != nullptr)
             ++diagnostics->parameter_splits;
         Pair<ValidatedConstrainedImageSet, ValidatedConstrainedImageSet> subsets = set.split(sensitivity.first);
-        this->_adjoin_outer_approximation_recursion(
-            paving, subsets.first, fineness, max_errors, diagnostics, pending_boxes);
-        this->_adjoin_outer_approximation_recursion(
-            paving, subsets.second, fineness, max_errors, diagnostics, pending_boxes);
+        this->_adjoin_outer_approximation_recursion(paving, subsets.first, fineness, max_errors, diagnostics);
+        this->_adjoin_outer_approximation_recursion(paving, subsets.second, fineness, max_errors, diagnostics);
     }
 }
 

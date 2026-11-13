@@ -28,7 +28,6 @@
 
 #include "paving/binary_tree_paving.hpp"
 
-#include <algorithm>
 #include <iomanip>
 #include <iostream>
 #include <limits>
@@ -2397,77 +2396,6 @@ Void BinaryTreePaving::adjoin_over_approximation(const ExactBoxType& theBoxType,
         }
     }
     this->adjoin_outer_approximation(theBoxType, numSubdivInDim);
-}
-
-namespace {
-
-// Reproduce the exact-box branch of the single-set outer approximation.
-// In particular, mere contact with a cell boundary is not a proof of
-// separation, and so the corresponding cell is retained.
-Void collect_outer_box_cells(const ExactBoxType& box, const GridCell& cell,
-                             Nat max_tree_depth, Bool can_prove_cover,
-                             std::vector<GridCell>& cells) {
-    const ExactBoxType& cell_box = cell.box();
-    if (definitely(box.separated(cell_box)))
-        return;
-    if (can_prove_cover && definitely(box.covers(cell_box))) {
-        cells.push_back(cell);
-    } else if (cell.word().size() < max_tree_depth) {
-        const auto children = cell.split();
-        collect_outer_box_cells(box, children.first, max_tree_depth,
-                                can_prove_cover, cells);
-        collect_outer_box_cells(box, children.second, max_tree_depth,
-                                can_prove_cover, cells);
-    } else {
-        cells.push_back(cell);
-    }
-}
-
-} // namespace
-
-Void BinaryTreePaving::adjoin_outer_approximations(
-    const std::vector<ExactBoxType>& boxes, Nat fineness) {
-    if (boxes.empty())
-        return;
-
-    const Grid grid(this->grid());
-    for (const ExactBoxType& box: boxes) {
-        ARIADNE_PRECONDITION_MSG(box.dimension() == grid.dimension(),
-            "Cannot adjoin exact box with dimension " << box.dimension()
-            << " to grid with dimension " << grid.dimension());
-    }
-
-    // Accumulate in bounded chunks to avoid memory growth on large or
-    // high-dimensional workloads. Existing batch adjoin validates the cells
-    // and holds a single lock while applying each chunk.
-    std::vector<GridCell> cells;
-    auto flush = [&] {
-        if (cells.empty())
-            return;
-        std::sort(cells.begin(), cells.end());
-        cells.erase(std::unique(cells.begin(), cells.end()), cells.end());
-        this->adjoin(cells);
-        cells.clear();
-    };
-
-    for (const ExactBoxType& box: boxes) {
-        const ExactBoxSetType exact_set(box);
-        const Nat extent = GridCell::smallest_enclosing_primary_cell_extent(
-            exact_set.bounding_box(), grid);
-        const Nat primary_extent = extent + static_cast<Nat>(grid.dimension());
-        const Nat depth = zero_cell_subdivisions_to_tree_subdivisions(
-            fineness, primary_extent, 0u);
-        const Bool can_prove_cover =
-            dynamic_cast<const EffectiveEuclideanOpenSetInterface*>(
-                static_cast<const EuclideanSetInterfaceBase*>(&exact_set)) != nullptr;
-        collect_outer_box_cells(
-            box, GridCell(grid, primary_extent, BinaryWord{}), depth,
-            can_prove_cover, cells);
-
-        if (cells.size() >= 8192u)
-            flush();
-    }
-    flush();
 }
 
 Void BinaryTreePaving::adjoin_outer_approximation(const UpperBoxType& theBoxType, const Nat numSubdivInDim) {
