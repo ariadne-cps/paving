@@ -86,7 +86,6 @@ class TestPaver : public Ariadne::Testing::ContextFixture {
         check_paver(Paver(SubdivisionPaver()));
         check_paver(Paver(ReducePaver()));
         check_paver(Paver(ConstraintPaver()));
-        check_paver(Paver(OptimalConstraintPaver()));
     }
 
     Void test_nonlinear_pavers() {
@@ -108,7 +107,7 @@ class TestPaver : public Ariadne::Testing::ContextFixture {
         },
                                          quadratic);
         Grid grid(1u);
-        const Paver strategies[] = {Paver(AffinePaver()), Paver(SubdivisionPaver()), Paver(ReducePaver()), Paver(ConstraintPaver()), Paver(OptimalConstraintPaver())};
+        const Paver strategies[] = {Paver(AffinePaver()), Paver(SubdivisionPaver()), Paver(ReducePaver()), Paver(ConstraintPaver())};
         for (const auto& paver: strategies) {
             ARIADNE_TESTING_NOTE("paver = " << (paver));
             BinaryTreePaving approximation(grid);
@@ -123,7 +122,7 @@ class TestPaver : public Ariadne::Testing::ContextFixture {
     }
 
     Void test_intrinsic_uncertainty() {
-        const Paver strategies[] = {Paver(AffinePaver()), Paver(SubdivisionPaver()), Paver(ReducePaver()), Paver(ConstraintPaver()), Paver(OptimalConstraintPaver())};
+        const Paver strategies[] = {Paver(AffinePaver()), Paver(SubdivisionPaver()), Paver(ReducePaver()), Paver(ConstraintPaver())};
         for (SizeType arity = 0u; arity != 2u; ++arity) {
             auto constant = ValidatedScalarMultivariateFunction::constant(arity, ValidatedNumber(FloatDPBounds(0.25_x, 0.75_x, dp)));
             ValidatedVectorMultivariateFunction mapping({constant});

@@ -92,7 +92,6 @@ OutputStream& AffinePaver::_write(OutputStream& os) const { return os << "Affine
 OutputStream& SubdivisionPaver::_write(OutputStream& os) const { return os << "SubdivisionPaver()"; }
 OutputStream& ReducePaver::_write(OutputStream& os) const { return os << "ReducePaver()"; }
 OutputStream& ConstraintPaver::_write(OutputStream& os) const { return os << "ConstraintPaver()"; }
-OutputStream& OptimalConstraintPaver::_write(OutputStream& os) const { return os << "OptimalConstraintPaver()"; }
 
 Void SubdivisionPaver::adjoin_outer_approximation(PavingInterface& paving, const ValidatedConstrainedImageSet& set, Nat fineness) const {
     Vector<FloatDP> max_errors(paving.dimension(), dp);
@@ -440,12 +439,6 @@ Void ConstraintPaver::adjoin_outer_approximation(PavingInterface& paving, const 
     return constraint_adjoin_outer_approximation(paving, set.reduced_domain(), set.function(), set.constraint_function(), set.constraint_bounds(), fineness);
 }
 
-Void OptimalConstraintPaver::adjoin_outer_approximation(PavingInterface& paving, const ValidatedConstrainedImageSet& set, Nat fineness) const {
-    // The removed optimisation initialiser was a no-op. Its zero feasibility
-    // value caused unconditional recursion. Use validated constraint reduction
-    // until an optimisation implementation can supply a feasibility certificate.
-    return ReducePaver().adjoin_outer_approximation(paving, set, fineness);
-}
 
 } // namespace Ariadne
 

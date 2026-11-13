@@ -88,14 +88,6 @@ class ConstraintPaver : public PaverInterface {
     OutputStream& _write(OutputStream& os) const;
 };
 
-//! \brief A class for computing outer approximations to sets defined by functions.
-class OptimalConstraintPaver : public PaverInterface {
-  public:
-    /** @brief Modify the paving representation. */
-    Void adjoin_outer_approximation(PavingInterface& paving, const SetType& set, Nat fineness) const;
-    /** @brief Perform the paving operation. */
-    OutputStream& _write(OutputStream& os) const;
-};
 
 } // namespace Ariadne
 
