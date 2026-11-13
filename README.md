@@ -153,6 +153,13 @@ the number of parameters. The default matrix includes all 14 cases. Use
 `--shapes` to select a subset; existing five-shape invocations still work.
 The backend comparison still uses exclusively the original five shapes.
 
+Use `--pavers` to choose one or more algorithms without running the
+others: `affine`, `subdivision`, `reduce`, `constraint`, or
+`all` (the default). Comma-separated selections are validated for
+unknown names, empty entries and duplicates. The order is preserved in
+both the timing and pairwise comparison tables; a one-Paver run omits
+pairwise comparisons. This option is independent of the case matrix.
+
 Build and run manually in Release mode:
 
 ```bash
@@ -161,7 +168,9 @@ cmake --build build-release --target benchmark_pavers
 ./build-release/benchmarks/benchmark_pavers --help
 ./build-release/benchmarks/benchmark_pavers --dimensions 2 --finenesses 1 --samples 5
 ./build-release/benchmarks/benchmark_pavers --dimensions 2 --finenesses 2 --shapes affine-shear,uv-triangle,correlated-strip --samples 5
-./build-release/benchmarks/benchmark_pavers --dimensions 2 --finenesses 1 --shapes parabolic-curve,empty-constraints --verify-only
+./build-release/benchmarks/benchmark_pavers --dimensions 2 --finenesses 3,4 --shapes uv-triangle,correlated-strip,product-cap,folded-quadratic --pavers subdivision,reduce,constraint --samples 5 --max-case-ms 2000
+./build-release/benchmarks/benchmark_pavers --dimensions 2 --finenesses 3 --shapes uv-triangle --pavers constraint --samples 5
+./build-release/benchmarks/benchmark_pavers --dimensions 2 --finenesses 1 --shapes parabolic-curve,empty-constraints --pavers subdivision,reduce,constraint --verify-only
 ```
 
 The per-strategy, per-case `--max-case-ms N` option (default 2000,

@@ -90,6 +90,38 @@ std::vector<Strategy> strategies() {
     };
 }
 
+// Preserve user-selected order in timing and pairwise comparison rows.
+// Reject unknown names, duplicates and empty entries before running cases.
+std::vector<Strategy> parse_strategies(const String& value) {
+    const std::string input(value);
+    const auto available = strategies();
+    if (input == "all")
+        return available;
+    if (input.empty() or input.front() == ',' or input.back() == ',')
+        throw std::invalid_argument("invalid Paver selection");
+
+    std::vector<Strategy> selected;
+    std::size_t start = 0u;
+    do {
+        const std::size_t end = input.find(',', start);
+        const std::string name = input.substr(
+            start, end == std::string::npos ? end : end - start);
+        const auto found = std::find_if(
+            available.begin(), available.end(),
+            [&name](const Strategy& strategy) { return strategy.name == name; });
+        const bool duplicate = std::any_of(
+            selected.begin(), selected.end(),
+            [&name](const Strategy& strategy) { return strategy.name == name; });
+        if (found == available.end() or duplicate)
+            throw std::invalid_argument("unknown or duplicate Paver: " + name);
+        selected.push_back(*found);
+        if (end == std::string::npos)
+            break;
+        start = end + 1u;
+    } while (true);
+    return selected;
+}
+
 // Independently verified interior regions are optional: curves have no
 // full-dimensional interior, and empty sets must stay empty.
 void verify_result(const BinaryTreePaving& paving,
@@ -120,7 +152,10 @@ void run(const Bench::CommandLine& cli, const Bench::Matrix& matrix,
          const Bench::Parameter<unsigned>& finenesses,
          const Bench::Parameter<std::string>& shapes,
          const Bench::Parameter<unsigned>& samples,
-         bool verify_only, unsigned max_case_ms) {
+         bool verify_only, unsigned max_case_ms,
+         const std::vector<Strategy>& implementations) {
+    if (implementations.empty())
+        throw std::invalid_argument("at least one Paver must be selected");
     Bench::Runner runner(cli, matrix.combinations());
     Bench::Runner sample_runner(0u, matrix.combinations());
     Bench::SummaryFields fields = cli.summary_fields();
@@ -134,13 +169,19 @@ void run(const Bench::CommandLine& cli, const Bench::Matrix& matrix,
         {"Cells"}, {"Outer volume"}, {"Case volume"}, {"Outer/case"},
         {"Depth cap"}, {"Unresolved"}, {"Splits"}, {"Samples"}, {"Budget"}
     });
-    report.set_parameter_header(matrix.header());
+    std::string report_header = matrix.header() + " | pavers=[";
+    for (const Strategy& strategy: implementations) {
+        if (&strategy != &implementations.front())
+            report_header += ",";
+        report_header += strategy.name;
+    }
+    report_header += "]";
+    report.set_parameter_header(report_header);
     Bench::Table geometry({
         {"Case"}, {"Dimension"}, {"Fineness"},
         {"A"}, {"B"}, {"Geometric relation"}
     });
 
-    const auto implementations = strategies();
     matrix.for_each([&](const Bench::Configuration& configuration) {
         const unsigned d = configuration.value(dimensions);
         const unsigned f = configuration.value(finenesses);
@@ -282,8 +323,12 @@ void run(const Bench::CommandLine& cli, const Bench::Matrix& matrix,
     });
     if (not verify_only)
         report.print();
-    LOGGING_PRINTLN("Pairwise geometric containment (exact cell coverage):")
-    LOGGING_PRINTLN(geometry.str())
+    if (implementations.size() > 1u) {
+        LOGGING_PRINTLN("Pairwise geometric containment (exact cell coverage):")
+        LOGGING_PRINTLN(geometry.str())
+    } else {
+        LOGGING_PRINTLN("Pairwise comparison skipped: one Paver selected.")
+    }
 }
 } // namespace
 
@@ -315,9 +360,19 @@ int main(int argc, const char* argv[]) {
 
         bool verify_only = false;
         unsigned max_case_ms = 2000u;
+        std::vector<Strategy> selected_pavers = strategies();
         Bench::CommandLine cli;
         cli.add_parameters(matrix);
         List<ArgumentParser> options;
+        options.append(make_valued_argument_parser(
+            "", "pavers",
+            "Comma-separated Pavers: affine,subdivision,reduce,constraint (default: all)",
+            [&selected_pavers](const String& value) -> VoidFunction {
+                auto parsed = parse_strategies(value);
+                return [&selected_pavers, parsed = std::move(parsed)]() mutable {
+                    selected_pavers = std::move(parsed);
+                };
+            }));
         options.append(make_unvalued_argument_parser(
             "", "verify-only", "Validate all selected cases without timing",
             [&verify_only] { verify_only = true; }));
@@ -333,7 +388,7 @@ int main(int argc, const char* argv[]) {
             return 0;
 
         run(cli, matrix, dimensions, finenesses, shapes, samples,
-            verify_only, max_case_ms);
+            verify_only, max_case_ms, selected_pavers);
         return 0;
     } catch (const std::exception& error) {
         LOGGING_PRINTLN("benchmark_pavers: " << error.what())
