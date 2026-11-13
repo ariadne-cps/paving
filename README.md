@@ -150,17 +150,32 @@ cmake --build build-release --target benchmark_pavers
 ./build-release/benchmarks/benchmark_pavers --verify-only --dimensions 2 --finenesses 0 --shapes aligned-box
 ```
 
-The table reports median time in milliseconds (and other selected statistics),
-compact enabled-cell count after recombination, and approximate enclosure
-volume. Recombination, geometry construction and correctness checks are
-outside the timed region. The validation requires coverage of a known exact
-interior box for each shape, and checks identical results across repeated
-runs. This is a targeted sanity check, **not** a complete proof of soundness.
+The time report defaults to median, min, max, mean and MAD (the usual
+`--summary` option still overrides the columns). It also gives compact
+enabled-cell count, outer volume, the theoretical shape volume, and the
+outer-to-shape volume ratio (at least 1 for a sound outer enclosure).
+The shared shapes are not clipped by the unit parameter domain, so the
+box products and rotated/unrotated ellipsoid and ball formulas apply.
 
-**Do not rank strategies solely by elapsed time:** Pavers may produce
-different valid outer approximations at the same fineness. Compare both
-time and enclosure volume/cell count. These manual benchmarks are not
-registered with CTest and do not run as performance tests in CI.
+`AffinePaver` additionally records the number of parameter-domain splits,
+the number of unresolved subdomains after its depth cap, and a \"HIT\"
+status when the requested affine error cannot be achieved. For other
+strategies these fields are \"n/a\", not a claim that no limit exists.
+The original production warning is preserved.
+
+A second table reports **all six pairwise geometric relations** per
+configuration. Relations are computed from exact coverage of enabled
+grid cells after recombination: equal, strictly contains, or incomparable.
+Equality of cell counts or volumes alone is not used to infer equality.
+
+Geometry construction, recombination, verification, and pairwise checks
+occur **outside** the timed Paver operation. Validation checks a known
+interior box, reproducible outputs, and the necessary volume lower bound;
+it is not a complete proof of outer-approximation soundness.
+
+**Do not rank strategies solely by elapsed time:** different Pavers may
+produce different outer approximations at the same fineness. These
+benchmarks are manual-only and do not run as performance tests in CI.
 
 ## Comparative backend benchmark
 

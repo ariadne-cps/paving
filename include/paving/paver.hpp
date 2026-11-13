@@ -50,13 +50,32 @@ class Paver
     friend OutputStream& operator<<(OutputStream& os, const Paver& pv) { return pv._ptr->_write(os); }
 };
 
+/** @brief Statistics for one execution of the affine outer approximation.
+ *  Unresolved domains are retained conservatively when the split-depth cap is hit.
+ */
+struct AffinePaverDiagnostics {
+    Nat depth_limit = 0u;
+    Nat completed_levels = 0u;
+    SizeType split_domains = 0u;
+    SizeType unresolved_domains = 0u;
+
+    /** @brief Whether the requested affine error was not achieved by the depth cap. */
+    bool depth_limit_reached() const { return unresolved_domains != 0u; }
+};
+
 //! \brief A class for computing outer approximations to sets defined by functions.
 class AffinePaver : public PaverInterface {
   public:
     /** @brief Modify the paving representation. */
     Void adjoin_outer_approximation(PavingInterface& paving, const SetType& set, Nat fineness) const;
+    /** @brief Run the same algorithm while collecting depth-limit diagnostics. */
+    Void adjoin_outer_approximation(PavingInterface& paving, const SetType& set, Nat fineness,
+                                    AffinePaverDiagnostics& diagnostics) const;
     /** @brief Perform the paving operation. */
     OutputStream& _write(OutputStream& os) const;
+  private:
+    Void _adjoin_outer_approximation(PavingInterface& paving, const SetType& set, Nat fineness,
+                                    AffinePaverDiagnostics* diagnostics) const;
 };
 
 //! \brief A class for computing outer approximations to sets defined by functions.

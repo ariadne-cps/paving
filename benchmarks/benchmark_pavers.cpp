@@ -26,10 +26,12 @@
  *  @brief Compare certified outer approximation Paver strategies on common sets.
  */
 
+#include <algorithm>
 #include <cmath>
 #include <memory>
 #include <sstream>
 #include <stdexcept>
+#include <utility>
 #include <string>
 #include <vector>
 
@@ -48,11 +50,58 @@ namespace {
 struct Strategy {
     std::string name;
     Paver implementation;
+    bool affine = false;
 };
+
+struct Outcome {
+    std::string name;
+    std::unique_ptr<BinaryTreePaving> paving;
+};
+
+// A geometry comparison, not a check of equal cell encodings.
+// Each tree's enabled cells must be completely covered by the other tree.
+bool contains(const BinaryTreePaving& outer, const BinaryTreePaving& inner) {
+    for (auto it = inner.begin(), end = inner.end(); it != end; ++it) {
+        if (not outer.superset(*it))
+            return false;
+    }
+    return true;
+}
+
+// The geometries are fully contained in the unit box; in higher dimensions
+// boxes have additional width 1/2, ellipsoids and balls have radius 1/4.
+// Rotation is orthogonal, so it preserves their Euclidean volume.
+double analytical_volume(unsigned dimension, const std::string& shape) {
+    const double half_dimensions = static_cast<double>(dimension) / 2.0;
+    if (shape == "aligned-box" or shape == "rotated-box")
+        return 0.125 * std::pow(0.5, static_cast<double>(dimension - 2u));
+    const double unit_ball_volume =
+        std::pow(std::acos(-1.0), half_dimensions) /
+        std::tgamma(half_dimensions + 1.0);
+    if (shape == "ball")
+        return unit_ball_volume * std::pow(0.25, static_cast<double>(dimension));
+    if (shape == "aligned-ellipsoid" or shape == "rotated-ellipsoid")
+        return unit_ball_volume * 0.5 *
+               std::pow(0.25, static_cast<double>(dimension));
+    throw std::invalid_argument("unknown benchmark geometry");
+}
+
+std::string relation(const BinaryTreePaving& first,
+                     const BinaryTreePaving& second) {
+    const bool first_contains_second = contains(first, second);
+    const bool second_contains_first = contains(second, first);
+    if (first_contains_second and second_contains_first)
+        return "equal";
+    if (first_contains_second)
+        return "A strictly contains B";
+    if (second_contains_first)
+        return "B strictly contains A";
+    return "incomparable";
+}
 
 std::vector<Strategy> strategies() {
     return {
-        {"affine", Paver(AffinePaver())},
+        {"affine", Paver(AffinePaver()), true},
         {"subdivision", Paver(SubdivisionPaver())},
         {"reduce", Paver(ReducePaver())},
         {"constraint", Paver(ConstraintPaver())}
@@ -72,10 +121,8 @@ void verify_result(const BinaryTreePaving& paving, unsigned dimension,
             " paver=" + strategy + " dimension=" + std::to_string(dimension));
 }
 
-std::string measured_volume(const BinaryTreePaving& paving) {
-    std::ostringstream out;
-    out << paving.measure().raw();
-    return out.str();
+double measured_volume(const BinaryTreePaving& paving) {
+    return paving.measure().raw().get_d();
 }
 
 void run(const Bench::CommandLine& cli, const Bench::Matrix& matrix,
@@ -85,14 +132,22 @@ void run(const Bench::CommandLine& cli, const Bench::Matrix& matrix,
          const Bench::Parameter<unsigned>& samples,
          bool verify_only) {
     Bench::Runner runner(cli, matrix.combinations());
-    Bench::Report report("Paver outer approximations: time and enclosure size",
-                         cli.summary_fields());
+    Bench::SummaryFields fields = cli.summary_fields();
+    if (fields == Bench::default_summary_fields())
+        fields.insert(fields.begin(), Bench::SummaryField::Median);
+    Bench::Report report("Paver outer approximations: time, tightness and depth limits",
+                         fields);
     report.set_time_unit(Bench::ReportTimeUnit::Milliseconds);
     report.set_dimension_columns({
         {"Shape"}, {"Dimension"}, {"Fineness"}, {"Paver"},
-        {"Cells"}, {"Enclosure volume (approx.)"}
+        {"Cells"}, {"Outer volume"}, {"Shape volume"}, {"Outer/shape"},
+        {"Depth cap"}, {"Unresolved"}, {"Splits"}
     });
     report.set_parameter_header(matrix.header());
+    Bench::Table geometry({
+        {"Shape"}, {"Dimension"}, {"Fineness"},
+        {"A"}, {"B"}, {"Geometric relation"}
+    });
 
     const auto implementations = strategies();
     matrix.for_each([&](const Bench::Configuration& configuration) {
@@ -109,20 +164,29 @@ void run(const Bench::CommandLine& cli, const Bench::Matrix& matrix,
         const ValidatedConstrainedImageSet set =
             PavingBenchmarkCases::make_validated_shape(d, shape);
         const Grid grid(d);
+        const double shape_volume = analytical_volume(d, shape);
+        std::vector<Outcome> outcomes;
         runner.configuration_started(configuration);
 
         for (const Strategy& strategy: implementations) {
             std::unique_ptr<BinaryTreePaving> paving;
             SizeType expected_cells = 0u;
-            std::string expected_volume;
+            double expected_volume = 0.0;
+            AffinePaverDiagnostics diagnostics;
+            AffinePaverDiagnostics expected_diagnostics;
             bool reference_recorded = false;
 
             auto prepare = [&] {
                 paving = std::make_unique<BinaryTreePaving>(grid);
             };
             auto operate = [&] {
-                strategy.implementation.adjoin_outer_approximation(
-                    *paving, set, f);
+                if (strategy.affine) {
+                    AffinePaver().adjoin_outer_approximation(
+                        *paving, set, f, diagnostics);
+                } else {
+                    strategy.implementation.adjoin_outer_approximation(
+                        *paving, set, f);
+                }
             };
             auto verify = [&] {
                 // Canonicalization, correctness checks and size/volume
@@ -130,14 +194,25 @@ void run(const Bench::CommandLine& cli, const Bench::Matrix& matrix,
                 paving->recombine();
                 verify_result(*paving, d, shape, strategy.name);
                 const SizeType cells = paving->size();
-                const std::string volume = measured_volume(*paving);
+                const double volume = measured_volume(*paving);
+                if (not std::isfinite(volume) or
+                    volume < shape_volume * (1.0 - 1e-10)) {
+                    throw std::runtime_error(
+                        "Outer volume smaller than theoretical set volume: " +
+                        shape + "/" + strategy.name);
+                }
                 if (not reference_recorded) {
                     expected_cells = cells;
                     expected_volume = volume;
+                    expected_diagnostics = diagnostics;
                     reference_recorded = true;
-                } else if (cells != expected_cells or volume != expected_volume) {
+                } else if (cells != expected_cells or volume != expected_volume or
+                           (strategy.affine and
+                            (diagnostics.depth_limit_reached() != expected_diagnostics.depth_limit_reached() or
+                             diagnostics.unresolved_domains != expected_diagnostics.unresolved_domains or
+                             diagnostics.split_domains != expected_diagnostics.split_domains))) {
                     throw std::runtime_error(
-                        "Paver output differs between identical runs: " +
+                        "Paver output or diagnostics differ between identical runs: " +
                         shape + "/" + strategy.name);
                 }
                 Bench::keep_alive(cells);
@@ -151,7 +226,10 @@ void run(const Bench::CommandLine& cli, const Bench::Matrix& matrix,
                                 << " d=" << d << " f=" << f
                                 << " paver=" << strategy.name
                                 << " cells=" << expected_cells
-                                << " volume=" << expected_volume)
+                                << " volume=" << expected_volume
+                                << " volume_ratio=" << expected_volume / shape_volume
+                                << " depth_capped=" << (strategy.affine and expected_diagnostics.depth_limit_reached())
+                                << " unresolved=" << (strategy.affine ? expected_diagnostics.unresolved_domains : 0u))
             } else {
                 auto measured = runner.run(
                     strategy.name, n, prepare, operate, verify);
@@ -161,14 +239,31 @@ void run(const Bench::CommandLine& cli, const Bench::Matrix& matrix,
                 report.add_row({
                     shape, std::to_string(d), std::to_string(f),
                     strategy.name, std::to_string(expected_cells),
-                    expected_volume
+                    Bench::Table::number(expected_volume, 6u),
+                    Bench::Table::number(shape_volume, 6u),
+                    Bench::Table::number(expected_volume / shape_volume, 3u),
+                    strategy.affine ? (expected_diagnostics.depth_limit_reached() ? "HIT" : "no") : "n/a",
+                    strategy.affine ? std::to_string(expected_diagnostics.unresolved_domains) : "n/a",
+                    strategy.affine ? std::to_string(expected_diagnostics.split_domains) : "n/a"
                 }, stats);
+            }
+            outcomes.push_back({strategy.name, std::move(paving)});
+        }
+        for (std::size_t i = 0u; i != outcomes.size(); ++i) {
+            for (std::size_t j = i + 1u; j != outcomes.size(); ++j) {
+                geometry.add_row({
+                    shape, std::to_string(d), std::to_string(f),
+                    outcomes[i].name, outcomes[j].name,
+                    relation(*outcomes[i].paving, *outcomes[j].paving)
+                });
             }
         }
         runner.configuration_completed(configuration);
     });
     if (not verify_only)
         report.print();
+    LOGGING_PRINTLN("Pairwise geometric containment (exact cell coverage):")
+    LOGGING_PRINTLN(geometry.str())
 }
 } // namespace
 

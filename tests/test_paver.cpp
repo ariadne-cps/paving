@@ -159,7 +159,12 @@ class TestPaver : public Ariadne::Testing::ContextFixture {
         },
                                          mapping);
         BinaryTreePaving approximation(Grid(1u, FloatDP(1000000000000.0_x, dp)));
-        AffinePaver().adjoin_outer_approximation(approximation, set, 0u);
+        AffinePaverDiagnostics diagnostics;
+        AffinePaver().adjoin_outer_approximation(approximation, set, 0u, diagnostics);
+        ARIADNE_TESTING_PROVE(diagnostics.depth_limit_reached());
+        ARIADNE_TESTING_PROVE(diagnostics.unresolved_domains > 0u);
+        ARIADNE_TESTING_PROVE(diagnostics.split_domains > 0u);
+        ARIADNE_TESTING_EXPECT_EQUAL(diagnostics.completed_levels, diagnostics.depth_limit);
         auto bounds = cast_exact_box(approximation.bounding_box());
         ARIADNE_TESTING_PROVE(bounds[0].lower_bound() <= FloatDP(0, dp));
         ARIADNE_TESTING_PROVE(bounds[0].upper_bound() >= FloatDP(10000000000.0_x, dp));

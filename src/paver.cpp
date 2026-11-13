@@ -158,6 +158,22 @@ Void SubdivisionPaver::adjoin_outer_approximation_recursion(PavingInterface& pav
 Void AffinePaver::adjoin_outer_approximation(PavingInterface& paving,
                                              const ValidatedConstrainedImageSet& set,
                                              Nat fineness) const {
+    this->_adjoin_outer_approximation(paving, set, fineness, nullptr);
+}
+
+Void AffinePaver::adjoin_outer_approximation(PavingInterface& paving,
+                                             const ValidatedConstrainedImageSet& set,
+                                             Nat fineness,
+                                             AffinePaverDiagnostics& diagnostics) const {
+    this->_adjoin_outer_approximation(paving, set, fineness, &diagnostics);
+}
+
+Void AffinePaver::_adjoin_outer_approximation(PavingInterface& paving,
+                                              const ValidatedConstrainedImageSet& set,
+                                              Nat fineness,
+                                              AffinePaverDiagnostics* diagnostics) const {
+    if (diagnostics != nullptr)
+        *diagnostics = {};
     ARIADNE_PRECONDITION(paving.dimension() == set.dimension());
     const ExactBoxType& subdomain = set.reduced_domain();
     if (definitely(subdomain.is_empty())) {
@@ -169,6 +185,8 @@ Void AffinePaver::adjoin_outer_approximation(PavingInterface& paving,
     // Bound the maximum number of splittings allowed to draw a particular set.
     // Note that this gives rise to possibly 2^MAX_DEPTH split sets!!
     static const Nat MAXIMUM_DEPTH = 16;
+    if (diagnostics != nullptr)
+        diagnostics->depth_limit = MAXIMUM_DEPTH;
 
     // The basic approximation error when plotting with accuracy=0
     static const ExactDouble BASIC_ERROR = 0.0625_pr;
@@ -184,6 +202,8 @@ Void AffinePaver::adjoin_outer_approximation(PavingInterface& paving,
     unsplitdomains.append(subdomain);
     ExactBoxType splitdomain1, splitdomain2;
     for (Nat i = 0; i != MAXIMUM_DEPTH; ++i) {
+        if (diagnostics != nullptr)
+            ++diagnostics->completed_levels;
         // std::cerr<<"i="<<i<<"\nsubdomains="<<subdomains<<"\nunsplitdomains="<<unsplitdomains<<"\n\n";
         for (SizeType n = 0; n != unsplitdomains.size(); ++n) {
             SizeType k;
@@ -194,6 +214,8 @@ Void AffinePaver::adjoin_outer_approximation(PavingInterface& paving,
                 subdomains.append(unsplitdomains[n]);
             } else {
                 make_lpair(splitdomain1, splitdomain2) = unsplitdomains[n].split(k);
+                if (diagnostics != nullptr)
+                    ++diagnostics->split_domains;
                 splitdomains.append(splitdomain1);
                 splitdomains.append(splitdomain2);
             }
@@ -204,6 +226,8 @@ Void AffinePaver::adjoin_outer_approximation(PavingInterface& paving,
             break;
         }
     }
+    if (diagnostics != nullptr)
+        diagnostics->unresolved_domains = unsplitdomains.size();
     subdomains.concatenate(unsplitdomains);
     if (!unsplitdomains.empty()) {
         ARIADNE_WARN("Cannot obtain desired accuracy in outer approximation without excessive splitting.");
