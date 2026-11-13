@@ -145,6 +145,55 @@ class TestPaver : public Ariadne::Testing::ContextFixture {
         }
     }
 
+    Void test_incremental_box_traversal_scaled_grid() {
+        // The incremental lattice-box split must produce exactly the same
+        // physical cells as re-evaluating a GridCell's full binary word.
+        const Grid grid(
+            Vector<ApproximateDouble>{1.0, -2.0},
+            Vector<ApproximateDouble>{0.5, 2.0});
+        const ExactBoxType boxes[] = {
+            ExactBoxType{{0.875_x, 1.125_x}, {-3.0_x, 1.5_x}},
+            ExactBoxType{{1.0_x, 1.0_x}, {-2.0_x, -2.0_x}},
+            ExactBoxType{{-0.25_x, 2.25_x}, {-5.0_x, -1.0_x}},
+            ExactBoxType{{1.125_x, 1.375_x}, {-1.5_x, 0.5_x}}
+        };
+        for (unsigned fineness: {0u, 1u, 2u, 3u}) {
+            BinaryTreePaving fast(grid), reference(grid);
+            for (const ExactBoxType& box: boxes) {
+                const ExactBoxSetType exact(box);
+                const ReferenceBoxSet proxy(box);
+                fast.adjoin_outer_approximation(
+                    static_cast<const EffectiveEuclideanCompactSetInterface&>(exact),
+                    fineness);
+                reference.adjoin_outer_approximation(
+                    static_cast<const EffectiveEuclideanCompactSetInterface&>(proxy),
+                    fineness);
+                for (auto it = fast.begin(), end = fast.end(); it != end; ++it)
+                    ARIADNE_TESTING_PROVE(reference.superset(*it));
+                for (auto it = reference.begin(), end = reference.end();
+                     it != end; ++it)
+                    ARIADNE_TESTING_PROVE(fast.superset(*it));
+            }
+            // Already-enabled branches must still short-circuit.
+            const GridCell occupied(grid, 0u, BinaryWord("0"));
+            fast.adjoin(occupied);
+            reference.adjoin(occupied);
+            const ExactBoxSetType exact(boxes[0]);
+            const ReferenceBoxSet proxy(boxes[0]);
+            fast.adjoin_outer_approximation(
+                static_cast<const EffectiveEuclideanCompactSetInterface&>(exact),
+                fineness);
+            reference.adjoin_outer_approximation(
+                static_cast<const EffectiveEuclideanCompactSetInterface&>(proxy),
+                fineness);
+            for (auto it = fast.begin(), end = fast.end(); it != end; ++it)
+                ARIADNE_TESTING_PROVE(reference.superset(*it));
+            for (auto it = reference.begin(), end = reference.end();
+                 it != end; ++it)
+                ARIADNE_TESTING_PROVE(fast.superset(*it));
+        }
+    }
+
     Void test_instrumented_pavers() {
         auto x = EffectiveScalarMultivariateFunction::coordinate(1u, 0u);
         ValidatedVectorMultivariateFunction identity({x});
@@ -423,6 +472,7 @@ int main(int argc, char** argv) {
     ARIADNE_TESTING_ADD_TEST(TestPaver, test_paver_strategies);
     ARIADNE_TESTING_ADD_TEST(TestPaver, test_instrumented_pavers);
     ARIADNE_TESTING_ADD_TEST(TestPaver, test_exact_box_fast_path);
+    ARIADNE_TESTING_ADD_TEST(TestPaver, test_incremental_box_traversal_scaled_grid);
     ARIADNE_TESTING_ADD_TEST(TestPaver, test_nonlinear_pavers);
     return ARIADNE_TESTING_RUN_TESTS_WITH_ARGS(argc, argv);
 }
