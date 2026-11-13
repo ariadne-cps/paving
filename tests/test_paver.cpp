@@ -318,6 +318,93 @@ class TestPaver : public Ariadne::Testing::ContextFixture {
         }
     }
 
+    Void test_incremental_exact_box_classification() {
+        // A non-separated parent can only become separated along its
+        // split axis. Compare this shortcut and the incrementally updated
+        // strict-coverage count with the complete box predicates.
+        const std::vector<Grid> grids{
+            Grid(1u), Grid(2u), Grid(3u),
+            Grid(Vector<ApproximateDouble>{1.0, -2.0},
+                 Vector<ApproximateDouble>{0.5, 2.0})
+        };
+        const ExactIntervalType intervals[] = {
+            ExactIntervalType(0.25_x, 0.75_x),
+            ExactIntervalType(0.5_x, 0.5_x),
+            ExactIntervalType(-0.25_x, 1.25_x),
+            ExactIntervalType(0.125_x, 0.375_x)
+        };
+        for (const Grid& grid: grids) {
+            const Vector<FloatDP> origin(grid.origin());
+            const Vector<FloatDP> lengths(grid.lengths());
+            std::vector<ExactBoxType> boxes;
+            for (const ExactIntervalType& interval: intervals)
+                boxes.emplace_back(grid.dimension(), interval);
+            ExactBoxType mixed(grid.dimension(), intervals[0]);
+            for (SizeType i = 0u; i != grid.dimension(); ++i)
+                mixed[i] = intervals[i % 4u];
+            boxes.push_back(mixed);
+
+            for (const ExactBoxType& box: boxes) {
+                for (Nat extent: {0u, 1u, 2u}) {
+                    LatticeBoxType lattice =
+                        GridAbstractCell::primary_cell_lattice_box(
+                            extent, static_cast<dimension_type>(grid.dimension()));
+                    ExactBoxType physical =
+                        GridAbstractCell::lattice_box_to_space(lattice, grid);
+                    Nat uncovered_axes = 0u;
+                    for (SizeType i = 0u; i != grid.dimension(); ++i)
+                        uncovered_axes += static_cast<Nat>(
+                            !definitely(covers(box[i], physical[i])));
+
+                    auto visit = [&](auto&& self, Nat depth, Bool is_separated,
+                                     Nat uncovered_count) -> Void {
+                        ARIADNE_TESTING_PROVE(
+                            is_separated == definitely(box.separated(physical)));
+                        ARIADNE_TESTING_PROVE(
+                            (uncovered_count == 0u) == definitely(box.covers(physical)));
+                        // The actual algorithm never visits descendants of
+                        // a node already separated from the requested box.
+                        if (depth == 7u || is_separated)
+                            return;
+
+                        const SizeType axis = depth % grid.dimension();
+                        const Bool was_uncovered =
+                            !definitely(covers(box[axis], physical[axis]));
+                        const Nat other_uncovered =
+                            uncovered_count - static_cast<Nat>(was_uncovered);
+                        const ExactIntervalType saved_lattice(lattice[axis]);
+                        const ExactIntervalType saved_physical(physical[axis]);
+                        const auto split_value = cast_exact(lattice[axis].midpoint());
+                        const auto physical_split = cast_exact(
+                            add(approx, origin[axis],
+                                mul(approx, lengths[axis], split_value)));
+
+                        lattice[axis].set_upper_bound(split_value);
+                        physical[axis].set_upper_bound(physical_split);
+                        self(self, depth + 1u,
+                             definitely(separated(box[axis], physical[axis])),
+                             other_uncovered + static_cast<Nat>(
+                                 !definitely(covers(box[axis], physical[axis]))));
+
+                        lattice[axis] = saved_lattice;
+                        physical[axis] = saved_physical;
+                        lattice[axis].set_lower_bound(split_value);
+                        physical[axis].set_lower_bound(physical_split);
+                        self(self, depth + 1u,
+                             definitely(separated(box[axis], physical[axis])),
+                             other_uncovered + static_cast<Nat>(
+                                 !definitely(covers(box[axis], physical[axis]))));
+
+                        lattice[axis] = saved_lattice;
+                        physical[axis] = saved_physical;
+                    };
+                    visit(visit, 0u,
+                          definitely(box.separated(physical)), uncovered_axes);
+                }
+            }
+        }
+    }
+
     Void test_instrumented_pavers() {
         auto x = EffectiveScalarMultivariateFunction::coordinate(1u, 0u);
         ValidatedVectorMultivariateFunction identity({x});
@@ -599,6 +686,7 @@ int main(int argc, char** argv) {
     ARIADNE_TESTING_ADD_TEST(TestPaver, test_incremental_box_traversal_scaled_grid);
     ARIADNE_TESTING_ADD_TEST(TestPaver, test_incremental_physical_box_geometry);
     ARIADNE_TESTING_ADD_TEST(TestPaver, test_inplace_box_geometry_restoration);
+    ARIADNE_TESTING_ADD_TEST(TestPaver, test_incremental_exact_box_classification);
     ARIADNE_TESTING_ADD_TEST(TestPaver, test_nonlinear_pavers);
     return ARIADNE_TESTING_RUN_TESTS_WITH_ARGS(argc, argv);
 }

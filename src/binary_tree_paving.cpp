@@ -2178,13 +2178,17 @@ Void BinaryTreePaving::_adjoin_outer_box_approximation(
     BinaryTreeNode* node, LatticeBoxType& lattice_cell,
     ExactBoxType& physical_cell, const Vector<FloatDP>& origin,
     const Vector<FloatDP>& lengths, Nat depth, Nat max_mince_tree_depth,
-    const ExactBoxType& box, Bool can_prove_cover) {
+    const ExactBoxType& box, Bool can_prove_cover,
+    Bool is_separated, Nat uncovered_axes) {
     if (node->is_enabled())
         return;
 
-    if (definitely(box.separated(physical_cell)))
+    // A child of a non-separated cell can become separated only along
+    // the coordinate split by its parent. Coverage, by contrast, must
+    // retain the number of coordinates that fail strict containment.
+    if (is_separated)
         return;
-    if (can_prove_cover && definitely(box.covers(physical_cell))) {
+    if (can_prove_cover && uncovered_axes == 0u) {
         node->make_leaf(true);
         return;
     }
@@ -2196,39 +2200,48 @@ Void BinaryTreePaving::_adjoin_outer_box_approximation(
         return;
     }
 
-    // Reproduce GridCell::compute_lattice_box's dyadic midpoint and
-    // GridAbstractCell::lattice_box_to_space's coordinate conversion.
-    // Keeping the original endpoints is important on shifted/scaled grids
-    // and when the cell merely touches the box boundary.
     const SizeType axis = depth % lattice_cell.size();
+    const Bool was_uncovered = can_prove_cover &&
+        !definitely(covers(box[axis], physical_cell[axis]));
+    const Nat other_uncovered_axes =
+        uncovered_axes - static_cast<Nat>(was_uncovered);
+
+    // Match GridCell's midpoint and physical coordinate conversion exactly.
     const FloatDP lattice_midpoint = lattice_cell[axis].midpoint();
     const auto split_value = cast_exact(lattice_midpoint);
     const FloatDP physical_midpoint =
         add(approx, origin[axis], mul(approx, lengths[axis], split_value));
-
-    // Both child traversals are sequential. Change only the interval on
-    // this axis, restoring the original bounds between siblings. This
-    // avoids copying all coordinates of two lattice and two physical boxes
-    // at every internal node, while preserving the original rounding.
-    const ExactIntervalType old_lattice_interval(lattice_cell[axis]);
-    const ExactIntervalType old_physical_interval(physical_cell[axis]);
     const auto physical_split_value = cast_exact(physical_midpoint);
 
+    const ExactIntervalType old_lattice_interval(lattice_cell[axis]);
+    const ExactIntervalType old_physical_interval(physical_cell[axis]);
     node->split();
 
     lattice_cell[axis].set_upper_bound(split_value);
     physical_cell[axis].set_upper_bound(physical_split_value);
+    const Bool left_separated =
+        definitely(separated(box[axis], physical_cell[axis]));
+    const Nat left_uncovered_axes = other_uncovered_axes +
+        static_cast<Nat>(can_prove_cover &&
+            !definitely(covers(box[axis], physical_cell[axis])));
     _adjoin_outer_box_approximation(
         node->left_node(), lattice_cell, physical_cell, origin, lengths,
-        depth + 1u, max_mince_tree_depth, box, can_prove_cover);
+        depth + 1u, max_mince_tree_depth, box, can_prove_cover,
+        left_separated, left_uncovered_axes);
 
     lattice_cell[axis] = old_lattice_interval;
     physical_cell[axis] = old_physical_interval;
     lattice_cell[axis].set_lower_bound(split_value);
     physical_cell[axis].set_lower_bound(physical_split_value);
+    const Bool right_separated =
+        definitely(separated(box[axis], physical_cell[axis]));
+    const Nat right_uncovered_axes = other_uncovered_axes +
+        static_cast<Nat>(can_prove_cover &&
+            !definitely(covers(box[axis], physical_cell[axis])));
     _adjoin_outer_box_approximation(
         node->right_node(), lattice_cell, physical_cell, origin, lengths,
-        depth + 1u, max_mince_tree_depth, box, can_prove_cover);
+        depth + 1u, max_mince_tree_depth, box, can_prove_cover,
+        right_separated, right_uncovered_axes);
 
     lattice_cell[axis] = old_lattice_interval;
     physical_cell[axis] = old_physical_interval;
@@ -2485,10 +2498,20 @@ Void BinaryTreePaving::adjoin_outer_approximation(const EffectiveEuclideanCompac
                 GridAbstractCell::lattice_box_to_space(primary_lattice_cell, theGrid);
             const Vector<FloatDP> grid_origin(theGrid.origin());
             const Vector<FloatDP> grid_lengths(theGrid.lengths());
+            const ExactBoxType& exact_box = static_cast<const ExactBoxType&>(*box);
+            const Bool is_separated =
+                definitely(exact_box.separated(primary_physical_cell));
+            Nat uncovered_axes = 0u;
+            if (can_prove_cover) {
+                for (SizeType axis = 0u; axis != theGrid.dimension(); ++axis) {
+                    uncovered_axes += static_cast<Nat>(
+                        !definitely(covers(exact_box[axis], primary_physical_cell[axis])));
+                }
+            }
             _adjoin_outer_box_approximation(
                 pBinaryTreeNode, primary_lattice_cell, primary_physical_cell,
                 grid_origin, grid_lengths, 0u, max_mince_tree_depth,
-                static_cast<const ExactBoxType&>(*box), can_prove_cover);
+                exact_box, can_prove_cover, is_separated, uncovered_axes);
         } else {
             BinaryWord empty_path;
             _adjoin_outer_approximation(
