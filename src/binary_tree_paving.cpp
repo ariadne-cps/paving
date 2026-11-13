@@ -2462,7 +2462,8 @@ Void BinaryTreePaving::adjoin_outer_approximation(const EffectiveEuclideanCompac
                     static_cast<const EuclideanSetInterfaceBase*>(&theSet)) != nullptr;
             const LatticeBoxType primary_lattice_cell =
                 GridAbstractCell::primary_cell_lattice_box(
-                    outer_approx_primary_cell_extent, theGrid.dimension());
+                    outer_approx_primary_cell_extent,
+                    static_cast<dimension_type>(theGrid.dimension()));
             _adjoin_outer_box_approximation(
                 BinaryTreeSubpaving::_theGridCell.grid(), pBinaryTreeNode,
                 primary_lattice_cell, 0u, max_mince_tree_depth,
