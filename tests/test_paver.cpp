@@ -34,7 +34,6 @@
 #include "paving/binary_tree_paving.hpp"
 #include "paving/paver.hpp"
 #include "set/function_set.hpp"
-#include "threading/thread_manager.hpp"
 
 #include "ariadne-testing.hpp"
 using namespace Ariadne;
@@ -459,71 +458,6 @@ class TestPaver : public Ariadne::Testing::ContextFixture {
         }
     }
 
-    Void test_subdivision_parallel_equivalence() {
-        ThreadManager& manager = ThreadManager::instance();
-        const SizeType previous_concurrency = manager.concurrency();
-        struct RestoreConcurrency {
-            ThreadManager& manager;
-            SizeType original;
-            ~RestoreConcurrency() {
-                manager.set_concurrency(original);
-            }
-        } restore{manager, previous_concurrency};
-        if (manager.maximum_concurrency() < 2u)
-            return;
-
-        auto u = ValidatedScalarMultivariateFunction::coordinate(2u, 0u);
-        auto v = ValidatedScalarMultivariateFunction::coordinate(2u, 1u);
-        const ExactBoxType domain{
-            {0.0_x, 1.0_x}, {0.0_x, 1.0_x}
-        };
-        const ValidatedVectorMultivariateFunction mapped({u, u * v});
-        const List<ValidatedConstraint> constraints{
-            u + v >= 0.75_x, u + v <= 1.25_x
-        };
-        const ValidatedConstrainedImageSet cases[] = {
-            ValidatedConstrainedImageSet(domain, mapped),
-            ValidatedConstrainedImageSet(domain, mapped, constraints),
-            ValidatedConstrainedImageSet(domain,
-                ValidatedVectorMultivariateFunction::zeros(2u, 2u))
-        };
-        const Grid grid(2u);
-        SubdivisionPaver strategy;
-        for (const auto& set: cases) {
-            for (Nat fineness: {1u, 2u}) {
-                BinaryTreePaving serial(grid), concurrent(grid);
-                PaverDiagnostics serial_counts, concurrent_counts;
-                manager.set_concurrency(0u);
-                strategy.adjoin_outer_approximation(
-                    serial, set, fineness, serial_counts);
-                manager.set_concurrency(2u);
-                strategy.adjoin_outer_approximation(
-                    concurrent, set, fineness, concurrent_counts);
-                for (auto it = serial.begin(), end = serial.end(); it != end; ++it)
-                    ARIADNE_TESTING_PROVE(concurrent.superset(*it));
-                for (auto it = concurrent.begin(), end = concurrent.end();
-                     it != end; ++it)
-                    ARIADNE_TESTING_PROVE(serial.superset(*it));
-                // Parallel execution may change the insertion order, but
-                // every parameter decision and operation count stays equal.
-                ARIADNE_TESTING_EXPECT_EQUAL(
-                    concurrent_counts.visited_nodes, serial_counts.visited_nodes);
-                ARIADNE_TESTING_EXPECT_EQUAL(
-                    concurrent_counts.parameter_splits, serial_counts.parameter_splits);
-                ARIADNE_TESTING_EXPECT_EQUAL(
-                    concurrent_counts.map_evaluations, serial_counts.map_evaluations);
-                ARIADNE_TESTING_EXPECT_EQUAL(
-                    concurrent_counts.constraint_evaluations, serial_counts.constraint_evaluations);
-                ARIADNE_TESTING_EXPECT_EQUAL(
-                    concurrent_counts.sensitivity_evaluations, serial_counts.sensitivity_evaluations);
-                ARIADNE_TESTING_EXPECT_EQUAL(
-                    concurrent_counts.adjoin_calls, serial_counts.adjoin_calls);
-                ARIADNE_TESTING_EXPECT_EQUAL(
-                    concurrent_counts.disjoint_rejections, serial_counts.disjoint_rejections);
-            }
-        }
-    }
-
     Void test_instrumented_pavers() {
         auto x = EffectiveScalarMultivariateFunction::coordinate(1u, 0u);
         ValidatedVectorMultivariateFunction identity({x});
@@ -812,7 +746,6 @@ int main(int argc, char** argv) {
     ARIADNE_TESTING_ADD_TEST(TestPaver, test_incremental_physical_box_geometry);
     ARIADNE_TESTING_ADD_TEST(TestPaver, test_inplace_box_geometry_restoration);
     ARIADNE_TESTING_ADD_TEST(TestPaver, test_incremental_exact_box_classification);
-    ARIADNE_TESTING_ADD_TEST(TestPaver, test_subdivision_parallel_equivalence);
     ARIADNE_TESTING_ADD_TEST(TestPaver, test_pruned_exact_box_subtrees);
     ARIADNE_TESTING_ADD_TEST(TestPaver, test_nonlinear_pavers);
     return ARIADNE_TESTING_RUN_TESTS_WITH_ARGS(argc, argv);

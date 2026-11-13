@@ -229,91 +229,68 @@ Continue reporting `Depth cap` and `Unresolved` separately from
 completed approximations. The four-case speed comparison above does
 not provide comparable affine timing measurements.
 
-## Next milestone: parallel SubdivisionPaver
+## 2026-11-13 - Reverted ThreadManager-backed parallel SubdivisionPaver
 
-The next requested work item is **parallelization**, beginning with
-`SubdivisionPaver`, not further Jacobian micro-optimizations.
+**Disposition: REVERTED after user benchmark and failing CI.**
+The experiment was introduced in
+[`0ec1663b`](https://github.com/ariadne-cps/paving/commit/0ec1663bd3485aa5f46ae7604490c1f6b7264f14)
+after the sequential optimization baseline
+[`142888ba`](https://github.com/ariadne-cps/paving/commit/142888baede341a2251fdfde72b7e3f0c0eb7e2b).
+It consumed the existing process-wide
+`ThreadManager::instance().concurrency()` setting, rather than adding
+a separate worker parameter. Concurrency zero used the original
+sequential recursion. Positive values generated a bounded parameter
+frontier (up to 32 subdomains) and submitted tasks via `TaskGroup`.
+The tasks shared a thread-safe paving, whose public outer-approximation
+insertion holds an owner mutex for the duration of each insertion.
+The implementation and benchmark CLI extension have been removed;
+`ThreadManager` and other paving backends' thread safety remain intact.
 
-**Concurrency already provided by the paving implementations:**
+### User-measured benchmark
 
-- `BinaryTreePaving::adjoin` and exact-box
-  `adjoin_outer_approximation` use the owning `_adjoin_mutex`.
-  Concurrent calls to these public operations are safe but can
-  serialize for the duration of a large exact-box insertion.
-- `RobddPaving` similarly synchronizes its mutable root; a dedicated
-  `tests/test_paving_concurrent_adjoin.cpp` checks concurrent
-  reader/writer and multi-threaded adjoining on the tree and ROBDD
-  backends. `CachedBinaryTreePaving` uses its own synchronization.
-- **Thread-safe is not lock-free.** Do not add a new global mutex
-  around all `SubdivisionPaver` work, and do not assume concurrent
-  `adjoin` calls scale linearly. Benchmark lock contention explicitly.
+Release, dimension 3, fineness 4, five samples per case.
+Numbers are **median wall-clock milliseconds**; every row completed
+5/5 samples. The `concurrency` numbers were from separate runs, not
+an interleaved randomized A/B sequence:
 
-**Parallelization design constraints and experiment plan:**
+| Shape | 0 (sequential) | 2 | 4 | 8 |
+| --- | ---: | ---: | ---: | ---: |
+| `uv-triangle` | **57.172** | 60.778 | 62.386 | 73.925 |
+| `correlated-strip` | **31.960** | 35.411 | 36.034 | 40.471 |
+| `product-cap` | **22.324** | 23.882 | 26.398 | 30.905 |
+| `folded-quadratic` | 136.435 | **133.838** | 141.553 | 166.690 |
 
-1. Identify a bounded frontier of independent parameter-domain tasks,
-   based on the existing deterministic split criterion. Keep
-   `ValidatedConstrainedImageSet` children owned by their tasks and
-   ensure concurrent `apply`/`jacobian` calls are safe for the used
-   function objects and numerical context.
-2. Parallelize the expensive *parameter-side* calculations (constraint
-   evaluation, map range, sensitivity and splitting) before optimizing
-   insertion. A shared thread-safe paving is a valid destination; its
-   internal locking may be the throughput limit. Consider per-task
-   buffering only if contention is measured and geometric parity holds.
-3. Bound the number of worker threads/tasks and avoid spawning a new
-   thread at every recursive node. Preserve sequential mode as a
-   reference and for small workloads. Do not accidentally parallelize
-   nested Paver invocations without a work-budget limit.
-4. Preserve all stopping criteria, exact coverage, and tolerance/error
-   arithmetic. Check resulting paving by bidirectional exact
-   containment, not insertion order or structural equality.
-5. Verify identical recursion/work counters where meaningful;
-   timing buckets must use thread-safe accumulation or remain
-   strictly per-worker. Confirm that concurrent errors propagate and
-   no background tasks remain when an operation returns or throws.
-6. Measure workers 1/2/4/8, throughput, scaling, lock contention and
-   end-to-end `reasoning` regression on both unconstrained and
-   constrained workloads. Run race/sanitizer tests and all CI platforms.
-   Retain parallel mode only with a repeatable gain and no semantic
-   regressions.
+At concurrency 2 the total slowdown is about 6.3%, 10.8%, and
+7.0% on the first three cases; folded-quadratic improved by about
+1.9%. At concurrency 8, all four slow down by about 22%–38%.
+All runs reported the same cell counts and outer volumes as the
+sequential baseline: 701/0.826172, 706/0.940430,
+627/0.760254, and 1065/1.423828, respectively.
+These aggregates do **not** by themselves establish exact geometric
+equivalence. No repeatable broad speedup was established.
 
-### 2026-11-13 - Initial ThreadManager-backed frontier experiment
+### Validation and lessons
 
-The first candidate is implemented in `src/paver.cpp`, guarded by the
-**existing process-wide `ThreadManager::instance().concurrency()`**, not by
-a new constructor argument or a separate `--workers` setting. This
-corrects the initial plan to add a `SubdivisionPaver(max_workers)`
-parameter; that interface was **never committed**. The normal
-`benchmark_pavers` executable now exposes the shared
-`threading_command_line_contribution()` with `--concurrency`.
+The `0ec1663b` CI had successful Ubuntu Release builds but
+failed multiple Ubuntu Debug builds and the AddressSanitizer/UBSan
+and ThreadSanitizer build workflows. The precise compilation
+diagnostics were not obtained, so do not label those failures as
+specific compiler or race bugs without investigating the logs.
+The failed checks are an independent reason not to promote the
+experiment.
 
-- At concurrency **0**, run the unmodified sequential recursion.
-- For positive concurrency, traverse the same parameter recursion
-  sequentially until a bounded frontier of at most 32 subdomains is
-  formed (the depth ceiling is based on approximately twice the configured
-  concurrency). Fully resolved branches finish immediately.
-- Dispatch frontier subdomains through the existing `ThreadManager`
-  and structured `TaskGroup`. The calling thread also processes one
-  subdomain. Each worker then uses the same original recursive splitting
-  and insertion code, targeting the **same thread-safe paving**.
-- Each task accumulates diagnostics in an independent structure;
-  combine counters and operation durations only after joining. The
-  frontier-building portion is counted exactly once. Worker exceptions
-  propagate after all tasks have joined.
-- Dedicated tests compare serial/parallel exact cell coverage and
-  parameter-work counts on unconstrained, constrained, and constant
-  maps. Existing serial tests remain unchanged.
+Potential throughput limits include (not yet separately measured):
+task scheduling overhead, load imbalance, repeated parameter-domain
+objects, and serialization in
+`BinaryTreePaving::adjoin_outer_approximation` under
+`_adjoin_mutex`. Thread safety guarantees correctness of supported
+concurrent public operations; it does not guarantee speedup.
 
-**Status: experimental, no measured speedup yet.** It is not known
-whether contention on `BinaryTreePaving::_adjoin_mutex`, task scheduling,
-or function-evaluation thread-safety under different numerical
-rounding environments will be limiting. The timed diagnostic buckets
-are *summed CPU-operation durations*, not parallel wall-clock time;
-their sum may exceed the elapsed profile duration. Do not infer a
-parallel speedup from the diagnostic bucket sum. Confirm on CI and
-via benchmarks at concurrency 0/1/2/4/8 before promoting the
-parallel path as a demonstrated performance improvement.
-
-This milestone does **not** parallelize `ReducePaver`,
-`ConstraintPaver`, or `AffinePaver`. Continue updating this journal
-with actual validation failures, fixes and measurements.
+**Rollback contract:** restore `include/paving/paver.hpp`,
+`src/paver.cpp`, `tests/test_paver.cpp`,
+`benchmarks/benchmark_pavers.cpp`, and `README.md` byte-for-byte to
+`142888ba`. Retain this journal, the earlier
+[`0222cd87`](https://github.com/ariadne-cps/paving/commit/0222cd875b0f1f17825ca299f44c72d4fbb6bdb9)
+`Apply format` commit, and all successful sequential optimizations.
+Do not resume SubdivisionPaver parallelization without a new explicit
+decision and a redesigned, separately validated approach.

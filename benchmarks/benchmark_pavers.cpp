@@ -39,8 +39,6 @@
 #include "logging/logging.hpp"
 #include "paving/binary_tree_paving.hpp"
 #include "paving/paver.hpp"
-#include "threading/thread_manager.hpp"
-#include "threading/threading_command_line_interface.hpp"
 #include "paving_benchmark_shapes.hpp"
 
 #include "ariadne-benchmarking.hpp"
@@ -428,8 +426,6 @@ int main(int argc, const char* argv[]) {
         unsigned max_case_ms = 2000u;
         std::vector<Strategy> selected_pavers = strategies();
         Bench::CommandLine cli;
-        ThreadManager::instance();
-        cli.add(threading_command_line_contribution());
         cli.add_parameters(matrix);
         List<ArgumentParser> options;
         options.append(make_valued_argument_parser(

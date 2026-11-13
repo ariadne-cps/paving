@@ -170,22 +170,9 @@ cmake --build build-release --target benchmark_pavers
 ./build-release/benchmarks/benchmark_pavers --dimensions 2 --finenesses 2 --shapes affine-shear,uv-triangle,correlated-strip --samples 5
 ./build-release/benchmarks/benchmark_pavers --dimensions 2 --finenesses 3,4 --shapes uv-triangle,correlated-strip,product-cap,folded-quadratic --pavers subdivision,reduce,constraint --samples 5 --max-case-ms 2000
 ./build-release/benchmarks/benchmark_pavers --dimensions 3 --finenesses 4 --shapes uv-triangle,correlated-strip,product-cap,folded-quadratic --pavers subdivision,reduce,constraint --samples 5 --max-case-ms 2000 --diagnostics
-./build-release/benchmarks/benchmark_pavers --dimensions 3 --finenesses 4 --shapes uv-triangle,correlated-strip,product-cap,folded-quadratic --pavers subdivision --samples 5 --concurrency 0
-./build-release/benchmarks/benchmark_pavers --dimensions 3 --finenesses 4 --shapes uv-triangle,correlated-strip,product-cap,folded-quadratic --pavers subdivision --samples 5 --concurrency 2
 ./build-release/benchmarks/benchmark_pavers --dimensions 2 --finenesses 3 --shapes uv-triangle --pavers constraint --samples 5
 ./build-release/benchmarks/benchmark_pavers --dimensions 2 --finenesses 1 --shapes parabolic-curve,empty-constraints --pavers subdivision,reduce,constraint --verify-only
 ```
-
-The benchmark also accepts the standard `--concurrency 0|1|2|4|8|max`
-option supplied by Threading, using the process-wide `ThreadManager`.
-At zero, `SubdivisionPaver` follows its original sequential recursion.
-At positive concurrency, it generates a bounded parameter-domain frontier
-using the same evaluation, sensitivity and split decisions and dispatches
-the remaining subtrees to the managed thread pool; insertion into a shared
-paving remains protected by the paving backend's existing mutex.
-Other Pavers are unchanged. Compare 0 versus 2/4/8 with identical
-workloads and check exact geometric equality, because thread-safe
-insertion can still serialize and parallel overhead may outweigh the gain.
 
 The per-strategy, per-case `--max-case-ms N` option (default 2000,
 `0` disables) sets a **soft budget** for the accumulated *timed* samples.

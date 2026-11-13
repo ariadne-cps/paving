@@ -28,10 +28,8 @@
 
 #include "paving/paver.hpp"
 
-#include <algorithm>
 #include <chrono>
 #include <type_traits>
-#include <vector>
 
 #include "algebra/algebra.hpp"
 #include "algebra/polynomial.hpp"
@@ -45,8 +43,6 @@
 #include "paving/set_approximation.hpp"
 #include "set/affine_set.hpp"
 #include "set/function_set.hpp"
-#include "threading/task_group.hpp"
-#include "threading/thread_manager.hpp"
 #include "utility/macros.hpp"
 
 #include "constraint-solving/constraint_solver.hpp"
@@ -131,33 +127,6 @@ FloatDP average_scaled_width(const UpperBoxType& bx, const Vector<FloatDP>& sf) 
     return average_scaled_width(bx, positive_sf).raw();
 }
 
-// Each task owns its counters, so aggregation happens only after joining.
-void accumulate_paver_diagnostics(PaverDiagnostics& total, const PaverDiagnostics& part) {
-    total.visited_nodes += part.visited_nodes;
-    total.parameter_splits += part.parameter_splits;
-    total.cell_splits += part.cell_splits;
-    total.map_evaluations += part.map_evaluations;
-    total.constraint_evaluations += part.constraint_evaluations;
-    total.sensitivity_evaluations += part.sensitivity_evaluations;
-    total.reduction_calls += part.reduction_calls;
-    total.box_reduction_calls += part.box_reduction_calls;
-    total.hull_reduction_calls += part.hull_reduction_calls;
-    total.constraint_reduction_calls += part.constraint_reduction_calls;
-    total.join_constructions += part.join_constructions;
-    total.disjoint_rejections += part.disjoint_rejections;
-    total.already_covered += part.already_covered;
-    total.adjoin_calls += part.adjoin_calls;
-    total.map_range_ns += part.map_range_ns;
-    total.constraint_range_ns += part.constraint_range_ns;
-    total.joint_range_ns += part.joint_range_ns;
-    total.sensitivity_ns += part.sensitivity_ns;
-    total.contractor_ns += part.contractor_ns;
-    total.box_reduction_ns += part.box_reduction_ns;
-    total.hull_reduction_ns += part.hull_reduction_ns;
-    total.join_ns += part.join_ns;
-    total.adjoin_ns += part.adjoin_ns;
-}
-
 } // namespace
 
 OutputStream& AffinePaver::_write(OutputStream& os) const { return os << "AffinePaver()"; }
@@ -186,71 +155,7 @@ Void SubdivisionPaver::_adjoin_outer_approximation(PavingInterface& paving,
         max_errors[i] = shft(static_cast<FloatDP>(paving.grid().lengths()[i]), -static_cast<int>(fineness));
     }
 
-    ThreadManager& manager = ThreadManager::instance();
-    const SizeType concurrency = manager.concurrency();
-    if (concurrency == 0u) {
-        this->_adjoin_outer_approximation_recursion(
-            paving, set, fineness, max_errors, diagnostics);
-        return;
-    }
-
-    // Bound the number of independent subdomains submitted to the shared
-    // ThreadManager pool. Build the frontier with the *same* stopping and
-    // splitting rules as the serial recursion; do not enqueue a task for
-    // every recursive node.
-    constexpr SizeType max_frontier_size = 32u;
-    const SizeType target = std::min(max_frontier_size, concurrency * 2u);
-    Nat frontier_depth = 0u;
-    SizeType frontier_capacity = 1u;
-    while (frontier_capacity < target) {
-        frontier_capacity *= 2u;
-        ++frontier_depth;
-    }
-    std::vector<ValidatedConstrainedImageSet> frontier;
-    frontier.reserve(frontier_capacity);
-    this->_adjoin_outer_approximation_recursion(
-        paving, set, fineness, max_errors, diagnostics, &frontier, frontier_depth);
-
-    if (frontier.empty())
-        return;
-    if (frontier.size() == 1u) {
-        this->_adjoin_outer_approximation_recursion(
-            paving, frontier.front(), fineness, max_errors, diagnostics);
-        return;
-    }
-
-    // Public paving insertion is synchronized by its owner. The expensive
-    // parameter-box evaluations are independent, while all task exceptions
-    // are observed only after every submitted child has completed.
-    std::vector<PaverDiagnostics> local_diagnostics(frontier.size());
-    auto process = [&](SizeType index) {
-        this->_adjoin_outer_approximation_recursion(
-            paving, frontier[index], fineness, max_errors,
-            diagnostics == nullptr ? nullptr : &local_diagnostics[index]);
-    };
-    TaskGroup<ThreadManager> group(manager);
-    for (SizeType index = 1u; index != frontier.size(); ++index)
-        group.fork([&, index] { process(index); });
-    std::exception_ptr caller_error;
-    try {
-        process(0u);
-    } catch (...) {
-        caller_error = std::current_exception();
-    }
-    std::exception_ptr worker_error;
-    try {
-        group.join();
-    } catch (...) {
-        worker_error = std::current_exception();
-    }
-    if (caller_error)
-        std::rethrow_exception(caller_error);
-    if (worker_error)
-        std::rethrow_exception(worker_error);
-    if (diagnostics != nullptr) {
-        for (const auto& part: local_diagnostics)
-            accumulate_paver_diagnostics(*diagnostics, part);
-    }
+    this->_adjoin_outer_approximation_recursion(paving, set, fineness, max_errors, diagnostics);
 }
 
 Void SubdivisionPaver::adjoin_outer_approximation_recursion(PavingInterface& paving, const ValidatedConstrainedImageSet& set, Nat fineness, const Vector<FloatDP>& max_errors) const {
@@ -259,14 +164,7 @@ Void SubdivisionPaver::adjoin_outer_approximation_recursion(PavingInterface& pav
 
 Void SubdivisionPaver::_adjoin_outer_approximation_recursion(
     PavingInterface& paving, const ValidatedConstrainedImageSet& set, Nat fineness,
-    const Vector<FloatDP>& max_errors, PaverDiagnostics* diagnostics,
-    std::vector<ValidatedConstrainedImageSet>* frontier,
-    Nat remaining_frontier_depth) const {
-    // Frontier leaves are evaluated later, exactly once by one worker.
-    if (frontier != nullptr && remaining_frontier_depth == 0u) {
-        frontier->push_back(set);
-        return;
-    }
+    const Vector<FloatDP>& max_errors, PaverDiagnostics* diagnostics) const {
     if (diagnostics != nullptr)
         ++diagnostics->visited_nodes;
     // How small an over-approximating box needs to be relative to the cell size
@@ -340,14 +238,8 @@ Void SubdivisionPaver::_adjoin_outer_approximation_recursion(
         if (diagnostics != nullptr)
             ++diagnostics->parameter_splits;
         Pair<ValidatedConstrainedImageSet, ValidatedConstrainedImageSet> subsets = set.split(sensitivity.first);
-        const Nat child_frontier_depth =
-            frontier == nullptr ? 0u : remaining_frontier_depth - 1u;
-        this->_adjoin_outer_approximation_recursion(
-            paving, subsets.first, fineness, max_errors, diagnostics,
-            frontier, child_frontier_depth);
-        this->_adjoin_outer_approximation_recursion(
-            paving, subsets.second, fineness, max_errors, diagnostics,
-            frontier, child_frontier_depth);
+        this->_adjoin_outer_approximation_recursion(paving, subsets.first, fineness, max_errors, diagnostics);
+        this->_adjoin_outer_approximation_recursion(paving, subsets.second, fineness, max_errors, diagnostics);
     }
 }
 
