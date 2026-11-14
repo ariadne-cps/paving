@@ -618,3 +618,58 @@ rather than tuning an artificial polynomial until it favours a
 particular algorithm. Do not treat the standalone wall-clock ratio
 as end-to-end reachability speed; the latter also depends on how
 many cells are evolved at subsequent steps.
+
+
+### Second measured SPRE22-inspired sequence: fineness 4 (2026-11-14)
+
+**User-supplied Release data; keep workload and results, but do not
+interpret this as a same-precision speed comparison.** Configuration:
+`--finenesses 4 --scenarios overlap --modes accumulating --steps 6
+--samples 5 --pavers subdivision,constraint --max-case-ms 0 --diagnostics`.
+All ten samples completed. Exact bidirectional cell containment
+reported `B strictly contains A`: Constraint is the strictly
+larger (less tight) outer paving.
+
+| Paver | Median (ms) | MAD (ms) | Cells after recombination | Outer volume |
+| --- | ---: | ---: | ---: | ---: |
+| Subdivision | 4403.839 | 5.457 | 571 | 10620.117188 |
+| Constraint | 349.812 | 0.516 | 1048 | 22888.183594 |
+
+Constraint's median is **12.59x faster**, but its outer volume
+is **2.155x** Subdivision's (115.5% greater), with 1.835x as
+many final cells. The speed ratio measures distinct approximation
+qualities, not equal accuracy.
+
+| Paver | Visits (six steps) | Parameter splits | Map evaluations | Sensitivity evaluations | Covered |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| Subdivision | 231822 | 115908 | 230472 | 115908 | 0 |
+| Constraint | 42616 | 8851 | 17606 | 10257 | 3608 |
+
+The above counts are sums from separate *instrumented* per-step
+replays, not a timing decomposition of median runs. The last column
+indicates positive already-covered checks for Constraint (about
+8.5% of its visits); it does not by itself explain the 12.59x
+advantage. The larger effect is different parameter-domain
+subdivision and the resulting looser discretization, a natural
+consequence of each Paver's decision rules. The pre-recombination
+sizes printed in the per-step replay (696 / 1500 by step six) are
+not the final sizes reported by the benchmark (571 / 1048).
+
+**Interpretation:** the switch from fineness 2 (equal paving;
+Subdivision faster) to fineness 4 (Constraint much faster but
+strictly less precise) confirms that this surrogate has a strongly
+fineness-dependent quality/time tradeoff. It reproduces a runtime
+reversal, **not** a like-for-like quality win, nor an isolated
+explanation for SPRE22's full reachability time. The underlying
+SPRE22 analyser can produce different future cell populations
+depending on Paver choice, so downstream evolution cost must also
+be measured separately.
+
+**Next experiment:** execute the same fineness-4, six-enclosure,
+`overlap` case in `isolated` mode, with otherwise identical
+options, to test how much the accumulating paving affects either
+Paver. Then compare `sweep` and (preferably) captured actual
+SPRE22 enclosure sequences. To compare computational efficiency
+at similar tightness, construct a time-versus-volume/Paver frontier
+over multiple fineness settings; never call two runs equal-quality
+solely because their fineness settings match.
