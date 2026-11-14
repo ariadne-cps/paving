@@ -578,3 +578,43 @@ effective constant function for the exact rational offset `k/8`
 This changes only construction of the deterministic fixture, not
 Paver algorithms or benchmark measurement logic. **Build status
 remains unverified until the user recompiles.**
+
+
+### First measured SPRE22-inspired sequence (2026-11-14)
+
+**User-supplied results; interpretation: surrogate is too easy to
+represent the reported SPRE22 reversal.** Build succeeded on user's
+macOS arm64 Release environment after the symbolic-constant fix.
+Configuration: `--finenesses 2 --scenarios overlap --modes accumulating
+--steps 6 --samples 5 --pavers subdivision,constraint --diagnostics`.
+All ten samples completed.
+
+| Paver | Median (ms) | MAD (ms) | Cells | Outer volume |
+| --- | ---: | ---: | ---: | ---: |
+| Subdivision | 0.992 | 0.022 | 16 | 250000 |
+| Constraint | 3.120 | 0.245 | 16 | 250000 |
+
+The final pavings were **exactly geometrically equal**, verified by
+bidirectional cell coverage. Constraint was approximately 3.15x
+slower on this surrogate. Subdivision performed only 3 recursive
+visits, 1 parameter split, 3 map evaluations and 1 sensitivity
+evaluation on **each** of the six inputs. Constraint performed
+191, 107, 139, 107, 175 and 107 visits, with **zero parameter
+splits on all six**, and 0 / 4 / 4 / 4 / 4 / 4 covered-cell
+hits. Each input produced a small number of coarse output cells.
+The tiny amount of mathematical work in Subdivision and lack of
+parameter subdivision in Constraint make this fixture a poor proxy
+for actual reachability enclosures. The result does not falsify
+the reported advantage of Constraint in SPRE22.
+
+**Next controlled check:** run the same sequence at fineness 4,
+matching the SPRE22 analyser configuration, with diagnostics and
+a complete sample budget. Inspect per-stage visits, sensitivity
+evaluations and output-cell growth before redesigning the fixture.
+If the workload is still trivial, collect representative actual
+validated enclosure inputs at the Evolver-to-Paver boundary (including
+domain, function, constraints, scaling, and prior paving occupancy)
+rather than tuning an artificial polynomial until it favours a
+particular algorithm. Do not treat the standalone wall-clock ratio
+as end-to-end reachability speed; the latter also depends on how
+many cells are evolved at subsequent steps.
