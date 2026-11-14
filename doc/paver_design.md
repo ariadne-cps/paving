@@ -1658,3 +1658,86 @@ the actual enclosure path before evaluating whether
 to promote the HullOnly strategy or introduce
 selective Box fallback. Preserve certified outer
 approximation and exact bidirectional geometry checks.
+
+
+## 2026-11-14 - Measured sweep ablation results at f=4 and f=5
+
+**User-supplied, five fully completed samples per configuration**
+for `--finenesses 4,5 --scenarios sweep --modes accumulating
+--steps 6 --samples 5 --pavers constraint,reduce,reduce-box,reduce-hull
+--max-case-ms 0 --diagnostics`. These are the same SPRE22-inspired
+surrogate Taylor-model enclosures and constraints used in `overlap`,
+with greater spatial displacement between sequential enclosures;
+they are **not** real SPRE22 evolver captures.
+
+| Fineness | Paver | Median (ms) | MAD (ms) | Recombined cells | Outer volume |
+| --- | --- | ---: | ---: | ---: | ---: |
+| 4 | Constraint | 347.400 | 1.111 | 1140 | 25421.142578 |
+| 4 | Reduce Full | 947.087 | 3.369 | 529 | 9048.461914 |
+| 4 | Reduce BoxOnly | 991.197 | 2.933 | 534 | 9124.755859 |
+| 4 | Reduce HullOnly | **182.892** | **1.146** | 529 | 9048.461914 |
+| 5 | Constraint | 2725.302 | 37.233 | 5075 | 4142.761230 |
+| 5 | Reduce Full | 4756.775 | 3.488 | 2043 | **1821.994781** |
+| 5 | Reduce BoxOnly | 5034.287 | 22.827 | 2068 | 1866.817474 |
+| 5 | Reduce HullOnly | **982.472** | **2.068** | 2056 | 1830.101013 |
+
+**Exact bidirectional geometric relations at f=4:**
+`Full = HullOnly`, and these pavings are strictly
+contained in `BoxOnly`, which is strictly contained
+in `Constraint`. HullOnly is consequently the sole
+non-dominated strategy among these four: it is
+**5.18x faster than Full**, geometrically identical,
+and **1.90x faster than Constraint** while reducing
+Constraint's outer volume by **64.41%**.
+
+**Exact bidirectional geometric relations at f=5:**
+`Full` is strictly contained in both `HullOnly`
+and `BoxOnly`; all three Reduce variants are strictly
+contained in `Constraint`. `BoxOnly` and `HullOnly`
+are *incomparable*. Full and HullOnly are the two
+non-dominated choices. HullOnly is **4.84x faster
+than Full** with **0.445% additional outer volume**;
+it is **2.77x faster than Constraint** with
+**55.82% less outer volume**. BoxOnly is dominated
+by Full; Constraint by HullOnly.
+
+**Cross-fineness exact geometry:** All four f=5
+Reduce variants are strictly contained in either
+f=4 Reduce Full or f=4 Reduce HullOnly, respectively;
+however the f=4 Reduce Full/HullOnly paving and the
+f=5 Constraint paving are **incomparable**, even
+though Constraint f=5 has less outer volume.
+Do not infer strict containment from a volume
+ratio or a higher fineness across different
+algorithms.
+
+**Per-step instrumentation is a separate untimed
+replay**, not part of the ordinary medians. In both
+finenesses the `reduce-hull` mode reports zero
+Box contractor calls, and `reduce-box` reports
+zero Hull calls. The detailed six-step diagnostic
+trace supplied by the operator is retained in
+the benchmark output; contractor timings must
+not be subtracted from the uninstrumented median.
+
+**Synthesis with the prior overlap experiments:**
+HullOnly beats Constraint in **both elapsed time
+and certified geometric tightness** on four tested
+cases (overlap/sweep by fineness 4/5). At f=4
+sweep it equals Full exactly, whereas at f=4
+overlap and both f=5 scenarios Full remains
+strictly tighter. This is stronger evidence for
+HullOnly as a *candidate* Paver policy, not a
+proof of superiority on arbitrary validated
+constrained images or a substitute for an
+end-to-end real SPRE22 comparison. Do not change
+the production default yet.
+
+**Next concrete test:** obtain or record actual
+SPRE22 evolver-produced validated enclosures and
+replay the same four variants on identical inputs.
+If that path cannot yet be captured, add small
+adversarial examples where box shaving can prune
+but hull backpropagation cannot. Preserve certified
+outer approximation and exact geometry comparison
+before proposing a default or heuristic policy.
