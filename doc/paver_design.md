@@ -673,3 +673,55 @@ SPRE22 enclosure sequences. To compare computational efficiency
 at similar tightness, construct a time-versus-volume/Paver frontier
 over multiple fineness settings; never call two runs equal-quality
 solely because their fineness settings match.
+
+
+### Third measured SPRE22-inspired sequence: isolated versus accumulating
+
+**User-supplied Release data (2026-11-14)**. Identical fineness-4,
+six-enclosure overlap sequence with the prior run, but using
+`--modes isolated`; five complete timed samples for each Paver.
+
+| Paver | Isolated median / MAD (ms) | Accumulating median / MAD (ms) | Isolated / accumulating |
+| --- | ---: | ---: | ---: |
+| Subdivision | 4361.872 / 2.405 | 4403.839 / 5.457 | 0.9905 |
+| Constraint | 356.267 / 0.141 | 349.812 / 0.516 | 1.0185 |
+
+Constraint is 12.24x faster in isolated mode and 12.59x faster in
+accumulating mode. Differences between modes are small compared with
+the Paver-to-Paver difference; the executions were not documented as
+randomized/interleaved comparisons.
+
+| Diagnostic replay total | Isolated | Accumulating |
+| --- | ---: | ---: |
+| Constraint visited nodes | 43468 | 42616 |
+| Constraint parameter splits | 9018 | 8851 |
+| Constraint already covered | 3338 | 3608 |
+| Subdivision visited nodes | 231822 | 231822 |
+| Subdivision parameter splits | 115908 | 115908 |
+
+The isolated mode still accumulates cells *within each Paver call*;
+it only begins a fresh paving for each enclosure. Thus its 3338
+Constraint already-covered hits are expected and are not evidence
+that the mode accidentally reuses earlier enclosure output.
+
+For both modes, final results report Subdivision 571 cells and outer
+volume 10620.117188, Constraint 1048 cells and outer volume
+22888.183594. The within-mode pairwise geometry check reports that
+Constraint strictly contains Subdivision. The separate runs did not
+execute a direct exact isolated-vs-accumulating geometric check,
+because the benchmark only compares modes when selected in the
+*same invocation*. Equal aggregate size/volume across the runs is
+not proof of geometric identity.
+
+**Conclusion:** previous-enclosure paving occupancy is not the
+dominant source of Constraint's roughly 12x advantage on this
+surrogate. Parameter-splitting strategy and *different geometric
+tightness* remain the primary candidates. No changes to either Paver
+are justified by these measurements alone.
+
+**Next comparison:** run `--modes isolated,accumulating` together
+to get the direct cross-mode containment table, and compare a
+time-versus-volume frontier across finenesses or record actual SPRE22
+enclosure sequences to investigate representativeness. Higher
+fineness on a surrogate does not by itself establish comparable
+accuracy between strategies.
