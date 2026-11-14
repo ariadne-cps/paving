@@ -1193,3 +1193,60 @@ counterfactual should compare split-axis policies on
 the *same cells*, with exactly the same validation
 budget and certified interval exclusion semantics.
 The current Pavers remain unchanged.
+
+
+### Exhaustive difference probe at depth 6 and ConstraintSolver ownership
+
+**User-supplied exhaustive result (2026-11-14)** for the same
+six-enclosure 5D `overlap/accumulating`, fineness 4
+configuration with `--verify-only --difference-probe
+--difference-cells 0 --difference-depth 6`.
+
+| Exact difference cells | Probed | Root excluded | Refined excluded | Unresolved | Interval evaluations |
+| ---: | ---: | ---: | ---: | ---: | ---: |
+| 804 | 804 | 0 | **214** | 590 | 14526 |
+
+Subdivision and Constraint had 571 and 1048 recombined cells,
+respectively; their exact containment relation was
+`Subdivision strictly contained in Constraint`. Thus,
+**214/804 = 26.6% of the exact difference cells** were
+certified disjoint from every original enclosure by the
+additional depth-6 cyclic parameter refinement. This
+percentage is for the *whole 804-cell population*, not
+the earlier 64-cell systematic sample. The remaining
+590 are unresolved, not proven to intersect the image.
+A depth-limited non-disjoint interval test cannot serve
+as an intersection certificate. The proven exclusions
+are opportunities for sound refinement, not evidence
+of unsoundness of the conservative original Paver.
+
+**Architecture correction confirmed from current
+`paving/src/paver.cpp`:** `ConstraintPaver::_adjoin_outer_approximation`
+calls `constraint_adjoin_outer_approximation`, which
+combines the map and parameter constraints with
+`join(function,constraints)` and checks
+`definitely(disjoint(apply(combined,domain),
+product(cell.box(),bounds)))` before optional
+sensitivity-based parameter splitting or output cell
+splitting. The active `ConstraintPaver` path does
+**not** instantiate or invoke `ConstraintSolver`.
+The distinct `ReducePaver` path invokes
+`procedure_constraint_adjoin_outer_approximation`,
+whose recursion constructs `ConstraintSolver` and
+calls `box_reduce` (and related reduction operations)
+on both output-cell coordinate restrictions and the
+original parameter constraints. Hence observations
+about `ConstraintPaver` cannot be characterized as
+direct performance/quality measurements of
+`ConstraintSolver`.
+
+**Next design step:** compare cost and exclusion
+success of selective certified refinement versus
+contractor-based reduction **on exactly the same
+unresolved candidate cells**. Keep strong
+validated separation semantics; test and measure
+`ConstraintPaver` with targeted refinement under
+an explicit budget before considering any integration
+with the separate `ConstraintSolver` algorithms.
+Do not tune the algorithm using only the surrogate
+and generalize to SPRE22.
