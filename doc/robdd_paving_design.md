@@ -3321,3 +3321,37 @@ multiple concurrency levels, wrong-dimension exception atomicity and
 virtual-derived-class fallback. Release measurements and an eventual Tree
 implementation are separate next steps; do not claim a speedup or turn
 performance benchmarks into CI tests.
+
+
+## 2026-11-14 - Retire experimental parallel ROBDD classification
+
+Remove the opt-in `RobddPaving::adjoin_outer_approximation_parallel`
+path and its private `src/parallel_classification.hpp/.cpp` helper.
+The sequential `RobddPaving::adjoin_outer_approximation` remains
+the supported implementation and retains its *lazy prepared separation*
+for exact concrete `ConstrainedImageSet` inputs.
+
+Remove the obsolete manual-only
+`benchmark_parallel_outer_paving` source and its CMake registration,
+and retire tests dedicated only to the deleted parallel API.
+Preserve the substantive fully-covered-root regression by exercising
+the ordinary sequential ROBDD overload. The tests for concrete-type
+prepared-contractor selection, exact Tree/ROBDD outer geometry and
+covered-cell pruning remain in place.
+
+**Explicitly out of scope:** `src/prepared_separation.hpp`, the
+`PavingDetail::prepared_separation_source` predicate and its
+call sites in *both* `binary_tree_paving.cpp` and `robdd_paving.cpp`
+remain unchanged. No `ConstrainedImageSet::prepare_separation()`
+implementation or other threading infrastructure is modified.
+
+Earlier parallel design notes above are historical descriptions
+of removed code; no measured parallel speedup was established
+before its removal.
+
+**Build/regression verification required:** rebuild the Paving
+library, `test_paving_backends`, and normal benchmark targets,
+run `ctest --test-dir build-release -R '^test_paving_backends$'
+--output-on-failure`; inspect the repo for any remaining references
+to the removed symbol in active source or CMake. Source edits
+alone do not establish successful local compilation.

@@ -29,26 +29,19 @@
 #include "paving/robdd_paving.hpp"
 
 #include <algorithm>
-#include <cfenv>
-#include <exception>
 #include <functional>
 #include <limits>
 #include <memory>
 #include <optional>
 #include <stdexcept>
-#include <typeinfo>
 #include <utility>
 #include <vector>
 
-#include "parallel_classification.hpp"
 #include "paving/binary_tree_paving.hpp"
 #include "paving/grid_cell_alignment.hpp"
 #include "paving/paving_cell_operations.hpp"
 #include "prepared_separation.hpp"
 #include "set/function_set.hpp"
-#include "threading/floating_point_environment.hpp"
-#include "threading/task_group.hpp"
-#include "threading/thread_manager.hpp"
 #include "utility/macros.hpp"
 
 namespace Ariadne {
@@ -808,119 +801,6 @@ Void RobddPaving::adjoin_outer_approximation(
             visit(cell.split(true), depth + 1u);
         };
     visit(enclosing_root, 0u);
-    adjoin(selected);
-}
-
-Void RobddPaving::adjoin_outer_approximation_parallel(
-    const EffectiveEuclideanCompactSetInterface& set, Nat fineness) {
-    // Only the exact base ConstrainedImageSet has the immutable prepared
-    // solver snapshot needed for concurrent certified classification.
-    // Derived virtual predicates (or other compact set kinds) are not
-    // assumed thread-safe; retain their exact sequential dispatch.
-    ThreadManager& threading = ThreadManager::instance();
-    if (threading.concurrency() < 2u or typeid(set) != typeid(ConstrainedImageSet)) {
-        adjoin_outer_approximation(set, fineness);
-        return;
-    }
-    const auto& constrained = dynamic_cast<const ConstrainedImageSet&>(set);
-    const RobddPaving existing(*this);
-    const GridCell geometric_root = existing.root_cell();
-    const Grid grid_value = geometric_root.grid();
-    ARIADNE_PRECONDITION_MSG(set.dimension() == grid_value.dimension(),
-                             "Cannot approximate a set of another dimension");
-
-    Nat extent = GridCell::smallest_enclosing_primary_cell_extent(
-        set.bounding_box(), grid_value);
-    Nat dimensions = PavingDetail::checked_index<Nat>(grid_value.dimension());
-    Nat enclosing_extent = PavingDetail::checked_index<Nat>(
-        PavingDetail::checked_add(extent, dimensions));
-    SizeType levels = PavingDetail::checked_add(enclosing_extent, fineness,
-                                                std::numeric_limits<Nat>::max());
-    SizeType target_depth = PavingDetail::checked_product(levels, dimensions);
-    const GridCell enclosing_root(grid_value, enclosing_extent, BinaryWord{});
-    const Bool check_existing = not existing.is_empty();
-
-    // Preserve the serial early return on an already-covered search root.
-    if (check_existing and existing.superset(enclosing_root))
-        return;
-    // Prepared data own a snapshot; each separated() call constructs its
-    // own ConstraintSolver and scratch domain, even across worker threads.
-    const PreparedConstrainedImageSetSeparation prepared =
-        constrained.prepare_separation();
-
-    // Bound task count and subdivision fan-out; never create a recursive
-    // task per cell. Frontier ancestors are classified sequentially first,
-    // preserving all early pruning before splitting into parallel branches.
-    SizeType partition_depth = 0u;
-    SizeType desired = 1u;
-    const SizeType maximum = std::min<SizeType>(8u, threading.concurrency());
-    while (desired < maximum and partition_depth < target_depth) {
-        desired *= 2u;
-        ++partition_depth;
-    }
-
-    std::vector<GridCell> frontier;
-    std::vector<GridCell> selected_prefix;
-    std::function<void(const GridCell&, SizeType)> build_frontier =
-        [&](const GridCell& cell, SizeType depth) {
-            if (check_existing and existing.superset(cell))
-                return;
-            if (definitely(prepared.separated(cell.box())))
-                return;
-            if (depth == target_depth) {
-                selected_prefix.push_back(cell);
-                return;
-            }
-            if (depth == partition_depth) {
-                frontier.push_back(cell);
-                return;
-            }
-            build_frontier(cell.split(false), depth + 1u);
-            build_frontier(cell.split(true), depth + 1u);
-        };
-    build_frontier(enclosing_root, 0u);
-
-    // Each task owns an output buffer and a separate rounding environment.
-    // Read-only sharing is restricted to the immutable prepared snapshot
-    // and an independent, stable paving snapshot.
-    const int caller_rounding = PavingDetail::require_rounding_mode(std::fegetround());
-    std::vector<std::vector<GridCell>> buffers(frontier.size());
-    auto classify = [&](SizeType index) {
-        ScopedRoundingMode rounding(std::optional<int>{caller_rounding});
-        auto& local = buffers[index];
-        std::function<void(const GridCell&, SizeType)> visit =
-            [&](const GridCell& cell, SizeType depth) {
-                if (check_existing and existing.superset(cell))
-                    return;
-                if (definitely(prepared.separated(cell.box())))
-                    return;
-                if (depth == target_depth) {
-                    local.push_back(cell);
-                    return;
-                }
-                visit(cell.split(false), depth + 1u);
-                visit(cell.split(true), depth + 1u);
-            };
-        // The frontier cell was already checked: its children are exactly
-        // the next two candidates in the serial depth-first traversal.
-        const auto& root = frontier[index];
-        visit(root.split(false), partition_depth + 1u);
-        visit(root.split(true), partition_depth + 1u);
-    };
-
-    PavingDetail::run_parallel_classification(frontier.size(), classify, threading);
-
-    // No mutation or partial publication occurs before *all* workers join.
-    // Merge in the serial left-to-right subtree order, with one atomic batch
-    // union on the paving. Concurrent external adjoins remain valid.
-    SizeType total = selected_prefix.size();
-    for (const auto& buffer: buffers)
-        total += buffer.size();
-    std::vector<GridCell> selected;
-    selected.reserve(total);
-    selected.insert(selected.end(), selected_prefix.begin(), selected_prefix.end());
-    for (const auto& buffer: buffers)
-        selected.insert(selected.end(), buffer.begin(), buffer.end());
     adjoin(selected);
 }
 
