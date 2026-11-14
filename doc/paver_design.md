@@ -801,3 +801,80 @@ Because a fineness increment can cause superlinear/exponential
 growth in recursive work, no runtime estimate or completion
 guarantee is claimed. The benchmark's soft case budget cannot
 cancel an individual long-running computation.
+
+
+## 2026-11-14 - Investigating ConstraintPaver f=4 quality discontinuity
+
+**Status: source-level hypothesis, not yet experimentally isolated.
+No algorithmic changes.** The user's six-enclosure
+`overlap/accumulating` sequence at f=4 and f=5, run with
+only `--pavers constraint`, yielded:
+
+| Constraint fineness | Median (ms) | MAD (ms) | Cells | Outer volume |
+| ---: | ---: | ---: | ---: | ---: |
+| 4 | 351.877 | 0.134 | 1048 | 22888.183594 |
+| 5 | 2637.805 | 4.515 | 5031 | 4156.589508 |
+
+Five completed samples each. Exact cell containment reports
+Constraint f=4 **strictly contains** Constraint f=5.
+The f=5 output has 81.8% less volume and costs 7.50x as much.
+The separate Subdivision f=5 run was reported to take an
+impractically long time; **no complete f=5 Subdivision
+measurement or fair paired speed ratio is available**.
+
+The quality gap at f=4 has a concrete possible contributor
+in the current `ConstraintPaver` *interval recursion*:
+
+- In `src/paver.cpp`, `cell_splitting_radius(cell)` returns
+  `cell.box().radius().upper().raw()`: **the maximum physical
+  half-width among all output dimensions**.
+- In `set/src/function_set.cpp`,
+  `lipschitz_index_and_error(function, domain)` computes each
+  parameter column's **sum of absolute interval Jacobian
+  coefficients across output dimensions**, multiplied by the
+  parameter-domain radius. It does not divide output
+  coordinates by the Paver grid lengths.
+- The recursion splits parameters while the scalar Lipschitz
+  estimate exceeds that maximum output-cell radius. Otherwise,
+  it splits output cells until `cell.depth() >= fineness *
+  cell.dimension()`, and then adds any cell not certified
+  disjoint. Thus this threshold affects how much parameter
+  refinement precedes conservative inclusion of unresolved
+  output cells.
+- For the surrogate grid with lengths
+  `(1,200,200,20,20)`, at depth `fineness*5` an output
+  cell's physical half-widths are `(1,200,200,20,20)/2^(f+1)`.
+  At f=4 these are
+  `(0.03125,6.25,6.25,0.625,0.625)`: the single
+  decision radius is **6.25**. At f=5 it is **3.125**.
+  The scalar split decision is therefore driven by the
+  largest spatial scale and is not equivalent to checking
+  adequacy for every output coordinate in normalized
+  grid units.
+
+**Hypothesis:** this heterogeneous-unit scalar comparison
+can stop parameter subdivision while some fine-scale output
+coordinates remain poorly resolved, causing a large outer
+paving at f=4. The tightened threshold at f=5 can trigger
+further domain splits and a large improvement in coverage.
+This is consistent with observed behavior, but no direct
+counterfactual has isolated its contribution; cell-depth
+discretization itself also doubles per-coordinate resolution.
+The unscaled global error norm may be a weak metric without
+being an unsound outer-approximation test.
+
+**Next verification (before changing the algorithm):**
+instrument a separate diagnostic-only, grid-normalized
+sensitivity criterion (Jacobian output rows divided by
+corresponding grid lengths, cell radii compared in lattice
+units), and report how frequently it would request a
+parameter split where the existing scalar criterion does
+not. Inspect the diagnostic counts at f=3, f=4 and f=5
+and run a controlled A/B candidate only if the discrepancy
+explains the observed quality jump. Keep exact bidirectional
+cell containment and performance measurements; preserve
+certified outer approximation and boundary semantics.
+
+The benchmark's measured component is `ConstraintPaver`,
+not `ConstraintSolver`. The code path selected by the
+benchmark does not construct or invoke `ConstraintSolver`.
