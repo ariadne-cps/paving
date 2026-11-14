@@ -158,9 +158,15 @@ class SubdivisionPaver : public PaverInterface {
                                                PaverDiagnostics* diagnostics) const;
 };
 
+//! \brief Reduction passes enabled by ReducePaver.
+//! \details Non-default modes are intended for controlled contractor ablations.
+enum class ReducePaverReductionMode { Full, BoxOnly, HullOnly };
+
 //! \brief A class for computing outer approximations to sets defined by functions.
 class ReducePaver : public PaverInterface {
   public:
+    explicit ReducePaver(ReducePaverReductionMode mode = ReducePaverReductionMode::Full)
+        : _reduction_mode(mode) {}
     /** @brief Modify the paving representation. */
     Void adjoin_outer_approximation(PavingInterface& paving, const SetType& set, Nat fineness) const;
     /** @brief Run with per-execution operation counters. */
@@ -170,6 +176,7 @@ class ReducePaver : public PaverInterface {
     OutputStream& _write(OutputStream& os) const;
 
   private:
+    ReducePaverReductionMode _reduction_mode;
     Void _adjoin_outer_approximation(PavingInterface& paving, const SetType& set,
                                      Nat fineness, PaverDiagnostics* diagnostics) const;
 };

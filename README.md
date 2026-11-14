@@ -379,6 +379,52 @@ fineness stays identical for all strategies. A smaller output volume
 alone is not proof of exact geometric containment or proof of
 superior accuracy for the underlying reachable set.
 
+
+### Controlled box/hull contractor ablation
+
+`benchmark_paver_sequences` also accepts the benchmark-specific
+`reduce-box` and `reduce-hull` Pavers. They use the existing
+`ReducePaver` recursive algorithm but enable **only** the corresponding
+`ConstraintSolver` contractor family; the ordinary `reduce`
+configuration retains both box and hull reduction, in the original
+order. `--pavers all` now includes five strategies:
+`subdivision,constraint,reduce,reduce-box,reduce-hull`.
+Specify an explicit list to limit the experiment.
+
+For the critical case, begin with a one-enclosure geometry check:
+
+```bash
+./benchmarks/benchmark_paver_sequences --finenesses 4 --steps 1 --samples 1 --scenarios overlap --modes accumulating --pavers constraint,reduce,reduce-box,reduce-hull --verify-only -t dark
+```
+
+Then measure the original six-enclosure case at the same fineness:
+
+```bash
+./benchmarks/benchmark_paver_sequences --finenesses 4 --steps 6 --samples 5 --scenarios overlap --modes accumulating --pavers constraint,reduce,reduce-box,reduce-hull --max-case-ms 0 --diagnostics -t dark
+```
+
+The `ReducePaver contractor breakdown` table covers **all three
+Reduce modes**, showing that the disabled contractor family records
+zero calls and zero cost. The ordinary timed samples do not include
+instrumentation, and instrumented replay geometries must agree
+exactly with the respective ordinary result. Results are compared
+pairwise using bidirectional exact cell containment; no geometric
+ordering between the ablation variants is assumed. Compare with
+the existing Subdivision baseline separately if desired, or add
+`subdivision` to the same `--pavers` list. With
+`--difference-probe`, both `subdivision` and `constraint`
+still need to be selected.
+
+**Limitations:** removing a contractor changes subsequent domain
+partitions and may produce different (not necessarily nested)
+pavings, even though each mode retains certified exclusion checks.
+This is a controlled ablation of the **ReducePaver contractor
+pipeline**, not a direct implementation of a hybrid
+`ConstraintPaver + selective contractor`. It does not isolate
+which individual contractor invocation was essential, nor prove
+soundness of a modified algorithm beyond its validated
+subroutines. A soft time budget does not interrupt a long sample.
+
 ### Certified difference-cell investigation
 
 Use `--difference-probe` to inspect the **geometric difference**

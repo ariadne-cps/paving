@@ -93,7 +93,9 @@ std::vector<Strategy> parse_pavers(const String& selection) {
     if (input == "all")
         return {{"subdivision", Paver(SubdivisionPaver())},
                 {"constraint", Paver(ConstraintPaver())},
-                {"reduce", Paver(ReducePaver())}};
+                {"reduce", Paver(ReducePaver())},
+                {"reduce-box", Paver(ReducePaver(ReducePaverReductionMode::BoxOnly))},
+                {"reduce-hull", Paver(ReducePaver(ReducePaverReductionMode::HullOnly))}};
     if (input.empty() or input.front() == ',' or input.back() == ',')
         throw std::invalid_argument("invalid paver selection");
     std::vector<Strategy> result;
@@ -102,7 +104,8 @@ std::vector<Strategy> parse_pavers(const String& selection) {
         const std::size_t end = input.find(',', start);
         const std::string name = input.substr(
             start, end == std::string::npos ? end : end - start);
-        if ((name != "subdivision" and name != "constraint" and name != "reduce") or
+        if ((name != "subdivision" and name != "constraint" and name != "reduce" and
+             name != "reduce-box" and name != "reduce-hull") or
             std::any_of(result.begin(), result.end(),
                         [&name](const Strategy& s) { return s.name == name; }))
             throw std::invalid_argument("unknown or duplicate paver: " + name);
@@ -110,8 +113,12 @@ std::vector<Strategy> parse_pavers(const String& selection) {
             result.push_back({"subdivision", Paver(SubdivisionPaver())});
         else if (name == "constraint")
             result.push_back({"constraint", Paver(ConstraintPaver())});
-        else
+        else if (name == "reduce")
             result.push_back({"reduce", Paver(ReducePaver())});
+        else if (name == "reduce-box")
+            result.push_back({"reduce-box", Paver(ReducePaver(ReducePaverReductionMode::BoxOnly))});
+        else
+            result.push_back({"reduce-hull", Paver(ReducePaver(ReducePaverReductionMode::HullOnly))});
         if (end == std::string::npos)
             break;
         start = end + 1u;
@@ -491,9 +498,15 @@ void run(const Bench::CommandLine& cli, const Bench::Matrix& matrix,
                     else if (strategy.name == "constraint")
                         ConstraintPaver().adjoin_outer_approximation(
                             paving, sets[i], f, counts);
-                    else
+                    else if (strategy.name == "reduce")
                         ReducePaver().adjoin_outer_approximation(
                             paving, sets[i], f, counts);
+                    else if (strategy.name == "reduce-box")
+                        ReducePaver(ReducePaverReductionMode::BoxOnly)
+                            .adjoin_outer_approximation(paving, sets[i], f, counts);
+                    else
+                        ReducePaver(ReducePaverReductionMode::HullOnly)
+                            .adjoin_outer_approximation(paving, sets[i], f, counts);
                     const auto elapsed = std::chrono::duration_cast<
                         std::chrono::nanoseconds>(
                             std::chrono::steady_clock::now() - begin).count();
@@ -518,7 +531,9 @@ void run(const Bench::CommandLine& cli, const Bench::Matrix& matrix,
                             std::to_string(counts.axis_only_split_suggestions),
                             std::to_string(counts.axis_only_at_depth_limit),
                             std::to_string(counts.legacy_only_split_suggestions)});
-                    } else if (strategy.name == "reduce") {
+                    } else if (strategy.name == "reduce" or
+                               strategy.name == "reduce-box" or
+                               strategy.name == "reduce-hull") {
                         reduction_diagnostics.add_row({
                             scenario, mode, std::to_string(f), std::to_string(i),
                             std::to_string(counts.reduction_calls),
@@ -732,7 +747,7 @@ int main(int argc, const char* argv[]) {
         cli.add_parameters(matrix);
         List<ArgumentParser> options;
         options.append(make_valued_argument_parser(
-            "", "pavers", "subdivision,constraint,reduce or all (default: all)",
+            "", "pavers", "subdivision,constraint,reduce,reduce-box,reduce-hull or all",
             [&selected](const String& s) -> VoidFunction {
                 auto parsed = parse_pavers(s);
                 return [&selected, parsed = std::move(parsed)]() mutable {

@@ -1438,3 +1438,81 @@ input and use the same fineness for all variants.
 Do not assume that omission of a contractor changes
 only speed; it can change the subsequent recursive
 partitioning and output-cell topology.
+
+
+## 2026-11-14 - Box-only and hull-only ReducePaver ablations
+
+**Status: source changes and regression test added, but compilation
+and runtime results have not yet been independently verified.**
+Previous five-sample six-enclosure `overlap/accumulating`
+benchmarks established at fineness 4 that `ReducePaver`
+produced a strictly tighter approximation than both
+`ConstraintPaver` and `SubdivisionPaver`, with a median
+runtime between the two (1010.082 ms versus 349.037 ms
+and 4408.808 ms). At fineness 5, Reduce again gave
+strictly tighter geometry than Constraint at a higher
+runtime. The separately instrumented Reduce runs
+show that box reduction consumes most measured
+contractor time; that alone says **nothing** about the
+incremental geometric effect of hull reduction.
+
+To test that distinction, introduce
+`ReducePaverReductionMode {Full, BoxOnly, HullOnly}`,
+with **Full the default** for all existing call sites.
+In the existing `procedure_constraint_adjoin_outer_approximation_recursion`,
+guard the box reduction loops and hull fixed-point loop
+independently. The active families still apply both
+output-coordinate restrictions `f_i(p) in cell_i` and
+explicit input constraints `g_j(p) in codomain_j`.
+All downstream validated disjointness checks, splitting
+heuristics, reinsertion decisions and boundary semantics
+remain as before. There is no silent weakening of the
+default contractor pipeline.
+
+Add `reduce-box` and `reduce-hull` as independent
+strategies to `benchmark_paver_sequences`, with
+`--pavers all` covering both; the former executes only
+box reductions and the latter only hull reductions.
+`--diagnostics` dispatches to the exact selected
+variant and displays all three Reduce modes in the
+contractor-breakdown table. The normal timed runs still
+exclude instrumented diagnostics. Every run checks
+deterministic geometry across samples, and every
+instrumented replay checks exact bidirectional geometry
+against the ordinary run. All pairwise variants
+are compared geometrically; **do not assume nested
+outputs**, because different contraction decisions
+can change subsequent search order and partitions.
+
+A new unit test `test_reduce_ablation_modes` checks that
+the default Reduce and explicit `Full` yield exactly
+the same enabled geometric set; that `Full` exercises
+both contractor types; that box-only records zero
+hull reductions; and that hull-only records zero
+box reductions. The unit test uses a constrained
+two-parameter bilinear map and does not replace
+the larger six-enclosure benchmark. It validates
+the enabling/disabling mechanics but must not be
+interpreted as a full formal soundness proof for
+the ablation variants.
+
+**Commands from Release build directory:**
+
+```bash
+cmake --build . --target benchmark_paver_sequences test_paver
+./tests/test_paver
+./benchmarks/benchmark_paver_sequences --finenesses 4 --steps 1 --samples 1 --scenarios overlap --modes accumulating --pavers constraint,reduce,reduce-box,reduce-hull --verify-only -t dark
+./benchmarks/benchmark_paver_sequences --finenesses 4 --steps 6 --samples 5 --scenarios overlap --modes accumulating --pavers constraint,reduce,reduce-box,reduce-hull --max-case-ms 0 --diagnostics -t dark
+```
+
+**Interpretation required after measured results:** compare each
+variant's exact geometry to both Reduce Full and Constraint.
+If either ablated variant remains as tight as Full at
+a lower runtime, it could improve the Pareto frontier.
+If results are incomparable, report the intersection
+and both differences rather than ranking solely by volume.
+Check the disabled reduction counters are zero.
+Do not claim a performance gain until timed samples
+and replay containment checks succeed. Record the
+observed costs and geometric relations in this journal
+before modifying a production default.

@@ -133,7 +133,14 @@ FloatDP average_scaled_width(const UpperBoxType& bx, const Vector<FloatDP>& sf) 
 
 OutputStream& AffinePaver::_write(OutputStream& os) const { return os << "AffinePaver()"; }
 OutputStream& SubdivisionPaver::_write(OutputStream& os) const { return os << "SubdivisionPaver()"; }
-OutputStream& ReducePaver::_write(OutputStream& os) const { return os << "ReducePaver()"; }
+OutputStream& ReducePaver::_write(OutputStream& os) const {
+    switch (_reduction_mode) {
+        case ReducePaverReductionMode::Full: return os << "ReducePaver()";
+        case ReducePaverReductionMode::BoxOnly: return os << "ReducePaver(BoxOnly)";
+        case ReducePaverReductionMode::HullOnly: return os << "ReducePaver(HullOnly)";
+        default: return os;
+    }
+}
 OutputStream& ConstraintPaver::_write(OutputStream& os) const { return os << "ConstraintPaver()"; }
 
 Void SubdivisionPaver::adjoin_outer_approximation(PavingInterface& paving, const ValidatedConstrainedImageSet& set, Nat fineness) const {
@@ -349,7 +356,8 @@ FloatDP cell_splitting_radius(const GridCell& cell) {
 // Adjoin an over-approximation to the solution of $f(dom)$ such that $g(D) in C$ to the paving p, looking only at solutions in b.
 Void procedure_constraint_adjoin_outer_approximation_recursion(
     PavingInterface& paving, const ExactBoxType& domain, const ValidatedVectorMultivariateFunction& f,
-    const ValidatedVectorMultivariateFunction& g, const ExactBoxType& codomain, const GridCell& cell, Int max_dpth, SizeType splt, const List<ValidatedProcedure>& procedures, PaverDiagnostics* diagnostics) {
+    const ValidatedVectorMultivariateFunction& g, const ExactBoxType& codomain, const GridCell& cell, Int max_dpth, SizeType splt, const List<ValidatedProcedure>& procedures, PaverDiagnostics* diagnostics,
+    ReducePaverReductionMode reduction_mode) {
     LOGGING_SCOPE_CREATE;
     if (diagnostics != nullptr)
         ++diagnostics->visited_nodes;
@@ -391,85 +399,90 @@ Void procedure_constraint_adjoin_outer_approximation_recursion(
 
     static const ExactDouble ACCEPTABLE_REDUCTION_FACTOR = 0.75_x;
 
-    // ExactBoxType reduction steps
-    for (SizeType i = 0; i != nf; ++i) {
-        for (SizeType j = 0; j != m; ++j) {
-            if (diagnostics != nullptr) {
-                ++diagnostics->reduction_calls;
-                ++diagnostics->box_reduction_calls;
-            }
-            profile_paver_operation(
-                diagnostics, &PaverDiagnostics::box_reduction_ns,
-                [&] { constraint_solver.box_reduce(new_domain, f[i], cell_box[i], j); });
-            if (definitely(new_domain.is_empty())) {
-                if (diagnostics != nullptr)
-                    ++diagnostics->disjoint_rejections;
-                LOGGING_PRINTLN("Proved disjointness using box reduce");
-                return;
-            }
-        }
-    }
-    for (SizeType i = 0; i != ng; ++i) {
-        for (SizeType j = 0; j != m; ++j) {
-            if (diagnostics != nullptr) {
-                ++diagnostics->reduction_calls;
-                ++diagnostics->box_reduction_calls;
-                ++diagnostics->constraint_reduction_calls;
-            }
-            profile_paver_operation(
-                diagnostics, &PaverDiagnostics::box_reduction_ns,
-                [&] { constraint_solver.box_reduce(new_domain, g[i], codomain[i], j); });
-            if (definitely(new_domain.is_empty())) {
-                if (diagnostics != nullptr)
-                    ++diagnostics->disjoint_rejections;
-                LOGGING_PRINTLN("Proved disjointness using box reduce");
-                return;
-            }
-        }
-    }
-    newdomwdth = average_width(new_domain);
-    LOGGING_PRINTLN_AT(1, "domwdth=" << newdomwdth << " olddomwdth=" << olddomwdth << " dom=" << new_domain << " box reduce");
-
-    // Hull reduction steps
-    do {
-        olddomwdth = newdomwdth;
+    // The Full mode follows the original contractor order exactly.
+    if (reduction_mode != ReducePaverReductionMode::HullOnly) {
+        // ExactBoxType reduction steps
         for (SizeType i = 0; i != nf; ++i) {
-            if (diagnostics != nullptr) {
-                ++diagnostics->reduction_calls;
-                ++diagnostics->hull_reduction_calls;
+            for (SizeType j = 0; j != m; ++j) {
+                if (diagnostics != nullptr) {
+                    ++diagnostics->reduction_calls;
+                    ++diagnostics->box_reduction_calls;
+                }
+                profile_paver_operation(
+                    diagnostics, &PaverDiagnostics::box_reduction_ns,
+                    [&] { constraint_solver.box_reduce(new_domain, f[i], cell_box[i], j); });
+                if (definitely(new_domain.is_empty())) {
+                    if (diagnostics != nullptr)
+                        ++diagnostics->disjoint_rejections;
+                    LOGGING_PRINTLN("Proved disjointness using box reduce");
+                    return;
+                }
             }
-            profile_paver_operation(
-                diagnostics, &PaverDiagnostics::hull_reduction_ns,
-                [&] { constraint_solver.hull_reduce(new_domain, procedures[i], cell_box[i]); });
-            if (definitely(new_domain.is_empty())) {
-                if (diagnostics != nullptr)
-                    ++diagnostics->disjoint_rejections;
-                LOGGING_PRINTLN("Proved disjointness using hull reduce");
-                return;
-            }
-            // constraint_solver.hull_reduce(new_domain,f[i],cell_box[i]);
         }
         for (SizeType i = 0; i != ng; ++i) {
-            if (diagnostics != nullptr) {
-                ++diagnostics->reduction_calls;
-                ++diagnostics->hull_reduction_calls;
-                ++diagnostics->constraint_reduction_calls;
+            for (SizeType j = 0; j != m; ++j) {
+                if (diagnostics != nullptr) {
+                    ++diagnostics->reduction_calls;
+                    ++diagnostics->box_reduction_calls;
+                    ++diagnostics->constraint_reduction_calls;
+                }
+                profile_paver_operation(
+                    diagnostics, &PaverDiagnostics::box_reduction_ns,
+                    [&] { constraint_solver.box_reduce(new_domain, g[i], codomain[i], j); });
+                if (definitely(new_domain.is_empty())) {
+                    if (diagnostics != nullptr)
+                        ++diagnostics->disjoint_rejections;
+                    LOGGING_PRINTLN("Proved disjointness using box reduce");
+                    return;
+                }
             }
-            profile_paver_operation(
-                diagnostics, &PaverDiagnostics::hull_reduction_ns,
-                [&] { constraint_solver.hull_reduce(new_domain, procedures[nf + i], codomain[i]); });
-            if (definitely(new_domain.is_empty())) {
-                if (diagnostics != nullptr)
-                    ++diagnostics->disjoint_rejections;
-                LOGGING_PRINTLN("Proved disjointness using hull reduce");
-                return;
-            }
-            // constraint_solver.hull_reduce(new_domain,g[i],codomain[i]);
         }
         newdomwdth = average_width(new_domain);
-        LOGGING_PRINTLN_AT(2, "domwdth=" << newdomwdth << " dom=" << new_domain);
-        // Each reduction above returns immediately if the domain becomes empty.
-    } while (strictly_smaller_by_factor(newdomwdth, olddomwdth, ACCEPTABLE_REDUCTION_FACTOR));
+        LOGGING_PRINTLN_AT(1, "domwdth=" << newdomwdth << " olddomwdth=" << olddomwdth << " dom=" << new_domain << " box reduce");
+    }
+
+    if (reduction_mode != ReducePaverReductionMode::BoxOnly) {
+        // Hull reduction steps
+        do {
+            olddomwdth = newdomwdth;
+            for (SizeType i = 0; i != nf; ++i) {
+                if (diagnostics != nullptr) {
+                    ++diagnostics->reduction_calls;
+                    ++diagnostics->hull_reduction_calls;
+                }
+                profile_paver_operation(
+                    diagnostics, &PaverDiagnostics::hull_reduction_ns,
+                    [&] { constraint_solver.hull_reduce(new_domain, procedures[i], cell_box[i]); });
+                if (definitely(new_domain.is_empty())) {
+                    if (diagnostics != nullptr)
+                        ++diagnostics->disjoint_rejections;
+                    LOGGING_PRINTLN("Proved disjointness using hull reduce");
+                    return;
+                }
+                // constraint_solver.hull_reduce(new_domain,f[i],cell_box[i]);
+            }
+            for (SizeType i = 0; i != ng; ++i) {
+                if (diagnostics != nullptr) {
+                    ++diagnostics->reduction_calls;
+                    ++diagnostics->hull_reduction_calls;
+                    ++diagnostics->constraint_reduction_calls;
+                }
+                profile_paver_operation(
+                    diagnostics, &PaverDiagnostics::hull_reduction_ns,
+                    [&] { constraint_solver.hull_reduce(new_domain, procedures[nf + i], codomain[i]); });
+                if (definitely(new_domain.is_empty())) {
+                    if (diagnostics != nullptr)
+                        ++diagnostics->disjoint_rejections;
+                    LOGGING_PRINTLN("Proved disjointness using hull reduce");
+                    return;
+                }
+                // constraint_solver.hull_reduce(new_domain,g[i],codomain[i]);
+            }
+            newdomwdth = average_width(new_domain);
+            LOGGING_PRINTLN_AT(2, "domwdth=" << newdomwdth << " dom=" << new_domain);
+            // Each reduction above returns immediately if the domain becomes empty.
+        } while (strictly_smaller_by_factor(newdomwdth, olddomwdth, ACCEPTABLE_REDUCTION_FACTOR));
+    }
 
     LOGGING_PRINTLN_AT(1, "new_domain=" << new_domain);
 
@@ -512,8 +525,8 @@ Void procedure_constraint_adjoin_outer_approximation_recursion(
                 ++diagnostics->parameter_splits;
             LOGGING_PRINTLN("Splitting domain on coordinate " << sensitivity.first);
             const auto domains = cast_exact_box(new_domain).split(sensitivity.first);
-            procedure_constraint_adjoin_outer_approximation_recursion(paving, domains.first, f, g, codomain, cell, max_dpth, splt + 1, procedures, diagnostics);
-            procedure_constraint_adjoin_outer_approximation_recursion(paving, domains.second, f, g, codomain, cell, max_dpth, splt + 1, procedures, diagnostics);
+            procedure_constraint_adjoin_outer_approximation_recursion(paving, domains.first, f, g, codomain, cell, max_dpth, splt + 1, procedures, diagnostics, reduction_mode);
+            procedure_constraint_adjoin_outer_approximation_recursion(paving, domains.second, f, g, codomain, cell, max_dpth, splt + 1, procedures, diagnostics, reduction_mode);
             return;
         }
     }
@@ -529,8 +542,8 @@ Void procedure_constraint_adjoin_outer_approximation_recursion(
             ++diagnostics->cell_splits;
         LOGGING_PRINTLN("Splitting cell " << cell_box);
         Pair<GridCell, GridCell> sb = cell.split();
-        procedure_constraint_adjoin_outer_approximation_recursion(paving, cast_exact_box(new_domain), f, g, codomain, sb.first, max_dpth, splt, procedures, diagnostics);
-        procedure_constraint_adjoin_outer_approximation_recursion(paving, cast_exact_box(new_domain), f, g, codomain, sb.second, max_dpth, splt, procedures, diagnostics);
+        procedure_constraint_adjoin_outer_approximation_recursion(paving, cast_exact_box(new_domain), f, g, codomain, sb.first, max_dpth, splt, procedures, diagnostics, reduction_mode);
+        procedure_constraint_adjoin_outer_approximation_recursion(paving, cast_exact_box(new_domain), f, g, codomain, sb.second, max_dpth, splt, procedures, diagnostics, reduction_mode);
     }
 }
 
@@ -709,7 +722,7 @@ Void constraint_adjoin_outer_approximation(
 
 Void procedure_constraint_adjoin_outer_approximation(PavingInterface& p, const ExactBoxType& d, const ValidatedVectorMultivariateFunction& f,
                                                      const ValidatedVectorMultivariateFunction& g, const ExactBoxType& c, Nat e,
-                                                     PaverDiagnostics* diagnostics) {
+                                                     PaverDiagnostics* diagnostics, ReducePaverReductionMode reduction_mode) {
     if (diagnostics != nullptr)
         ++diagnostics->map_evaluations;
     const auto initial_range = profile_paver_operation(
@@ -726,7 +739,7 @@ Void procedure_constraint_adjoin_outer_approximation(PavingInterface& p, const E
         procedures.append(make_procedure(g[i]));
     }
 
-    Ariadne::procedure_constraint_adjoin_outer_approximation_recursion(p, d, f, g, c, b, static_cast<Int>(e * p.dimension()), 0, procedures, diagnostics);
+    Ariadne::procedure_constraint_adjoin_outer_approximation_recursion(p, d, f, g, c, b, static_cast<Int>(e * p.dimension()), 0, procedures, diagnostics, reduction_mode);
     // std::cerr<<"Computing outer approximation considered a total of "<<COUNT_TESTS<<" domains/cells\n";
     // std::cerr<<"Measure of paving is "<<p.measure()<<"\n";
 
@@ -763,7 +776,8 @@ Void ReducePaver::_adjoin_outer_approximation(
     }
     return procedure_constraint_adjoin_outer_approximation(
         paving, set.reduced_domain(), set.function(),
-        set.constraint_function(), set.constraint_bounds(), fineness, diagnostics);
+        set.constraint_function(), set.constraint_bounds(), fineness, diagnostics,
+        this->_reduction_mode);
 }
 
 Void ConstraintPaver::adjoin_outer_approximation(

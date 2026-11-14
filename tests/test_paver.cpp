@@ -688,6 +688,48 @@ class TestPaver : public Ariadne::Testing::ContextFixture {
 
     Void test_correlated_constraints();
 
+    Void test_reduce_ablation_modes() {
+        const auto u = EffectiveScalarMultivariateFunction::coordinate(2u, 0u);
+        const auto v = EffectiveScalarMultivariateFunction::coordinate(2u, 1u);
+        const ValidatedVectorMultivariateFunction mapping({u * v, u + v});
+        const ValidatedConstrainedImageSet set(
+            ExactBoxType{{0.0_x, 1.0_x}, {0.0_x, 1.0_x}},
+            mapping, List<ValidatedConstraint>{u - v >= 0.75_x});
+        const Grid grid(2u);
+
+        BinaryTreePaving legacy(grid);
+        BinaryTreePaving full(grid);
+        BinaryTreePaving box_only(grid);
+        BinaryTreePaving hull_only(grid);
+        PaverDiagnostics full_counts;
+        PaverDiagnostics box_counts;
+        PaverDiagnostics hull_counts;
+        ReducePaver().adjoin_outer_approximation(legacy, set, 2u);
+        ReducePaver(ReducePaverReductionMode::Full)
+            .adjoin_outer_approximation(full, set, 2u, full_counts);
+        ReducePaver(ReducePaverReductionMode::BoxOnly)
+            .adjoin_outer_approximation(box_only, set, 2u, box_counts);
+        ReducePaver(ReducePaverReductionMode::HullOnly)
+            .adjoin_outer_approximation(hull_only, set, 2u, hull_counts);
+        ARIADNE_TESTING_PROVE(not legacy.is_empty());
+        ARIADNE_TESTING_PROVE(not full.is_empty());
+        ARIADNE_TESTING_PROVE(not box_only.is_empty());
+        ARIADNE_TESTING_PROVE(not hull_only.is_empty());
+
+        // Full mode must remain exactly equivalent to the historical default.
+        for (auto it = legacy.begin(), end = legacy.end(); it != end; ++it)
+            ARIADNE_TESTING_PROVE(full.superset(*it));
+        for (auto it = full.begin(), end = full.end(); it != end; ++it)
+            ARIADNE_TESTING_PROVE(legacy.superset(*it));
+
+        ARIADNE_TESTING_PROVE(full_counts.box_reduction_calls > 0u);
+        ARIADNE_TESTING_PROVE(full_counts.hull_reduction_calls > 0u);
+        ARIADNE_TESTING_PROVE(box_counts.box_reduction_calls > 0u);
+        ARIADNE_TESTING_EXPECT_EQUAL(box_counts.hull_reduction_calls, 0u);
+        ARIADNE_TESTING_EXPECT_EQUAL(hull_counts.box_reduction_calls, 0u);
+        ARIADNE_TESTING_PROVE(hull_counts.hull_reduction_calls > 0u);
+    }
+
     Void test_reduce_contractors() {
         auto& configuration = Logger::instance().configuration();
         const auto old_verbosity = configuration.verbosity();
@@ -778,6 +820,7 @@ int main(int argc, char** argv) {
     ARIADNE_TESTING_ADD_TEST(TestPaver, test_correlated_constraints);
     ARIADNE_TESTING_ADD_TEST(TestPaver, test_affine_depth_limit);
     ARIADNE_TESTING_ADD_TEST(TestPaver, test_reduce_contractors);
+    ARIADNE_TESTING_ADD_TEST(TestPaver, test_reduce_ablation_modes);
     ARIADNE_TESTING_ADD_TEST(TestPaver, test_intrinsic_uncertainty);
     ARIADNE_TESTING_ADD_TEST(TestPaver, test_paver_strategies);
     ARIADNE_TESTING_ADD_TEST(TestPaver, test_instrumented_pavers);
