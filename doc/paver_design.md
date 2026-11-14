@@ -1589,3 +1589,72 @@ outer-approximation behavior on additional adversarial
 tests. A contractor ablation changing the recursive
 partition strategy must not be adopted globally
 from a single performance case.
+
+
+## 2026-11-14 - Measured f=5 box/hull contractor ablations
+
+**User-supplied Release benchmark, five completed samples for all four
+strategies**, same `overlap/accumulating` six-enclosure 5D surrogate
+at **fineness 5**, `--pavers constraint,reduce,reduce-box,reduce-hull
+--diagnostics --max-case-ms 0`.
+
+| Paver | Median (ms) | MAD (ms) | Recombined cells | Outer volume | Pareto status |
+| --- | ---: | ---: | ---: | ---: | --- |
+| Constraint | 2641.818 | 44.680 | 5031 | 4156.589508 | dominated by HullOnly |
+| Reduce Full | 4758.902 | 23.198 | 2026 | 1786.708832 | frontier |
+| Reduce BoxOnly | 4911.928 | 2.653 | 2021 | 1820.087433 | dominated by Full |
+| Reduce HullOnly | **979.049** | **2.531** | 2052 | 1799.583435 | **frontier** |
+
+**Exact bidirectional geometric relations:** Full strictly
+contained in BoxOnly and HullOnly; all three Reduce modes
+strictly contained in Constraint. BoxOnly and HullOnly
+are **incomparable**, despite the latter's smaller outer
+volume. The run verifies consistent normal-sample output
+geometries and diagnostic replay geometry.
+
+Relative to Constraint, HullOnly is **2.70x faster**
+and has **56.71% less outer volume**. Relative to Full,
+HullOnly is **4.86x faster** with **0.721% additional
+outer volume**; Full's exact paving is strictly
+contained in HullOnly. These are compared at the same
+fineness, same generated input enclosures, same occupancy
+mode, and within one invocation.
+
+The corresponding f=4 experiment had HullOnly/Constraint
+speed ratio 1.84x and Full/HullOnly speed ratio 5.37x;
+HullOnly's volume was 2.62% larger than Full. Therefore
+f=5 shows a **smaller geometric volume gap** between
+Full and HullOnly, but the separate f=4 and f=5 timings
+should not be interpreted as a statistically controlled
+cross-run scaling study.
+
+**Aggregate instrumented replay across six steps:**
+
+| Reduce variant | Reduction calls | Box calls | Hull calls | Box exclusive time (ms) | Hull exclusive time (ms) |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| Full | 846991 | 716701 | 130290 | 3872.394 | 326.000 |
+| BoxOnly | 765956 | 765956 | 0 | 4393.546 | 0 |
+| HullOnly | 171700 | 0 | 171700 | 0 | 440.541 |
+
+These diagnostic operation times are **not** components
+of the non-instrumented median samples; the replay
+takes a different path in the profiler. All disabled
+contractor families correctly record zero calls.
+Full executes fewer Hull calls than HullOnly because
+its preceding Box passes change domain contraction
+and subsequent recursion. Comparing total invocation
+counts alone cannot isolate a per-call quality gain.
+
+**Conclusion and scope:** HullOnly is the strongest
+observed time/tightness compromise for this synthetic
+five-dimensional overlap sequence at both fineness 4
+and 5. It dominates Constraint in both runs, but
+Full still produces a strictly tighter paving. This
+does **not** establish optimality on other shapes
+or actual SPRE22 Taylor-model enclosures, nor warrant
+changing production defaults. Next measure the same
+ablation strategies on the `sweep` scenario and
+the actual enclosure path before evaluating whether
+to promote the HullOnly strategy or introduce
+selective Box fallback. Preserve certified outer
+approximation and exact bidirectional geometry checks.
