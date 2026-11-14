@@ -1809,3 +1809,37 @@ The `arch/main` branch was reset to its previous commit
 `20d2b6160ef8daa0986d5258a50ed01fa6661060`, with a
 force-with-lease ref update; the benchmark commit is retained
 on the dedicated branch, not on `arch/main`.
+
+
+### Reproducible nested submodule chain for the real SPRE22 benchmark (2026-11-14)
+
+The earlier benchmark setup failed to compile at
+`ReducePaverReductionMode` because the ARCH nested gitlink resolved
+to Paving `24f56011a0926f0baf0a971e44521c9ca8319301`, predating
+the contractor-ablation API. The original workaround of updating
+only the deepest checkout is **not reproducible** and is superseded.
+
+The full chain has now been committed bottom-up, preserving all other
+gitlinks and branch history:
+
+| Repository / branch | Pinned commit | Child gitlink |
+| --- | --- | --- |
+| Paving / main | `ceb0ecb52c5746912518d9229da05be3dd0cb062` | — |
+| Drawing / main | `ba91b3cc8a9b4d9543f6a0caa053e8d4198ac2db` | `ss/pav` |
+| Labelled / main | `81279f7d2a0ebbac0ef615b10e2dea191e7c1718` | `ss/dra` |
+| Hybrid / main | `c79961a6676dcdcce267710d172076c76509bedf` | `ss/lab` |
+| System / main | `5f12126fb7c16b7b4586c50725b650c4f14c4ddb` | `ss/hyb` |
+| Evolution / main | `5cdbe8e02a3ce9a733129ec6ac50d65ee4df6fcd` | `ss/sys` |
+| Reasoning / main | `6fc61b06e0d15b349e3c52170379eef8f0e452ea` | `ss/evo` |
+| Ariadne / main | `07a8a9e2b76a9c08d59ad879998511034f8c628a` | `ss/rea` |
+| ARCH / spre22-paver-benchmark | `1f8a7243a54f382aaad44a81ff4150357a33de22` | `ss/ard` |
+
+The complete chain was verified using each committed submodule
+gitlink. ARCH `main` remains at
+`20d2b6160ef8daa0986d5258a50ed01fa6661060`, without
+the opt-in benchmark. From the experimental branch, run
+`git submodule update --init --recursive`, then reconfigure
+with `-DENABLE_SPRE22_PAVER_BENCHMARK=ON` and compile.
+The ARCH README and opt-in CMake diagnostics now describe this
+reproducible arrangement. No real-SPRE22 Paver results or
+successful build are asserted yet.
