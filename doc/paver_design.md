@@ -725,3 +725,45 @@ time-versus-volume frontier across finenesses or record actual SPRE22
 enclosure sequences to investigate representativeness. Higher
 fineness on a surrogate does not by itself establish comparable
 accuracy between strategies.
+
+
+## 2026-11-14 - Cross-fineness time/tightness frontier for enclosure sequences
+
+**Status: source implemented; compilation and new benchmark execution
+pending.** The user-supplied fineness-4 overlap/accumulating case
+showed that ConstraintPaver is about 12.59x faster than
+SubdivisionPaver, while the former's final outer volume is 2.155x
+larger. The corresponding isolated run preserved the large runtime
+gap. This is a different-accuracy tradeoff, not a same-quality speedup.
+
+Extend the existing `benchmark_paver_sequences` (without modifying
+the original `benchmark_pavers`) to retain each sample configuration's
+median runtime and exact output paving. After all timed configurations,
+compare outputs with **identical scenario, accumulation mode, enclosure
+count and sample count** but *different* fineness settings. Print:
+
+- A `Time/tightness frontier` with absolute medians, final cells,
+  absolute outer volume, volume relative to the smallest measured
+  volume for the same workload, and a descriptive Pareto status.
+- Pairwise `Cross-fineness geometric comparisons` using bidirectional
+  exact cell containment, rather than inferring from volumes.
+
+A point is `dominated` only if a complete-sample competitor is no
+slower and its entire paving is geometrically included; strictness
+comes from a faster median or strict geometric containment.
+Incomplete `SOFT LIMIT` samples must be displayed as unranked.
+Do not attach statistical significance to small median changes, and
+do not regard identical fineness as identical geometric precision.
+`--verify-only` still checks geometry but cannot rank times.
+
+**Validation command (from Release build directory):**
+
+```bash
+cmake --build . --target benchmark_paver_sequences
+./benchmarks/benchmark_paver_sequences --finenesses 2,3,4 --steps 6 --samples 5 --scenarios overlap --modes accumulating --pavers subdivision,constraint --max-case-ms 0 -t dark
+```
+
+Test smaller `--finenesses 1,2` and `--verify-only` first, then the
+full `2,3,4` frontier. This remains a synthetic 5D surrogate, not
+a replay of real SPRE22 enclosures; further representativeness work
+requires capturing actual evolver-to-Paver inputs.

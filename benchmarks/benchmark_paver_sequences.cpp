@@ -63,6 +63,9 @@ struct Outcome {
     std::string strategy;
     unsigned fineness;
     unsigned steps;
+    unsigned requested_samples;
+    double median_ms;
+    bool complete_samples;
     std::unique_ptr<BinaryTreePaving> paving;
 };
 
@@ -238,6 +241,13 @@ void run(const Bench::CommandLine& cli, const Bench::Matrix& matrix,
                            {"Step"}, {"Cells before"}, {"Cells after"},
                            {"Visits"}, {"Covered"}, {"Param splits"},
                            {"Map evals"}, {"Sensitivity"}, {"Paver (ms)"}});
+    // Different finenesses must be compared geometrically, not only by
+    // outer volume or equal numeric fineness settings.
+    Bench::Table across_fineness({{"Scenario"}, {"Mode"}, {"Steps"}, {"A"}, {"B"},
+                                  {"Geometric relation"}});
+    Bench::Table frontier({{"Scenario"}, {"Mode"}, {"Steps"}, {"Samples"},
+                           {"Fineness"}, {"Paver"}, {"Median (ms)"}, {"Cells"},
+                           {"Outer volume"}, {"Volume / tightest"}, {"Status"}});
 
     const Grid grid = scaled_grid();
     std::vector<Outcome> finished;
@@ -263,6 +273,8 @@ void run(const Bench::CommandLine& cli, const Bench::Matrix& matrix,
         for (const auto& strategy: strategies) {
             SequenceRun sequence;
             std::unique_ptr<BinaryTreePaving> reference;
+            double median_ms = 0.0;
+            bool complete_samples = false;
             auto prepare = [&] {
                 sequence.prepare(grid, sets.size(), accumulating);
             };
@@ -316,6 +328,9 @@ void run(const Bench::CommandLine& cli, const Bench::Matrix& matrix,
                 const auto stats = Bench::summarize(measured);
                 if (not std::isfinite(stats.median) or stats.median <= 0.0)
                     throw std::runtime_error("invalid sequence timing");
+                // Runner samples are nanoseconds; report medians in ms.
+                median_ms = stats.median / 1e6;
+                complete_samples = not budget_hit and measured.size() == n;
                 report.add_row({scenario, mode, std::to_string(f),
                                 std::to_string(count), strategy.name,
                                 std::to_string(reference->size()),
@@ -364,6 +379,7 @@ void run(const Bench::CommandLine& cli, const Bench::Matrix& matrix,
                         scenario + "/" + mode + "/" + strategy.name);
             }
             case_outcomes.push_back({scenario, mode, strategy.name, f, count,
+                                     n, median_ms, complete_samples,
                                      std::move(reference)});
         }
 
@@ -394,8 +410,78 @@ void run(const Bench::CommandLine& cli, const Bench::Matrix& matrix,
                                        relation(*a.paving, *b.paving)});
         }
 
-    if (not verify_only)
+    // A descriptive time/tightness Pareto comparison. Rank only complete
+    // sample sets from the same generated input sequence and occupancy mode.
+    // A candidate is dominated only when another result is no slower
+    // AND its entire paving is geometrically contained (not just smaller
+    // in total volume). Median ordering alone is not a significance test.
+    auto same_workload = [](const Outcome& a, const Outcome& b) {
+        return a.scenario == b.scenario and a.mode == b.mode and
+               a.steps == b.steps and a.requested_samples == b.requested_samples;
+    };
+    if (not verify_only) {
+        for (const auto& candidate: finished) {
+            double tightest_volume = candidate.paving->measure().raw().get_d();
+            const Outcome* fastest_dominator = nullptr;
+            for (const auto& other: finished) {
+                if (not same_workload(candidate, other))
+                    continue;
+                tightest_volume = std::min(
+                    tightest_volume, other.paving->measure().raw().get_d());
+                if (&other == &candidate or not candidate.complete_samples or
+                    not other.complete_samples or other.median_ms > candidate.median_ms)
+                    continue;
+                if (not contains(*candidate.paving, *other.paving))
+                    continue;
+                if (other.median_ms == candidate.median_ms and
+                    contains(*other.paving, *candidate.paving))
+                    continue;
+                if (fastest_dominator == nullptr or
+                    other.median_ms < fastest_dominator->median_ms)
+                    fastest_dominator = &other;
+            }
+            const double volume = candidate.paving->measure().raw().get_d();
+            const std::string status = not candidate.complete_samples
+                ? "incomplete (not ranked)"
+                : fastest_dominator == nullptr
+                    ? "frontier"
+                    : "dominated by " + fastest_dominator->strategy +
+                      " f=" + std::to_string(fastest_dominator->fineness);
+            frontier.add_row({candidate.scenario, candidate.mode,
+                              std::to_string(candidate.steps),
+                              std::to_string(candidate.requested_samples),
+                              std::to_string(candidate.fineness),
+                              candidate.strategy,
+                              Bench::Table::number(candidate.median_ms, 3u),
+                              std::to_string(candidate.paving->size()),
+                              Bench::Table::number(volume, 6u),
+                              tightest_volume > 0.0
+                                  ? Bench::Table::number(volume / tightest_volume, 3u)
+                                  : "n/a",
+                              status});
+        }
+    }
+
+    // Full exact cross-fineness comparisons (outside timed samples).
+    for (std::size_t i = 0u; i < finished.size(); ++i)
+        for (std::size_t j = i + 1u; j < finished.size(); ++j) {
+            const auto& a = finished[i];
+            const auto& b = finished[j];
+            if (same_workload(a, b) and a.fineness != b.fineness)
+                across_fineness.add_row({a.scenario, a.mode,
+                                         std::to_string(a.steps),
+                                         a.strategy + " f=" + std::to_string(a.fineness),
+                                         b.strategy + " f=" + std::to_string(b.fineness),
+                                         relation(*a.paving, *b.paving)});
+        }
+
+    if (not verify_only) {
         report.print();
+        LOGGING_PRINTLN("Time/tightness frontier (complete samples, exact cell containment):")
+        LOGGING_PRINTLN(frontier.str())
+    }
+    LOGGING_PRINTLN("Cross-fineness geometric comparisons (exact cell coverage):")
+    LOGGING_PRINTLN(across_fineness.str())
     LOGGING_PRINTLN("Paver pairwise geometry (bidirectional cell coverage):")
     LOGGING_PRINTLN(pairwise.str())
     LOGGING_PRINTLN("Isolated versus accumulating geometry (same Paver):")

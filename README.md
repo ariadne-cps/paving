@@ -322,6 +322,31 @@ cmake --build . --target benchmark_paver_sequences
 ./benchmarks/benchmark_paver_sequences --finenesses 1 --steps 2 --scenarios overlap,sweep --modes isolated,accumulating --verify-only -t dark
 ```
 
+
+For a **time versus geometric-tightness frontier**, select multiple
+finenesses in one invocation, keeping scenario, mode and enclosure
+count identical:
+
+```bash
+./benchmarks/benchmark_paver_sequences --finenesses 2,3,4 --steps 6 --samples 5 --scenarios overlap --modes accumulating --pavers subdivision,constraint --max-case-ms 0 -t dark
+```
+
+The `Time/tightness frontier` table reports each complete configuration's
+median Paver time, final cell count, outer volume and volume relative
+to the **tightest observed configuration in the same workload group**.
+It marks a point `dominated` only when another complete point is
+both no slower and **geometrically contained** in it, as verified using
+exact cell coverage. Different finenesses may therefore be compared
+without incorrectly assuming that equal fineness means equal quality.
+An additional `Cross-fineness geometric comparisons` table reports
+pairwise relations directly. `SOFT LIMIT` timing rows are listed but
+excluded from frontier ranking; use `--max-case-ms 0` for complete
+samples. The ranking is descriptive, not a statistical significance
+test: small median differences require controlled repeat runs.
+`--verify-only` skips time ranking but still checks cross-fineness
+geometry. In particular, **smaller total volume alone is not
+sufficient to claim geometric dominance**.
+
 `--diagnostics` adds a separate, untimed per-enclosure replay, showing
 the already-covered checks, recursive visits, parameter splits,
 range/sensitivity evaluations, and per-stage Paver times. These
