@@ -2014,3 +2014,48 @@ avoid an SPRE22-specific rule disguised as a generic algorithm.
 
 The reference remains the Hybrid 16+32: 1606.143125 ms and 1523 cells,
 with outer volume 47561.645508, versus 3095.228375 ms for HullOnly.
+
+
+### Per-enclosure input-feature profiling on the captured SPRE22 workload (2026-11-14)
+
+A new opt-in mode of the standalone real-fixture benchmark performs a
+**diagnostic experiment**, not a new Paver strategy. Use:
+
+```sh
+cmake --build build-release --target benchmark_spre22_fixture
+./build-release/benchmarks/benchmark_spre22_fixture \
+  --fineness 4 --samples 5 --max-enclosures 48 --analyze-enclosures
+```
+
+The mode measures `ConstraintPaver` and `ReducePaver(HullOnly)`
+on all 48 original, validated captured enclosures in two settings:
+
+- `isolated`: each enclosure is inserted into an independent,
+  initially empty paving;
+- `accumulating`: the original sequence is inserted incrementally,
+  recording marginal insertion costs and prefix geometries.
+
+Each strategy's execution order alternates over samples and enclosure
+indices. Every sample begins with a fresh paving. All geometry copies,
+recombination and exact bidirectional containment comparisons take place
+outside timing. A difference in repeated geometry aborts the benchmark.
+
+Each `SPRE22_ENCLOSURE_ANALYSIS` row records input-only features
+(number of state Taylor terms, constraint terms, degree>1 terms, maximum
+degree, sum/max of model uniform errors, mean parameter-domain width,
+parameter and constraint counts), both timing medians and MADs, their
+ratio, cell counts, outer volumes, and geometric containment relation.
+The input features are extracted from the concrete validated DP Taylor
+models **before** timing. Unexpected function model types cause an
+explicit error rather than fabricated feature values.
+`SPRE22_ENCLOSURE_ANALYSIS_SUMMARY` reports the distribution of the
+48 relative costs and the numbers of geometric outcomes by mode.
+
+The previous baseline mode without `--analyze-enclosures` is unchanged.
+**No new adaptive classifier or algorithmic optimization is claimed.**
+This profile provides paired input/precision/cost evidence to assess
+whether any cheap characteristic is predictive across enclosures.
+A fitted feature rule must not be mistaken for a proof of equal geometry:
+the final policy requires independent workloads and exact paving
+comparisons before consideration for production.
+

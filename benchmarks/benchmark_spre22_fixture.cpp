@@ -24,6 +24,7 @@
 #include <string>
 #include <vector>
 
+#include "function/taylor_function.hpp"
 #include "paving/binary_tree_paving.hpp"
 #include "paving/paver.hpp"
 #include "set/function_set.hpp"
@@ -38,6 +39,7 @@ struct Options {
     unsigned samples = 5u;
     unsigned max_enclosures = 48u;
     unsigned switch_after = 16u;
+    bool analyze_enclosures = false;
 };
 
 unsigned positive(const std::string& s, const char* flag) {
@@ -53,9 +55,13 @@ Options parse(int argc, const char* argv[]) {
     for (int i = 1; i < argc; ++i) {
         const std::string flag(argv[i]);
         if (flag == "--help") {
-            std::cout << "--fineness 4 --samples 5 --max-enclosures 48 --hybrid-switch 16\n";
+            std::cout << "--fineness 4 --samples 5 --max-enclosures 48 --hybrid-switch 16 [--analyze-enclosures]\n";
             result.samples = 0u;
             return result;
+        }
+        if (flag == "--analyze-enclosures") {
+            result.analyze_enclosures = true;
+            continue;
         }
         if (i + 1 >= argc)
             throw std::invalid_argument("missing value for " + flag);
@@ -105,6 +111,190 @@ struct Outcome {
     std::unique_ptr<BinaryTreePaving> paving;
 };
 
+
+// The features are measured on the INPUT before paving and do not use
+// enclosure indices or output geometry as predictive features.
+struct EnclosureFeatures {
+    SizeType state_terms = 0u;
+    SizeType constraint_terms = 0u;
+    SizeType nonlinear_terms = 0u;
+    unsigned maximum_degree = 0u;
+    double total_taylor_error = 0.0;
+    double maximum_taylor_error = 0.0;
+    double mean_parameter_width = 0.0;
+};
+
+void accumulate_model_features(EnclosureFeatures& result,
+                               const ValidatedTaylorModelDP& model,
+                               bool is_constraint) {
+    const SizeType terms = model.number_of_terms();
+    if (is_constraint) result.constraint_terms += terms;
+    else result.state_terms += terms;
+    result.maximum_degree = std::max(
+        result.maximum_degree, static_cast<unsigned>(model.degree()));
+    const double error = model.error().raw().get_d();
+    result.total_taylor_error += error;
+    result.maximum_taylor_error = std::max(result.maximum_taylor_error, error);
+    for (auto it = model.begin(); it != model.end(); ++it)
+        if (it->index().degree() > 1u)
+            ++result.nonlinear_terms;
+}
+
+EnclosureFeatures describe_enclosure(const ValidatedConstrainedImageSet& set) {
+    EnclosureFeatures features;
+    const auto* mapping =
+        dynamic_cast<const ValidatedVectorMultivariateTaylorFunctionModelDP*>(
+            set.function().raw_pointer());
+    if (mapping == nullptr)
+        throw std::runtime_error("the captured state map is not a validated DP Taylor model");
+    for (SizeType i = 0u; i < mapping->result_size(); ++i)
+        accumulate_model_features(features, mapping->model(i), false);
+
+    for (SizeType i = 0u; i < set.number_of_constraints(); ++i) {
+        const auto constraint = set.constraint(i);
+        const auto* scalar =
+            dynamic_cast<const ValidatedScalarMultivariateTaylorFunctionModelDP*>(
+                constraint.function().raw_pointer());
+        if (scalar == nullptr)
+            throw std::runtime_error("the captured constraint is not a validated DP Taylor model");
+        accumulate_model_features(features, scalar->model(), true);
+    }
+
+    const auto& domain = set.domain();
+    for (SizeType j = 0u; j < domain.dimension(); ++j)
+        features.mean_parameter_width +=
+            domain[j].upper_bound().get_d() - domain[j].lower_bound().get_d();
+    if (domain.dimension() != 0u)
+        features.mean_parameter_width /= domain.dimension();
+    return features;
+}
+
+struct EnclosureMeasurement {
+    std::vector<double> timings[2];
+    std::unique_ptr<BinaryTreePaving> geometry[2];
+};
+
+// Compare the two Pavers separately on each real enclosure, then compare
+// their marginal cost and prefix geometry during a complete accumulation.
+// All snapshots and geometry comparisons are OUTSIDE timed sections.
+int analyze_enclosures(const Options& options,
+                       const std::vector<ValidatedConstrainedImageSet>& sets,
+                       const Grid& grid) {
+    const Paver pavers[2]{
+        Paver(ConstraintPaver()),
+        Paver(ReducePaver(ReducePaverReductionMode::HullOnly))
+    };
+    std::vector<EnclosureFeatures> features;
+    features.reserve(options.max_enclosures);
+    for (unsigned i = 0u; i < options.max_enclosures; ++i)
+        features.push_back(describe_enclosure(sets[i]));
+
+    std::cout << std::fixed << std::setprecision(6);
+    for (unsigned mode = 0u; mode != 2u; ++mode) {
+        const bool accumulating = mode == 1u;
+        const std::string mode_name = accumulating ? "accumulating" : "isolated";
+        std::vector<EnclosureMeasurement> records(options.max_enclosures);
+
+        for (unsigned sample = 0u; sample < options.samples; ++sample) {
+            BinaryTreePaving accumulated[2]{
+                BinaryTreePaving(grid), BinaryTreePaving(grid)
+            };
+            for (unsigned i = 0u; i < options.max_enclosures; ++i) {
+                BinaryTreePaving isolated[2]{
+                    BinaryTreePaving(grid), BinaryTreePaving(grid)
+                };
+                // Reverse the order for successive samples and enclosures.
+                for (unsigned position = 0u; position != 2u; ++position) {
+                    const unsigned which = (position + sample + i) % 2u;
+                    BinaryTreePaving& destination =
+                        accumulating ? accumulated[which] : isolated[which];
+                    const auto start = std::chrono::steady_clock::now();
+                    pavers[which].adjoin_outer_approximation(
+                        destination, sets[i], options.fineness);
+                    const double millis = std::chrono::duration<double, std::milli>(
+                        std::chrono::steady_clock::now() - start).count();
+                    records[i].timings[which].push_back(millis);
+
+                    BinaryTreePaving snapshot(destination);
+                    snapshot.recombine();
+                    auto& expected = records[i].geometry[which];
+                    if (not expected)
+                        expected = std::make_unique<BinaryTreePaving>(snapshot);
+                    else if (not contains(*expected, snapshot) or
+                             not contains(snapshot, *expected))
+                        throw std::runtime_error(
+                            "non-deterministic output: mode=" + mode_name +
+                            " enclosure=" + std::to_string(i + 1u) +
+                            " strategy=" + (which == 0u ? "constraint" : "reduce-hull"));
+                }
+            }
+        }
+
+        std::vector<double> ratios;
+        unsigned equal = 0u, hull_tighter = 0u;
+        unsigned constraint_tighter = 0u, incomparable = 0u;
+        for (unsigned i = 0u; i < options.max_enclosures; ++i) {
+            const auto& measurement = records[i];
+            const auto& feature = features[i];
+            const double constraint_ms = median(measurement.timings[0]);
+            const double hull_ms = median(measurement.timings[1]);
+            if (constraint_ms <= 0.0)
+                throw std::runtime_error("nonpositive ConstraintPaver timing");
+            const double ratio = hull_ms / constraint_ms;
+            ratios.push_back(ratio);
+            const std::string geometry =
+                relation(*measurement.geometry[0], *measurement.geometry[1]);
+            if (geometry == "equal") ++equal;
+            else if (geometry == "A strictly contains B") ++hull_tighter;
+            else if (geometry == "B strictly contains A") ++constraint_tighter;
+            else ++incomparable;
+
+            std::cout << "SPRE22_ENCLOSURE_ANALYSIS mode=" << mode_name
+                      << " index=" << i + 1u
+                      << " f=" << options.fineness
+                      << " samples=" << options.samples
+                      << " parameters=" << sets[i].number_of_parameters()
+                      << " constraints=" << sets[i].number_of_constraints()
+                      << " state_terms=" << feature.state_terms
+                      << " constraint_terms=" << feature.constraint_terms
+                      << " nonlinear_terms=" << feature.nonlinear_terms
+                      << " maximum_degree=" << feature.maximum_degree
+                      << " total_taylor_error=" << feature.total_taylor_error
+                      << " max_taylor_error=" << feature.maximum_taylor_error
+                      << " mean_parameter_width=" << feature.mean_parameter_width
+                      << " constraint_ms=" << constraint_ms
+                      << " constraint_mad_ms=" << mad(measurement.timings[0])
+                      << " hull_ms=" << hull_ms
+                      << " hull_mad_ms=" << mad(measurement.timings[1])
+                      << " hull_over_constraint=" << ratio
+                      << " geometry=" << geometry
+                      << " constraint_cells=" << measurement.geometry[0]->size()
+                      << " hull_cells=" << measurement.geometry[1]->size()
+                      << " constraint_volume="
+                      << measurement.geometry[0]->measure().raw().get_d()
+                      << " hull_volume="
+                      << measurement.geometry[1]->measure().raw().get_d()
+                      << "\n";
+        }
+
+        const double ratio_median = median(ratios);
+        const auto extrema = std::minmax_element(ratios.begin(), ratios.end());
+        std::cout << "SPRE22_ENCLOSURE_ANALYSIS_SUMMARY mode=" << mode_name
+                  << " selected=" << options.max_enclosures
+                  << " f=" << options.fineness
+                  << " ratio_median=" << ratio_median
+                  << " ratio_mad=" << mad(ratios)
+                  << " ratio_min=" << *extrema.first
+                  << " ratio_max=" << *extrema.second
+                  << " equal=" << equal
+                  << " hull_tighter=" << hull_tighter
+                  << " constraint_tighter=" << constraint_tighter
+                  << " incomparable=" << incomparable
+                  << "\n";
+    }
+    return 0;
+}
+
 int run(int argc, const char* argv[]) {
     const auto options = parse(argc, argv);
     if (options.samples == 0u) return 0;
@@ -112,10 +302,12 @@ int run(int argc, const char* argv[]) {
     if (sets.size() != 48u)
         throw std::runtime_error("fixture must contain all 48 real enclosures");
     if (options.max_enclosures > sets.size() or
-        options.switch_after >= options.max_enclosures)
+        (not options.analyze_enclosures and options.switch_after >= options.max_enclosures))
         throw std::invalid_argument("invalid enclosure count or hybrid switch");
 
     const Grid grid(Vector<ApproximateDouble>{1.0, 200.0, 200.0, 20.0, 20.0});
+    if (options.analyze_enclosures)
+        return analyze_enclosures(options, sets, grid);
     const Paver constraint{ConstraintPaver()};
     const Paver hull{ReducePaver(ReducePaverReductionMode::HullOnly)};
     const std::string names[3]{"constraint", "reduce-hull", "hybrid-constraint-hull"};
