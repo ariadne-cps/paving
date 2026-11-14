@@ -250,12 +250,20 @@ nonempty constraint functions; empty constraints are not counted.
 `Map evals` counts selected range evaluations, not scalar arithmetic.
 A combined function/constraint enclosure in `ConstraintPaver` is timed
 in its own `Joint (ms)` bucket; it is not double-counted as a map or
-constraint time. The other timing buckets distinguish map ranges,
+constraint time. For `ConstraintPaver`, a separate traversal breakdown
+reports calls and instrumented time for `superset(cell)`, `cell.box()`,
+construction of `product(cell.box(), constraint_bounds)`, and certified
+disjointness checks. These four exclusive timings are subtracted from
+`Other (ms)` rather than double-counted. `Other (ms)` is therefore
+not directly comparable to older reports without this breakdown.
+The other timing buckets distinguish map ranges,
 constraint ranges, sensitivities, **box/hull** contractor calls, the
 one-time joint-function construction, and paving insertions.
 `Other (ms)` is the remainder of the instrumented pass (including
 traversal, setup, splitting, and profiling overhead), not the cost of a
-specific named operation. Timings are inclusive of the clock instrumentation
+specific named operation. The added fine-grained timers may themselves
+be noticeable on very short operations and belong only to diagnostic
+replays, not ordinary timed samples. Timings are inclusive of the clock instrumentation
 around each measured operation and should **not** be compared directly
 with the standard uninstrumented benchmark medians.
 

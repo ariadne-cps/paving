@@ -551,7 +551,12 @@ Void interval_constraint_adjoin_outer_approximation_recursion(
     PaverDiagnostics* diagnostics, ConstraintDomainEvaluation* inherited_evaluation) {
     if (diagnostics != nullptr)
         ++diagnostics->visited_nodes;
-    if (paving.superset(cell)) {
+    if (diagnostics != nullptr)
+        ++diagnostics->coverage_checks;
+    const bool covered = profile_paver_operation(
+        diagnostics, &PaverDiagnostics::coverage_ns,
+        [&] { return paving.superset(cell); });
+    if (covered) {
         if (diagnostics != nullptr)
             ++diagnostics->already_covered;
         return;
@@ -574,7 +579,22 @@ Void interval_constraint_adjoin_outer_approximation_recursion(
                                             : &PaverDiagnostics::map_range_ns,
             [&] { return apply(combined, domain); });
     }
-    if (definitely(disjoint(*evaluation.combined_range, product(cell.box(), bounds)))) {
+    if (diagnostics != nullptr)
+        ++diagnostics->cell_box_constructions;
+    const auto cell_box = profile_paver_operation(
+        diagnostics, &PaverDiagnostics::cell_box_ns,
+        [&] { return cell.box(); });
+    if (diagnostics != nullptr)
+        ++diagnostics->product_box_constructions;
+    const auto target_box = profile_paver_operation(
+        diagnostics, &PaverDiagnostics::product_box_ns,
+        [&] { return product(cell_box, bounds); });
+    if (diagnostics != nullptr)
+        ++diagnostics->disjoint_checks;
+    const bool separated = profile_paver_operation(
+        diagnostics, &PaverDiagnostics::disjoint_ns,
+        [&] { return definitely(disjoint(*evaluation.combined_range, target_box)); });
+    if (separated) {
         if (diagnostics != nullptr)
             ++diagnostics->disjoint_rejections;
         return;

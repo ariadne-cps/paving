@@ -388,3 +388,42 @@ and supported-platform builds have passed. Retain the experiment
 pending geometry equivalence and test-suite verification; repeat
 controlled interleaved A/B timings if small subsequent changes are
 to be ranked.
+
+## 2026-11-14 - ConstraintPaver traversal-cost profiling (second experiment)
+
+**Status: diagnostic-only instrumentation, user benchmark pending.**
+After the domain-evaluation cache reduced wall-clock medians by
+31.1%-37.4% in four 3D workloads, unaccounted `Other (ms)` remained
+at approximately 78-161 ms in the separate diagnostic replay.
+This is a new attribution experiment, **not** an algorithmic speedup.
+
+Instrument the existing `ConstraintPaver` recursion with four
+mutually exclusive timing buckets:
+
+1. `superset(cell)` before considering a cell;
+2. `cell.box()` when the cell is not already covered;
+3. construction of `product(cell_box, constraint_bounds)`;
+4. `definitely(disjoint(combined_range, target_box))`.
+
+The separated expression preserves the previous order, exact box
+representation, and certified predicate. The ordinary path still
+uses the same function, cell, constraint bounds, recursion and
+sensitivity logic. The additional diagnostic counters check that
+coverage tests equal visits and box/product/disjoint operation counts
+agree. The benchmark prints a separate `ConstraintPaver traversal
+breakdown` with counts and timing buckets. Its `Other (ms)` now
+subtracts these new times; **do not compare that column directly to
+the preceding measurements**. The new fine-grained timers themselves
+add measurement overhead to diagnostic replays.
+
+**Next validation:** compile and run `test_paver`, then compare
+the four workloads with the previous commit using unchanged
+uninstrumented wall-clock samples and geometric checks. Run
+`benchmark_pavers --dimensions 3 --finenesses 4
+--shapes uv-triangle,correlated-strip,product-cap,folded-quadratic
+--pavers constraint --samples 5 --max-case-ms 0 --diagnostics`.
+Use the new traversal breakdown to identify which operation
+dominates, then choose a single targeted optimization.
+Do not assume cheaper cell geometry or faster coverage queries
+without first observing these costs. Exact cross-revision geometric
+containment remains a separate outstanding verification.

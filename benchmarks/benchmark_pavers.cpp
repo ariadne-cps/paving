@@ -178,6 +178,8 @@ void run(const Bench::CommandLine& cli, const Bench::Matrix& matrix,
     Bench::Table geometry({{"Case"}, {"Dimension"}, {"Fineness"}, {"A"}, {"B"}, {"Geometric relation"}});
     Bench::Table work({{"Case"}, {"Dim"}, {"Fine"}, {"Paver"}, {"Visits"}, {"Param splits"}, {"Cell splits"}, {"Map evals"}, {"Constraint evals"}, {"Sensitivity"}, {"Reductions"}, {"Constraint reductions"}, {"Box reducers"}, {"Hull reducers"}, {"Joins"}, {"Rejected"}, {"Covered"}, {"Adjoins"}});
     Bench::Table timings({{"Case"}, {"Dim"}, {"Fine"}, {"Paver"}, {"Map (ms)"}, {"Constraints (ms)"}, {"Joint (ms)"}, {"Sensitivity (ms)"}, {"Box red. (ms)"}, {"Hull red. (ms)"}, {"Join (ms)"}, {"Adjoin (ms)"}, {"Other (ms)"}, {"Profiled (ms)"}});
+    // ConstraintPaver-specific decomposition of the prior "Other" bucket.
+    Bench::Table traversal({{"Case"}, {"Dim"}, {"Fine"}, {"Coverage"}, {"Cell boxes"}, {"Products"}, {"Disjoint tests"}, {"Superset (ms)"}, {"Cell box (ms)"}, {"Product (ms)"}, {"Disjoint (ms)"}});
 
     matrix.for_each([&](const Bench::Configuration& configuration) {
         const unsigned d = configuration.value(dimensions);
@@ -344,16 +346,19 @@ void run(const Bench::CommandLine& cli, const Bench::Matrix& matrix,
                     counters.map_range_ns + counters.constraint_range_ns +
                     counters.joint_range_ns + counters.sensitivity_ns +
                     counters.box_reduction_ns + counters.hull_reduction_ns +
-                    counters.join_ns + counters.adjoin_ns;
+                    counters.join_ns + counters.adjoin_ns +
+                    counters.coverage_ns + counters.cell_box_ns +
+                    counters.product_box_ns + counters.disjoint_ns;
                 const auto ms = [](std::uint64_t ns) {
                     return Bench::Table::number(
                         static_cast<double>(ns) / 1000000.0, 3u);
                 };
                 const std::uint64_t total_ns =
                     static_cast<std::uint64_t>(profile_elapsed);
-                // Everything not in one of the six measured buckets:
-                // traversal, geometry tests, splitting, solver setup,
-                // recombination (inside Reduce), and profiling overhead.
+                // Residual after all individually measured operations:
+                // recursion, splitting, solver setup, and profiling overhead.
+                // The ConstraintPaver traversal costs are shown separately,
+                // not double-counted in this residual.
                 const std::uint64_t other_ns =
                     total_ns > accounted_ns ? total_ns - accounted_ns : 0u;
                 timings.add_row({shape, std::to_string(d), std::to_string(f), strategy.name,
@@ -366,6 +371,15 @@ void run(const Bench::CommandLine& cli, const Bench::Matrix& matrix,
                                  ms(counters.join_ns),
                                  ms(counters.adjoin_ns),
                                  ms(other_ns), ms(total_ns)});
+                if (strategy.name == "constraint") {
+                    traversal.add_row({shape, std::to_string(d), std::to_string(f),
+                                       std::to_string(counters.coverage_checks),
+                                       std::to_string(counters.cell_box_constructions),
+                                       std::to_string(counters.product_box_constructions),
+                                       std::to_string(counters.disjoint_checks),
+                                       ms(counters.coverage_ns), ms(counters.cell_box_ns),
+                                       ms(counters.product_box_ns), ms(counters.disjoint_ns)});
+                }
             }
             outcomes.push_back({strategy.name, std::move(paving)});
         }
@@ -385,6 +399,13 @@ void run(const Bench::CommandLine& cli, const Bench::Matrix& matrix,
         LOGGING_PRINTLN(work.str())
         LOGGING_PRINTLN("Paver operation timings (instrumented replay only):")
         LOGGING_PRINTLN(timings.str())
+        for (const Strategy& strategy: implementations) {
+            if (strategy.name == "constraint") {
+                LOGGING_PRINTLN("ConstraintPaver traversal breakdown (instrumented replay only):")
+                LOGGING_PRINTLN(traversal.str())
+                break;
+            }
+        }
     }
     if (implementations.size() > 1u) {
         LOGGING_PRINTLN("Pairwise geometric containment (exact cell coverage):")

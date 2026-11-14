@@ -102,6 +102,12 @@ struct PaverDiagnostics {
     SizeType already_covered = 0u;
     SizeType adjoin_calls = 0u;
 
+    // ConstraintPaver-only traversal operation counts.
+    SizeType coverage_checks = 0u;
+    SizeType cell_box_constructions = 0u;
+    SizeType product_box_constructions = 0u;
+    SizeType disjoint_checks = 0u;
+
     // Exclusive measured durations of selected operations in the instrumented
     // replay (nanoseconds). A joint f/g range evaluation has its own bucket;
     // it is not counted twice as an individual f or g evaluation.
@@ -114,6 +120,11 @@ struct PaverDiagnostics {
     std::uint64_t hull_reduction_ns = 0u;
     std::uint64_t join_ns = 0u;
     std::uint64_t adjoin_ns = 0u;
+    // ConstraintPaver-only costs, exclusive of range and sensitivity work.
+    std::uint64_t coverage_ns = 0u;
+    std::uint64_t cell_box_ns = 0u;
+    std::uint64_t product_box_ns = 0u;
+    std::uint64_t disjoint_ns = 0u;
 };
 
 //! \brief A class for computing outer approximations to sets defined by functions.
