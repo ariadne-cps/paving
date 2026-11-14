@@ -1155,3 +1155,41 @@ bounds per-branch recursion, not total evaluations.
 Avoid modifying the Paver until this evidence supports
 a targeted, certified refinement rule that is measured
 against the previous geometry and runtime.
+
+
+### Certified difference probe at depth 8: marginal refinement benefit
+
+**User-supplied result, 2026-11-14.** Same `fineness=4`,
+six-enclosure `overlap/accumulating` workload, same exact
+804-cell `Constraint minus Subdivision` difference, same
+deterministic 64-cell sample and `--verify-only` mode.
+Compare independent runs using `--difference-depth 6` and
+`--difference-depth 8`:
+
+| Maximum split depth | Root excluded | Refined excluded | Unresolved | Combined interval evaluations |
+| ---: | ---: | ---: | ---: | ---: |
+| 6 | 0 | 15 | 49 | 1133 |
+| 8 | 0 | 17 | 47 | 1437 |
+
+The deeper probe certifies **2 more cells**, increasing
+the exclusion rate from 23.44% to 26.56% of the
+deterministically selected sample; this costs **304
+additional interval evaluations (+26.83%)**, or
+152 extra evaluations per newly certified cell at
+this incremental budget. Both were classified with
+the same independent certified test, not by modifying
+a Paver output. All 47 remaining unresolved cells
+might be occupied, touch the boundary or require
+a better or deeper exclusion proof. This measurement
+is consistent with diminishing marginal benefit of
+blind cyclic splitting, but is insufficient to establish
+asymptotic behaviour.
+
+**Next controlled check:** run `--difference-cells 0`
+to inspect all 804 exact-depth difference cells at
+depth 6 or 8; do not extrapolate the systematic sample
+fraction as a population estimate. A later controlled
+counterfactual should compare split-axis policies on
+the *same cells*, with exactly the same validation
+budget and certified interval exclusion semantics.
+The current Pavers remain unchanged.
