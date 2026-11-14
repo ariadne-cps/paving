@@ -767,3 +767,37 @@ Test smaller `--finenesses 1,2` and `--verify-only` first, then the
 full `2,3,4` frontier. This remains a synthetic 5D surrogate, not
 a replay of real SPRE22 enclosures; further representativeness work
 requires capturing actual evolver-to-Paver inputs.
+
+## 2026-11-14 - Remove arbitrary benchmark fineness ceilings
+
+**Status: source updated; build and performance validation pending.**
+The earlier time/tightness frontier for six 5D overlap enclosures
+compared both algorithms at finenesses 2, 3, and 4. At fineness 4
+Constraint was 12.56x faster but produced a strictly larger outer
+approximation. Follow-up must compare *both* algorithms at fineness
+5 under identical input, grid, scenario, accumulation mode, and
+sample count; cross-fineness frontiers are supplementary.
+
+Previously both `benchmark_paver_sequences` and
+`benchmark_pavers` rejected `fineness > 4` independently of the
+implementation. Remove the arbitrary check in **both**
+benchmarks, preserving their unrelated dimension/sample
+validations. The command-line parameter remains `unsigned`;
+the value is forwarded unmodified to each Paver. No change is
+made to the algorithms and no Paver receives a benchmark-specific
+upper fineness limit.
+
+The paired benchmark command is:
+
+```bash
+./benchmarks/benchmark_paver_sequences --finenesses 4,5 --steps 6 --samples 5 --scenarios overlap --modes accumulating --pavers subdivision,constraint --max-case-ms 0 -t dark
+```
+
+This evaluates all four Paver/fineness configurations and
+reports both same-fineness and cross-fineness exact geometric
+relations. Equal fineness is the appropriate same-setting
+comparison but does not guarantee equal geometric tightness.
+Because a fineness increment can cause superlinear/exponential
+growth in recursive work, no runtime estimate or completion
+guarantee is claimed. The benchmark's soft case budget cannot
+cancel an individual long-running computation.

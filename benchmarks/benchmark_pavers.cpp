@@ -187,9 +187,9 @@ void run(const Bench::CommandLine& cli, const Bench::Matrix& matrix,
         const std::string& shape = configuration.value(shapes);
         const unsigned n = configuration.value(samples);
 
-        if (d < 2u or d > 6u or f > 4u or n == 0u)
+        if (d < 2u or d > 6u or n == 0u)
             throw std::invalid_argument(
-                "dimensions must be 2..6, finenesses 0..4, samples positive");
+                "dimensions must be 2..6 and samples positive");
 
         // Geometry and validation data are constructed outside the timer.
         const auto test_case = PavingBenchmarkCases::make_paver_case(d, shape);
@@ -421,7 +421,7 @@ int main(int argc, const char* argv[]) {
         Bench::Parameter<unsigned> dimensions(
             "dimensions", "Space dimensions (2..6)", {2u});
         Bench::Parameter<unsigned> finenesses(
-            "finenesses", "Grid fineness (0..4)", {1u});
+            "finenesses", "Grid fineness (unsigned)", {1u});
         Bench::Parameter<std::string> shapes(
             "shapes", "Paver cases: five geometric, affine-shear, quadratic-shear,"
                       " folded-quadratic, uv-triangle, affine-projection, correlated-strip,"

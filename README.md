@@ -323,6 +323,22 @@ cmake --build . --target benchmark_paver_sequences
 ```
 
 
+To compare strategies under **identical requested settings**, specify
+the same fineness values for both Pavers. For example, from the Release
+build directory:
+
+```bash
+./benchmarks/benchmark_paver_sequences --finenesses 4,5 --steps 6 --samples 5 --scenarios overlap --modes accumulating --pavers subdivision,constraint --max-case-ms 0 -t dark
+```
+
+All four configurations are run; neither Paver is excluded at
+fineness 5. Timed execution may become very expensive, particularly
+for Subdivision in five dimensions. The soft `--max-case-ms` budget
+cannot interrupt a single run. Matching requested fineness is a
+controlled comparison of algorithm settings, **not a guarantee of
+equal outer-approximation tightness**; compare the resulting paving
+geometries as well as times.
+
 For a **time versus geometric-tightness frontier**, select multiple
 finenesses in one invocation, keeping scenario, mode and enclosure
 count identical:
@@ -353,8 +369,8 @@ range/sensitivity evaluations, and per-stage Paver times. These
 instrumented step times must not be equated with the medians. The
 `--max-case-ms` soft budget works per complete sequence sample; it
 cannot interrupt an in-progress run. The default is 5000 ms,
-`0` disables it. Finenesses 0..4 and 1..24 enclosure steps are
-supported. The existing `benchmark_pavers` and its analytic
+`0` disables it. Fineness is passed directly to the selected Paver as an unsigned value
+without a benchmark-imposed maximum; 1..24 enclosure steps are supported. The existing `benchmark_pavers` and its analytic
 volume comparisons remain unchanged; this separate benchmark
 does **not** claim a known analytic output volume for the 5D
 constrained image union.

@@ -258,8 +258,8 @@ void run(const Bench::CommandLine& cli, const Bench::Matrix& matrix,
         const auto& mode = c.value(modes);
         const unsigned count = c.value(steps);
         const unsigned n = c.value(samples);
-        if (f > 4u or n == 0u)
-            throw std::invalid_argument("fineness must be 0..4 and samples positive");
+        if (n == 0u)
+            throw std::invalid_argument("samples must be positive");
         const bool accumulating = mode == "accumulating";
         if (not accumulating and mode != "isolated")
             throw std::invalid_argument("invalid mode");
@@ -497,7 +497,7 @@ void run(const Bench::CommandLine& cli, const Bench::Matrix& matrix,
 int main(int argc, const char* argv[]) {
     try {
         Bench::Parameter<unsigned> finenesses(
-            "finenesses", "Output grid fineness (0..4)", {2u});
+            "finenesses", "Output grid fineness (unsigned)", {2u});
         Bench::Parameter<std::string> scenarios(
             "scenarios", "overlap (repeated regions) or sweep (new regions)",
             {"overlap", "sweep"},
