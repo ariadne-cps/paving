@@ -1516,3 +1516,76 @@ Do not claim a performance gain until timed samples
 and replay containment checks succeed. Record the
 observed costs and geometric relations in this journal
 before modifying a production default.
+
+
+## 2026-11-14 - Measured Reduce box/hull ablations on critical f=4 sequence
+
+**User-supplied Release benchmark (attached output); completed 5/5
+samples** for `--finenesses 4 --steps 6 --samples 5 --scenarios
+overlap --modes accumulating --pavers constraint,reduce,reduce-box,reduce-hull
+--max-case-ms 0 --diagnostics`.
+
+| Paver | Median (ms) | MAD (ms) | Recombined cells | Outer volume | Pareto status |
+| --- | ---: | ---: | ---: | ---: | --- |
+| Constraint | 342.651 | 2.918 | 1048 | 22888.183594 | dominated by reduce-hull |
+| Reduce Full | 998.300 | 2.974 | 498 | 8163.452148 | frontier |
+| Reduce BoxOnly | 1037.873 | 0.942 | 504 | 8544.921875 | dominated by Reduce Full |
+| Reduce HullOnly | **185.831** | **0.473** | 498 | 8377.075195 | **frontier** |
+
+The earlier single-enclosure `--verify-only` smoke test was
+successful: Constraint had 208 recombined cells, Full 87,
+BoxOnly 88, HullOnly 87. Exact geometry on that **single**
+enclosure: Full and HullOnly were equal; Full was strictly
+contained in BoxOnly, and all three Reduce variants were
+strictly contained in Constraint.
+
+**Six-enclosure exact pairwise cell containment:**
+Full strictly contained in BoxOnly and HullOnly;
+both ablations strictly contained in Constraint;
+BoxOnly versus HullOnly **incomparable**. In particular,
+identical recombined cell counts (498) do not imply equal
+geometry: Full has 8163.452148 volume versus HullOnly's
+8377.075195. Full is tighter by 2.62% of its volume.
+BoxOnly has both worse time and less tight geometry
+than Full and is Pareto dominated. HullOnly is the
+fastest Paver measured here, **1.84x faster than
+Constraint** with **63.4% less outer volume** and
+**5.37x faster than Full** with **2.62% more volume**.
+Both Full and HullOnly are Pareto non-dominated.
+
+**Sum over 6 steps of independently instrumented Reduce replay:**
+
+| Reduction mode | Total calls | Box | Hull | Explicit-constraint calls | Disjoint rejections | Adjoints | Box time (ms) | Hull time (ms) |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| Full | 181597 | 155882 | 25715 | 43846 | 2002 | 535 | 854.372 | 64.177 |
+| BoxOnly | 163682 | 163682 | **0** | 38553 | 2057 | 560 | 947.158 | **0** |
+| HullOnly | 36503 | **0** | 36503 | 8354 | 2056 | 549 | **0** | 94.964 |
+
+The instrumented replay times are **not a decomposition**
+of the reported non-instrumented medians. All requested
+diagnostic runs completed; the benchmark verifies replay
+geometry equals ordinary geometry via exact bidirectional
+cell containment. Both disabled-contractor counters
+are correctly zero.
+
+**Interpretation:** the BoxOnly variant retained most of
+the Full recursion cost with worse volume; HullOnly
+retained a closely related, but **not identical**, geometric
+approximation at a fraction of the Full cost.
+This is strong evidence that **for this synthetic
+five-dimensional fixture at f=4**, hull contraction is
+responsible for most of the geometry improvement relative
+to simple interval separation. It does not isolate the
+marginal contribution of each contractor call, and does
+not establish that HullOnly is preferable on other
+finenesses, shapes, or real SPRE22 enclosures.
+
+**Next check before changing a production default:**
+measure the same four configurations at fineness 5,
+then on the `sweep` scenario (and ideally actual
+SPRE22 enclosure captures). Include a comparison
+against the original Subdivision and verify sound
+outer-approximation behavior on additional adversarial
+tests. A contractor ablation changing the recursive
+partition strategy must not be adopted globally
+from a single performance case.
