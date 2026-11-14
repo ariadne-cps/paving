@@ -1367,3 +1367,74 @@ and separate instrumented diagnostics from ordinary
 timed samples. Do not infer that adding contractors to
 ConstraintPaver will automatically improve the Pareto
 frontier; compare against both existing baselines.
+
+
+### Fineness-5 Constraint versus Reduce: measured three-dimensional tradeoff
+
+**User-supplied Release benchmark (2026-11-14), five complete samples**
+for the same six-step 5D `overlap/accumulating` sequence,
+`--finenesses 5 --pavers constraint,reduce --diagnostics`.
+This invocation did not measure Subdivision f=5.
+
+| Paver | Median (ms) | MAD (ms) | Recombined cells | Outer volume |
+| --- | ---: | ---: | ---: | ---: |
+| Constraint | 2557.541 | 33.303 | 5031 | 4156.589508 |
+| Reduce | 4715.650 | 7.095 | 2026 | 1786.708832 |
+
+**Exact bidirectional cell containment:** Reduce is strictly
+contained in Constraint at identical fineness, input sequence,
+grid and accumulated paving mode. Reduce costs **1.844x** the
+Constraint time and has **57.02% less outer volume**. Both
+are non-dominated Pareto points within this two-Paver run.
+No valid same-fineness speed or tightness comparison with
+Subdivision f=5 is available.
+
+Compared with the earlier same-case fineness-4 benchmark,
+the Reduce/Constraint median runtime ratio changes from
+2.894x (1010.082 / 349.037) to 1.844x; the geometric
+volume reduction from Reduce compared with Constraint
+changes from 64.33% to 57.02%. These are two separate
+benchmark invocations; do not interpret a small
+cross-invocation runtime difference as a precise
+scaling measurement. The trend suggests that the
+relative contractor cost is smaller at higher
+fineness on this synthetic fixture.
+
+The f=5 instrumented Reduce replay totals across six steps:
+
+| Counted operation | Calls |
+| --- | ---: |
+| Recursive visits | 28332 |
+| Parameter splits | 4690 |
+| Total reductions | 846991 |
+| Box reductions | 716701 |
+| Hull reductions | 130290 |
+| Explicit-constraint reductions | 218494 |
+| Disjoint rejections | 5732 |
+| Adjoin calls | 3747 |
+
+Recorded exclusive contractor time in the separate
+diagnostic replay sums to **3853.825 ms box** and
+**328.106 ms hull**, approximately 92.15% of
+these two contractor-time categories spent on box
+reduction. These instrumentation times are **not**
+a decomposition of the 4715.650 ms uninstrumented
+median.
+
+**Interpretation:** Reduce's certified contractor-based
+reduction gives a substantially smaller outer approximation
+at both f=4 and f=5, but box contraction dominates the
+measured contractor work. A selective use of contractors
+inside a cheaper interval-based Paver is a plausible
+experiment, **not** a demonstrated improvement.
+The existing Reduce and Constraint implementations
+remain unchanged.
+
+**Next experiment:** isolate box-only and hull-only
+contributions to Reduce output geometry and runtime with
+explicit benchmark-only ablation variants and exact
+bidirectional containment checks. Preserve the common
+input and use the same fineness for all variants.
+Do not assume that omission of a contractor changes
+only speed; it can change the subsequent recursive
+partitioning and output-cell topology.
