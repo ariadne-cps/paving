@@ -524,6 +524,13 @@ class TestPaver : public Ariadne::Testing::ContextFixture {
             ARIADNE_TESTING_EXPECT_EQUAL(counters.join_constructions, 1u);
             ARIADNE_TESTING_EXPECT_EQUAL(counters.constraint_evaluations, 0u);
             ARIADNE_TESTING_EXPECT_EQUAL(counters.constraint_reduction_calls, 0u);
+            ARIADNE_TESTING_PROVE(counters.cell_splits > 0u);
+            // One initial map range plus at most one domain evaluation
+            // per domain created by parameter splitting.
+            ARIADNE_TESTING_PROVE(
+                counters.map_evaluations <= 2u * counters.parameter_splits + 2u);
+            ARIADNE_TESTING_PROVE(
+                counters.sensitivity_evaluations <= 2u * counters.parameter_splits + 1u);
         }
         {
             // Real constraints are counted separately from calls to the
@@ -545,6 +552,10 @@ class TestPaver : public Ariadne::Testing::ContextFixture {
             ARIADNE_TESTING_PROVE(interval_only.constraint_evaluations > 0u);
             ARIADNE_TESTING_EXPECT_EQUAL(interval_only.constraint_reduction_calls, 0u);
             ARIADNE_TESTING_EXPECT_EQUAL(interval_only.join_constructions, 1u);
+            ARIADNE_TESTING_PROVE(
+                interval_only.constraint_evaluations <= 2u * interval_only.parameter_splits + 2u);
+            ARIADNE_TESTING_PROVE(
+                interval_only.sensitivity_evaluations <= 2u * interval_only.parameter_splits + 1u);
             ARIADNE_TESTING_PROVE(
                 reduced.constraint_reduction_calls <= reduced.reduction_calls);
         }

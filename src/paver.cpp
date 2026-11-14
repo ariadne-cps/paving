@@ -29,6 +29,7 @@
 #include "paving/paver.hpp"
 
 #include <chrono>
+#include <optional>
 #include <type_traits>
 
 #include "algebra/algebra.hpp"
@@ -535,13 +536,19 @@ Void procedure_constraint_adjoin_outer_approximation_recursion(
 // The former hot-start solver did not update its feasibility variable:
 // it remained zero. Use validated interval subdivision with a sensitivity check, so intrinsic
 // uncertainty cannot cause endless parameter splits.
+// These evaluations depend only on the parameter domain, not on the output cell.
+struct ConstraintDomainEvaluation {
+    std::optional<UpperBoxType> combined_range;
+    std::optional<Pair<SizeType, FloatDPError>> sensitivity;
+};
+
 Void interval_constraint_adjoin_outer_approximation_recursion(
     PavingInterface& paving, const ExactBoxType& domain,
     const ValidatedVectorMultivariateFunction& function,
     const ValidatedVectorMultivariateFunction& constraints,
     const ValidatedVectorMultivariateFunction& combined,
     const ExactBoxType& bounds, const GridCell& cell, Nat fineness,
-    PaverDiagnostics* diagnostics) {
+    PaverDiagnostics* diagnostics, ConstraintDomainEvaluation* inherited_evaluation) {
     if (diagnostics != nullptr)
         ++diagnostics->visited_nodes;
     if (paving.superset(cell)) {
@@ -549,33 +556,44 @@ Void interval_constraint_adjoin_outer_approximation_recursion(
             ++diagnostics->already_covered;
         return;
     }
-    if (diagnostics != nullptr) {
-        ++diagnostics->map_evaluations;
-        if (constraints.result_size() != 0u)
-            ++diagnostics->constraint_evaluations;
+
+    // A cell split retains this domain; a parameter split must start with
+    // fresh evaluations. Defer both computations until actually needed.
+    ConstraintDomainEvaluation local_evaluation;
+    ConstraintDomainEvaluation& evaluation = inherited_evaluation != nullptr
+                                                ? *inherited_evaluation : local_evaluation;
+    if (!evaluation.combined_range) {
+        if (diagnostics != nullptr) {
+            ++diagnostics->map_evaluations;
+            if (constraints.result_size() != 0u)
+                ++diagnostics->constraint_evaluations;
+        }
+        evaluation.combined_range = profile_paver_operation(
+            diagnostics,
+            constraints.result_size() != 0u ? &PaverDiagnostics::joint_range_ns
+                                            : &PaverDiagnostics::map_range_ns,
+            [&] { return apply(combined, domain); });
     }
-    const auto combined_range = profile_paver_operation(
-        diagnostics,
-        constraints.result_size() != 0u ? &PaverDiagnostics::joint_range_ns
-                                        : &PaverDiagnostics::map_range_ns,
-        [&] { return apply(combined, domain); });
-    if (definitely(disjoint(combined_range, product(cell.box(), bounds)))) {
+    if (definitely(disjoint(*evaluation.combined_range, product(cell.box(), bounds)))) {
         if (diagnostics != nullptr)
             ++diagnostics->disjoint_rejections;
         return;
     }
 
-    if (diagnostics != nullptr)
-        ++diagnostics->sensitivity_evaluations;
-    const auto sensitivity = profile_paver_operation(
-        diagnostics, &PaverDiagnostics::sensitivity_ns,
-        [&] { return lipschitz_index_and_error(function, domain); });
+    if (!evaluation.sensitivity) {
+        if (diagnostics != nullptr)
+            ++diagnostics->sensitivity_evaluations;
+        evaluation.sensitivity = profile_paver_operation(
+            diagnostics, &PaverDiagnostics::sensitivity_ns,
+            [&] { return lipschitz_index_and_error(function, domain); });
+    }
+    const auto& sensitivity = *evaluation.sensitivity;
     if (sensitivity.first < domain.dimension() && sensitivity.second.raw() > cell_splitting_radius(cell)) {
         if (diagnostics != nullptr)
             ++diagnostics->parameter_splits;
         const auto domains = domain.split(sensitivity.first);
-        interval_constraint_adjoin_outer_approximation_recursion(paving, domains.first, function, constraints, combined, bounds, cell, fineness, diagnostics);
-        interval_constraint_adjoin_outer_approximation_recursion(paving, domains.second, function, constraints, combined, bounds, cell, fineness, diagnostics);
+        interval_constraint_adjoin_outer_approximation_recursion(paving, domains.first, function, constraints, combined, bounds, cell, fineness, diagnostics, nullptr);
+        interval_constraint_adjoin_outer_approximation_recursion(paving, domains.second, function, constraints, combined, bounds, cell, fineness, diagnostics, nullptr);
     } else if (cell.depth() >= Int(fineness * cell.dimension())) {
         if (diagnostics != nullptr)
             ++diagnostics->adjoin_calls;
@@ -586,8 +604,8 @@ Void interval_constraint_adjoin_outer_approximation_recursion(
         if (diagnostics != nullptr)
             ++diagnostics->cell_splits;
         const auto cells = cell.split();
-        interval_constraint_adjoin_outer_approximation_recursion(paving, domain, function, constraints, combined, bounds, cells.first, fineness, diagnostics);
-        interval_constraint_adjoin_outer_approximation_recursion(paving, domain, function, constraints, combined, bounds, cells.second, fineness, diagnostics);
+        interval_constraint_adjoin_outer_approximation_recursion(paving, domain, function, constraints, combined, bounds, cells.first, fineness, diagnostics, &evaluation);
+        interval_constraint_adjoin_outer_approximation_recursion(paving, domain, function, constraints, combined, bounds, cells.second, fineness, diagnostics, &evaluation);
     }
 }
 
@@ -614,7 +632,7 @@ Void constraint_adjoin_outer_approximation(
         [&] { return join(function, constraints); });
     interval_constraint_adjoin_outer_approximation_recursion(
         paving, domain, function, constraints, combined, constraint_bounds,
-        cell, fineness, diagnostics);
+        cell, fineness, diagnostics, nullptr);
 }
 
 Void procedure_constraint_adjoin_outer_approximation(PavingInterface& p, const ExactBoxType& d, const ValidatedVectorMultivariateFunction& f,

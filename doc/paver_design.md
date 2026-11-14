@@ -294,3 +294,35 @@ concurrent public operations; it does not guarantee speedup.
 `Apply format` commit, and all successful sequential optimizations.
 Do not resume SubdivisionPaver parallelization without a new explicit
 decision and a redesigned, separately validated approach.
+
+## 2026-11-14 - ConstraintPaver domain-evaluation reuse (first experiment)
+
+**Status: source-level change, benchmark and build validation pending.**
+The interval constraint recursion previously recomputed the combined
+map/constraint range and Jacobian-based sensitivity whenever an *output
+cell* was split, even though the parameter domain had not changed.
+An optional per-domain evaluation record now shares these two results
+among descendants created by output-cell splitting. A parameter-domain
+split starts with a fresh record. Results remain lazy: a previously covered
+cell triggers neither computation, and a separated cell need not compute
+sensitivity.
+
+No geometric decision rule was intentionally changed: the same
+certified disjointness predicate, sensitivity selection, intrinsic-error
+criterion, output-cell depth, and cell insertion remain in place.
+Diagnostics count actual evaluations (cache misses) rather than each
+recursive visit; visits and split counts retain their previous meaning.
+Tests add upper bounds on evaluation counts derived from the number
+of parameter domains created.
+
+**Validation required:** compile and run `test_paver` on supported
+platforms; compare the candidate against the previous main commit using
+bidirectional exact cell containment for all benchmark cases, including
+constrained, degenerate and shifted/scaled grids. In Release mode,
+alternate five-sample baseline/candidate runs of
+`benchmark_pavers --dimensions 3 --finenesses 4
+--shapes uv-triangle,correlated-strip,product-cap,folded-quadratic
+--pavers constraint --samples 5 --max-case-ms 0 --diagnostics`.
+Record medians, MADs, evaluator counts and timing buckets before
+claiming an improvement. Revert if there is a correctness regression or
+no reproducible wall-clock benefit.
