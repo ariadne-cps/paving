@@ -516,3 +516,52 @@ are each small compared with coverage and sensitivity.
 results were not supplied. Equal aggregate geometry and identical
 algorithm counters do not establish exact cell equivalence. Do not
 report these as passed.
+
+
+## 2026-11-14 - Reachability-style enclosure-sequence benchmark
+
+**Status: implementation submitted for build and runtime validation;
+no timings have been measured yet.**
+
+Motivation: the original `benchmark_pavers` times one isolated set in
+an empty paving, whereas `HybridReachabilityAnalyser` adjoins many
+enclosures to an evolving paving. On SPRE22, `ConstraintPaver` was
+reported faster than `SubdivisionPaver`, reversing the standalone
+3D benchmark ranking. This alone does not prove a per-call speed
+advantage: the Pavers can produce different approximations, changing
+later reachability work. The published `arch/spre22` branch still
+selects the default `SubdivisionPaver`, so the locally measured
+comparison was not independently reproduced here.
+
+A standalone `benchmark_paver_sequences` has been added without
+changing the original benchmark. It constructs a deterministic
+five-state `(t,x,y,vx,vy)` sequence, with grid scale
+`(1,200,200,20,20)`, quadratic cross-terms, parameter constraints,
+and validated Taylor-model functions. Two scenarios (`overlap` and
+`sweep`) and two modes (`isolated` and `accumulating`) distinguish
+nonlinear-function cost from existing-coverage work. Each strategy
+receives the same prebuilt sequence; only calls to the Paver run
+inside the timed callback. Per-sample geometry is checked by
+bidirectional cell containment. The benchmark separately reports
+pairwise Paver geometry and isolated-versus-accumulated geometry,
+as these may differ. Optional diagnostic replay breaks down each
+enclosure's work.
+
+**Important limitation:** this is an SPRE22-inspired **surrogate**,
+not a serialized fixture captured from an actual evolver; matching
+dimension and scale does not prove the distributions of parameter
+ranks, Taylor-model coefficients, constraints, and overlap match
+SPRE22. It must not be cited as a measured explanation of the
+original observation. Capturing actual enclosure sequences at the
+Evolver/Paver boundary would be the next fidelity step, preferably
+with a fixture format that does not introduce an Evolution dependency
+into Paving.
+
+**Validation outstanding:** build `benchmark_paver_sequences` in
+Release and Debug and run small `--verify-only` cases, including
+both scenarios and modes, then five-sample controlled comparisons
+at fineness 2 and optionally 3. Check nonemptiness, deterministic
+exact geometry per strategy, geometric relations across strategies,
+and the isolated/accumulating relationship before interpreting
+speed ratios. Record the measured times and profiles here only
+after they have been obtained; do not assume a winner.

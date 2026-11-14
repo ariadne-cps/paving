@@ -14,6 +14,12 @@ target_link_libraries(benchmark_pavers PRIVATE
     ariadne-paving paving ariadne-benchmarking)
 add_dependencies(benchmarks benchmark_pavers)
 
+# Manual-only enclosure-sequence comparison resembling reachability workloads.
+add_executable(benchmark_paver_sequences benchmark_paver_sequences.cpp)
+target_link_libraries(benchmark_paver_sequences PRIVATE
+    ariadne-paving paving ariadne-benchmarking)
+add_dependencies(benchmarks benchmark_paver_sequences)
+
 # Manual-only Tree snapshot, BDD compilation and query break-even study.
 add_executable(benchmark_cached_binary_tree_paving benchmark_cached_binary_tree_paving.cpp)
 target_link_libraries(benchmark_cached_binary_tree_paving PRIVATE

@@ -279,6 +279,61 @@ retains its dedicated depth-limit diagnostics.
 
 These are manual benchmarks; they are not CTest performance tests.
 
+
+## Reachability-style Paver sequence benchmark
+
+The standalone `benchmark_paver_sequences` compares `SubdivisionPaver` and
+`ConstraintPaver` on **the same ordered sequence of validated 5D
+constrained image sets**. The controlled fixture is inspired by
+SPRE22's `(t,x,y,vx,vy)` state variables and scaling (grid lengths
+`1,200,200,20,20`), with nonlinear correlated Taylor-model maps,
+constraints on parameters, and repeated insertions. **It is not a
+recording of actual SPRE22 enclosures**, and does not include evolver
+or hybrid-transition time. To benchmark that full workload, collect
+actual enclosure fixtures separately instead of treating this
+surrogate as a direct measurement.
+
+Two independent factors expose why a Paver may win in a reachability
+analyser but lose in the original single-set benchmark:
+
+- `--scenarios overlap,sweep`: the output regions largely overlap
+  or move to new grid cells over successive enclosures.
+- `--modes isolated,accumulating`: every enclosure receives a fresh
+  empty paving, or all enclosures adjoin to **the same paving** so a
+  Paver can exploit cells already covered by earlier enclosures.
+
+Input generation, Taylor-model construction, paving preparation,
+recombination, and geometry verification are outside the timed region.
+Only the repeated Paver insertions are timed; `isolated` outputs are
+united after timing solely for geometry comparisons. The report shows
+median/MAD timing, resulting cells and physical outer volume. It
+compares Pavers using bidirectional exact cell containment and also
+checks whether `isolated` and `accumulating` produce the same
+union for each Paver. Identical runs of one configuration must produce
+exactly the same geometry; differences across *different* algorithms
+are reported rather than incorrectly assumed to be bugs.
+
+Build in Release mode, then **from the build directory**:
+
+```bash
+cmake --build . --target benchmark_paver_sequences
+./benchmarks/benchmark_paver_sequences --finenesses 2 --steps 6 --samples 5 --scenarios overlap,sweep --modes isolated,accumulating --pavers subdivision,constraint --max-case-ms 0 -t dark
+./benchmarks/benchmark_paver_sequences --finenesses 2 --steps 6 --samples 5 --scenarios overlap --modes accumulating --pavers subdivision,constraint --max-case-ms 0 --diagnostics -t dark
+./benchmarks/benchmark_paver_sequences --finenesses 1 --steps 2 --scenarios overlap,sweep --modes isolated,accumulating --verify-only -t dark
+```
+
+`--diagnostics` adds a separate, untimed per-enclosure replay, showing
+the already-covered checks, recursive visits, parameter splits,
+range/sensitivity evaluations, and per-stage Paver times. These
+instrumented step times must not be equated with the medians. The
+`--max-case-ms` soft budget works per complete sequence sample; it
+cannot interrupt an in-progress run. The default is 5000 ms,
+`0` disables it. Finenesses 0..4 and 1..24 enclosure steps are
+supported. The existing `benchmark_pavers` and its analytic
+volume comparisons remain unchanged; this separate benchmark
+does **not** claim a known analytic output volume for the 5D
+constrained image union.
+
 ## Comparative backend benchmark
 
 Build explicitly with:
