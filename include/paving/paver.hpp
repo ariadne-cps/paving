@@ -108,6 +108,15 @@ struct PaverDiagnostics {
     SizeType product_box_constructions = 0u;
     SizeType disjoint_checks = 0u;
 
+    // Diagnostic-only counterfactual: coordinate-wise interval-Jacobian
+    // sensitivity compared with each output-cell coordinate's own radius.
+    SizeType axis_sensitivity_checks = 0u;
+    SizeType axis_jacobian_evaluations = 0u;
+    SizeType axis_split_suggestions = 0u;
+    SizeType axis_only_split_suggestions = 0u;
+    SizeType axis_only_at_depth_limit = 0u;
+    SizeType legacy_only_split_suggestions = 0u;
+
     // Exclusive measured durations of selected operations in the instrumented
     // replay (nanoseconds). A joint f/g range evaluation has its own bucket;
     // it is not counted twice as an individual f or g evaluation.

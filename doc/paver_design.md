@@ -878,3 +878,65 @@ certified outer approximation and boundary semantics.
 The benchmark's measured component is `ConstraintPaver`,
 not `ConstraintSolver`. The code path selected by the
 benchmark does not construct or invoke `ConstraintSolver`.
+
+## 2026-11-14 - Instrument coordinate-wise stopping diagnostics
+
+**Status: diagnostic-only experiment, compilation and new benchmark
+execution pending; no changes to Paver decisions or geometry.**
+
+To test the previous source-level hypothesis, add a cached,
+per-parameter-domain interval-Jacobian sensitivity vector,
+calculated **only when `PaverDiagnostics*` is supplied**.
+For each output coordinate `i`, compute
+`E_i = max_j mag(J_ij) * radius(D_j)` using
+`jacobian_range(function, domain)` with validated interval
+magnitudes. The *coordinate-wise candidate* split test is
+`exists i: E_i > radius(cell.box()[i])`. These comparisons
+are in physical units separately per output coordinate, so
+they are equivalent to dividing the left and right sides
+by the corresponding grid length. Using actual cell radii
+also accounts for incomplete rounds of cell splitting.
+
+The existing criterion is untouched:
+`lipschitz_index_and_error(function, domain).second >
+cell_splitting_radius(cell)`, i.e. the largest parameter-column
+sum in physical output units compared with the maximum
+physical half-width among the output cell coordinates.
+Both decisions are checked at the same surviving nodes,
+after the original sensitivity calculation. The diagnostics
+record `Tests`, `Jac evals`, `Legacy splits`,
+`Axis suggests`, `Axis only`, `Axis only at cap`
+and `Legacy only`. In particular `Axis only at cap`
+counts terminal cells where the actual code includes a
+cell yet the coordinate-wise criterion suggests that
+additional parameter refinement might be useful.
+
+The vector is cached within the existing
+`ConstraintDomainEvaluation` object and shared across
+output-cell children; parameter splitting resets it.
+No extra Jacobian evaluation is performed in normal
+non-diagnostic samples. The benchmark's separate
+instrumented replay still validates bidirectional exact
+geometric equality against the normal result.
+
+**Interpretation:** the coordinate-wise sensitivity is a
+diagnostic heuristic, not yet a validated alternative
+stopping criterion. A suggestion is not a proof that a
+cell is disjoint; a new algorithm must still preserve
+certified exclusion tests and boundary behavior.
+The max-over-parameter Jacobian bound may fail to account
+for simultaneous multi-parameter contributions. Do not
+infer an improvement in quality or runtime solely from
+high `Axis only` counts.
+
+**Next validation (from the build directory):**
+
+```bash
+cmake --build . --target benchmark_paver_sequences benchmark_pavers test_paver
+./tests/test_paver
+./benchmarks/benchmark_paver_sequences --finenesses 3,4,5 --steps 6 --samples 5 --scenarios overlap --modes accumulating --pavers constraint --max-case-ms 0 --diagnostics -t dark
+```
+
+Compare `Axis only at cap` across finenesses 3, 4 and 5
+before deciding whether a grid-aware criterion warrants
+a separately benchmarked algorithm experiment.

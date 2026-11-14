@@ -241,6 +241,11 @@ void run(const Bench::CommandLine& cli, const Bench::Matrix& matrix,
                            {"Step"}, {"Cells before"}, {"Cells after"},
                            {"Visits"}, {"Covered"}, {"Param splits"},
                            {"Map evals"}, {"Sensitivity"}, {"Paver (ms)"}});
+    // Counterfactual diagnostics cannot alter the Paver result.
+    Bench::Table axis_split_diagnostics({{"Scenario"}, {"Mode"}, {"Fine"}, {"Step"},
+                                         {"Tests"}, {"Jac evals"}, {"Legacy splits"},
+                                         {"Axis suggests"}, {"Axis only"},
+                                         {"Axis only at cap"}, {"Legacy only"}});
     // Different finenesses must be compared geometrically, not only by
     // outer volume or equal numeric fineness settings.
     Bench::Table across_fineness({{"Scenario"}, {"Mode"}, {"Steps"}, {"A"}, {"B"},
@@ -370,6 +375,17 @@ void run(const Bench::CommandLine& cli, const Bench::Matrix& matrix,
                                       std::to_string(counts.sensitivity_evaluations),
                                       Bench::Table::number(
                                           static_cast<double>(elapsed) / 1e6, 3u)});
+                    if (strategy.name == "constraint") {
+                        axis_split_diagnostics.add_row({
+                            scenario, mode, std::to_string(f), std::to_string(i),
+                            std::to_string(counts.axis_sensitivity_checks),
+                            std::to_string(counts.axis_jacobian_evaluations),
+                            std::to_string(counts.parameter_splits),
+                            std::to_string(counts.axis_split_suggestions),
+                            std::to_string(counts.axis_only_split_suggestions),
+                            std::to_string(counts.axis_only_at_depth_limit),
+                            std::to_string(counts.legacy_only_split_suggestions)});
+                    }
                 }
                 const auto replay = instrumented.merged(grid);
                 if (not contains(*reference, *replay) or
@@ -489,6 +505,8 @@ void run(const Bench::CommandLine& cli, const Bench::Matrix& matrix,
     if (diagnostics) {
         LOGGING_PRINTLN("Per-step diagnostic replay (not timed samples):")
         LOGGING_PRINTLN(per_step.str())
+        LOGGING_PRINTLN("ConstraintPaver axis-sensitivity counterfactual (diagnostic only):")
+        LOGGING_PRINTLN(axis_split_diagnostics.str())
     }
 }
 

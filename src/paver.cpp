@@ -31,6 +31,7 @@
 #include <chrono>
 #include <optional>
 #include <type_traits>
+#include <vector>
 
 #include "algebra/algebra.hpp"
 #include "algebra/polynomial.hpp"
@@ -540,6 +541,8 @@ Void procedure_constraint_adjoin_outer_approximation_recursion(
 struct ConstraintDomainEvaluation {
     std::optional<UpperBoxType> combined_range;
     std::optional<Pair<SizeType, FloatDPError>> sensitivity;
+    // Diagnostic-only, cached across output-cell descendants of a domain.
+    std::optional<std::vector<FloatDPError>> axis_sensitivity;
 };
 
 Void interval_constraint_adjoin_outer_approximation_recursion(
@@ -615,7 +618,49 @@ Void interval_constraint_adjoin_outer_approximation_recursion(
             [&] { return lipschitz_index_and_error(function, domain); });
     }
     const auto& sensitivity = *evaluation.sensitivity;
-    if (sensitivity.first < domain.dimension() && sensitivity.second.raw() > cell_splitting_radius(cell)) {
+    const bool legacy_split =
+        sensitivity.first < domain.dimension() &&
+        sensitivity.second.raw() > cell_splitting_radius(cell);
+
+    if (diagnostics != nullptr) {
+        if (!evaluation.axis_sensitivity) {
+            // Evaluate the counterfactual only on diagnostic replays.
+            // The actual algorithm still uses the original scalar threshold.
+            ++diagnostics->axis_jacobian_evaluations;
+            const auto jacobian = Ariadne::jacobian_range(function, cast_vector(domain));
+            std::vector<FloatDPError> axis(function.result_size(), FloatDPError(0u, dp));
+            for (SizeType i = 0u; i != function.result_size(); ++i) {
+                for (SizeType j = 0u; j != domain.dimension(); ++j) {
+                    FloatDPError contribution = mag(jacobian[i][j]);
+                    contribution *= domain[j].radius().upper();
+                    if (contribution.raw() > axis[i].raw())
+                        axis[i] = contribution;
+                }
+            }
+            evaluation.axis_sensitivity = std::move(axis);
+        }
+        ++diagnostics->axis_sensitivity_checks;
+        bool axis_split = false;
+        for (SizeType i = 0u; i != cell.dimension(); ++i) {
+            if ((*evaluation.axis_sensitivity)[i].raw() >
+                cell.box()[i].radius().upper().raw()) {
+                axis_split = true;
+                break;
+            }
+        }
+        if (axis_split)
+            ++diagnostics->axis_split_suggestions;
+        if (axis_split and not legacy_split) {
+            ++diagnostics->axis_only_split_suggestions;
+            if (cell.depth() >= Int(fineness * cell.dimension()))
+                ++diagnostics->axis_only_at_depth_limit;
+        } else if (legacy_split and not axis_split) {
+            ++diagnostics->legacy_only_split_suggestions;
+        }
+    }
+
+    // Only this original decision controls recursion and final geometry.
+    if (legacy_split) {
         if (diagnostics != nullptr)
             ++diagnostics->parameter_splits;
         const auto domains = domain.split(sensitivity.first);

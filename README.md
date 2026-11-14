@@ -365,7 +365,17 @@ sufficient to claim geometric dominance**.
 
 `--diagnostics` adds a separate, untimed per-enclosure replay, showing
 the already-covered checks, recursive visits, parameter splits,
-range/sensitivity evaluations, and per-stage Paver times. These
+range/sensitivity evaluations, and per-stage Paver times.
+The additional `ConstraintPaver axis-sensitivity counterfactual`
+table compares the existing physical-unit split decision with a
+diagnostic coordinate-wise rule: each output-coordinate interval-Jacobian
+sensitivity is compared to that coordinate's cell radius. The
+`Axis only` and `Axis only at cap` columns count cases where the
+coordinate-wise rule would request parameter refinement but the
+current rule does not. `Legacy only` counts the reverse.
+**These are diagnostic suggestions, not changes to the Paver
+algorithm or proof of tighter resulting geometry.** Their extra
+Jacobian calculations run only in the untimed diagnostic replay. These
 instrumented step times must not be equated with the medians. The
 `--max-case-ms` soft budget works per complete sequence sample; it
 cannot interrupt an in-progress run. The default is 5000 ms,
