@@ -1104,3 +1104,54 @@ are caused by a weak interval enclosure, a shallow
 split budget, or possible true/boundary intersection.
 Keep the historical benchmarks and both Paver algorithms
 unchanged.
+
+
+### First measured certified difference-cell exclusion (2026-11-14)
+
+**User-supplied diagnostic replay** of the six-enclosure,
+five-dimensional `overlap/accumulating` sequence at fineness 4,
+using `--verify-only --difference-probe --difference-cells 64
+--difference-depth 6`. The two Paver outputs were 571 and
+1048 recombined cells, respectively, and the exact geometric
+relation was `Subdivision strictly contained in Constraint`.
+The exact-fineness difference contains **804** cells.
+
+| Metric | Observed |
+| --- | ---: |
+| Difference cells at exact fineness 4 | 804 |
+| Deterministically sampled cells | 64 |
+| Certified excluded at root domain | 0 |
+| Certified excluded after parameter bisections | **15** |
+| Unresolved after maximum 6 parameter bisections/branch | 49 |
+| Validated combined range evaluations | 1133 |
+
+The 15 refined-excluded cells are certified disjoint from
+**all six original enclosures**, hence unnecessary in a
+sound outer approximation of their union. This demonstrates
+recoverable excess geometry without sacrificing certified
+correctness. The result does not show that the original
+Paver made an unsound decision: conservative unresolved-cell
+inclusion is permissible. The 49 unresolved cells may be
+truly intersected, near a boundary, or require stronger
+exclusion/deeper subdivision. The 64 samples are
+deterministic systematic samples, **not a randomized sample**:
+do not extrapolate the 15/64 fraction to all 804 cells.
+
+The zero root exclusions and positive refined exclusions
+provide direct evidence that parameter bisection can
+strengthen interval separation in this case. It does
+not yet identify which parameter-splitting heuristic
+best recovers precision or its incremental computational
+cost inside the full Paver.
+
+**Next controlled checks:** probe the same deterministic
+64 cells with `--difference-depth 0,2,4,6,8` in separate
+otherwise identical `--verify-only` runs and verify
+that certified-excluded counts never decrease with
+increasing depth. Then use `--difference-cells 0`
+for exhaustive depth-6 certification of the 804 cells.
+The current implementation's numeric depth parameter
+bounds per-branch recursion, not total evaluations.
+Avoid modifying the Paver until this evidence supports
+a targeted, certified refinement rule that is measured
+against the previous geometry and runtime.
