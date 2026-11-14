@@ -1307,3 +1307,63 @@ Constraint's at the **same fineness**, whether it is
 comparable to Subdivision's exact geometry, and what
 runtime/contractor-work cost is associated with the
 difference. No ordering is assumed a priori.
+
+
+### Three-Paver six-enclosure benchmark: Reduce dominates Subdivision (2026-11-14)
+
+**User-supplied, five complete Release samples** for `fineness=4`,
+`steps=6`, `scenario=overlap`, `mode=accumulating`,
+`--pavers subdivision,constraint,reduce --diagnostics`.
+
+| Paver | Median (ms) | MAD (ms) | Recombined cells | Outer volume |
+| --- | ---: | ---: | ---: | ---: |
+| Subdivision | 4408.808 | 16.956 | 571 | 10620.117188 |
+| Constraint | 349.037 | 0.330 | 1048 | 22888.183594 |
+| Reduce | 1010.082 | 0.502 | 498 | 8163.452148 |
+
+**Exact pairwise bidirectional cell containment:**
+`Reduce strictly contained in Subdivision strictly contained
+in Constraint`. Consequently Reduce dominates Subdivision
+on both measured time (4.36x faster) and certified outer-set
+tightness (23.13% less outer volume), at identical fineness
+and workload. Constraint is 2.89x faster than Reduce but has
+2.80x the outer volume. Both Reduce and Constraint remain
+non-dominated Pareto choices for this fixture.
+
+The separate **instrumented** six-step Reduce replay reports
+per-stage recursion visits (1023,1001,1073,1025,991,927)
+and parameter splits (67,73,70,74,82,71).
+Reduction operation totals from the six steps:
+
+| Operation | Calls |
+| --- | ---: |
+| Total reductions | 181597 |
+| Box reductions | 155882 |
+| Hull reductions | 25715 |
+| Explicit-constraint reductions | 43846 |
+
+The sum of recorded exclusive contractor durations is
+approximately 862.4 ms of box reduction and 64.2 ms
+of hull reduction across the separate replay. These
+durations are **not** a decomposition of the 1010.082 ms
+median, since instrumented replay overhead differs.
+They establish that box reduction dominates the
+measured contractor work, but not which reductions
+are essential for the improved geometric tightness.
+
+The preceding one-enclosure `--verify-only` smoke test
+also completed, returning 102 Subdivision, 208 Constraint,
+and 87 Reduce recombined cells, with exactly the same
+strict containment ordering. The six-enclosure run
+demonstrates the result is not confined to one input.
+
+**Next experiment:** isolate the geometric effect and cost
+of box reduction and hull reduction with controlled ablation
+in ReducePaver, using a diagnostic/benchmark opt-in
+variant rather than silently changing the production Paver.
+Preserve exact bidirectional containment, validated
+outer-approximation soundness, equal inputs and fineness,
+and separate instrumented diagnostics from ordinary
+timed samples. Do not infer that adding contractors to
+ConstraintPaver will automatically improve the Pareto
+frontier; compare against both existing baselines.
