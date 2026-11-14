@@ -1741,3 +1741,64 @@ adversarial examples where box shaving can prune
 but hull backpropagation cannot. Preserve certified
 outer approximation and exact geometry comparison
 before proposing a default or heuristic policy.
+
+
+## 2026-11-14 - Opt-in acquisition of actual SPRE22 evolver enclosures
+
+The preceding `overlap`/`sweep` results established that `ReducePaver`
+with only hull contraction is faster than `ConstraintPaver` with strictly
+tighter geometry at fineness 4 and 5, but **all of those inputs were
+SPRE22-inspired synthetic Taylor-model images**. They cannot demonstrate
+performance on the actual evolver-generated enclosure distribution.
+
+A new standalone manual benchmark is implemented in
+`ariadne-cps/arch` on `main`, commit
+`f66aba75306eb362217f10d8da1fbc6bacd1e13e`, at
+`suite/nln/benchmark_spre22_pavers.cpp`. It creates the original
+space-rendezvous problem using `make_space_rendezvous_problem()`
+from `SPRE22.hpp` and configures the same `GeneralHybridEvolver`,
+`TaylorSeriesIntegrator` and tolerances as the existing example.
+Unlike the original full-horizon `HybridTime(200,3)`, which is
+explicitly disabled by a return because of excessive runtime, the
+new benchmark deliberately begins with a bounded orbit
+`HybridTime(1/16,1)` and records that reduced horizon.
+
+After evolving once **outside timing**, select up to six real
+approaching-mode reach enclosures and extract their
+`enclosure.continuous_set().state_set()` as genuine
+`ValidatedConstrainedImageSet` inputs. A missing enclosure is
+never synthesized or duplicated. Then run `Constraint`, `Reduce Full`,
+`Reduce BoxOnly`, `Reduce HullOnly` on identical captured inputs,
+on grid lengths `(1,200,200,20,20)` and each requested fineness.
+Measure complete-sequence Paver invocation medians and MAD over
+five samples, excluding the evolver, set construction and paving
+recombination; verify repeated-sample geometric equality and
+compute exact bidirectional set containment across strategies
+and finenesses.
+
+The executable is optional under
+`-DENABLE_SPRE22_PAVER_BENCHMARK=ON`. No CI job or ordinary ARCH
+target runs it. No production Paver, evolver or SPRE22 mathematics
+were changed. The ARCH project's nested Ariadne submodule remains
+pinned: the developer must update the nested Paving dependency to a
+compatible revision with `ReducePaverReductionMode` before enabling
+this target. This dependency prerequisite is documented in ARCH
+README instead of silently rewriting multiple upstream submodules.
+
+**Manual commands after synchronizing the nested dependencies:**
+
+```sh
+cmake -S . -B build-spre22 -DCMAKE_BUILD_TYPE=Release -DBUILD_PYTHON_BINDINGS=OFF -DENABLE_SPRE22_PAVER_BENCHMARK=ON
+cmake --build build-spre22 --target benchmark_spre22_pavers
+./build-spre22/suite/nln/benchmark_spre22_pavers --horizon-denominator 16 --max-jumps 1 --max-enclosures 6 --finenesses 4,5 --samples 5
+```
+
+**Status:** GitHub source commit only. The C++ target has not
+been locally compiled or executed, and no measured speedups or
+geometric outcomes from real SPRE22 enclosures are claimed.
+The first validation should build the updated dependency chain,
+run `--samples 1 --max-enclosures 1 --finenesses 4`,
+then the full manual sample set if evolution completes.
+The smaller horizon and possible smaller enclosure count must
+be retained in every report; this experiment does not silently
+substitute for full SPRE22 reachability.
