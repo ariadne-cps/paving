@@ -940,3 +940,80 @@ cmake --build . --target benchmark_paver_sequences benchmark_pavers test_paver
 Compare `Axis only at cap` across finenesses 3, 4 and 5
 before deciding whether a grid-aware criterion warrants
 a separately benchmarked algorithm experiment.
+
+
+## 2026-11-14 - Measured axis-sensitivity counterfactual: f=4 hypothesis narrowed
+
+**User-supplied measurements; status: diagnostic-only hypothesis
+partially contradicted; do not change the Paver yet.**
+The new instrumented benchmark ran to completion on the user's
+Release build for six `overlap/accumulating` enclosures, five
+samples each, Constraint only, at fineness 3, 4, and 5.
+The extra Jacobian evaluations appear only in an instrumented
+replay, so per-step replay timings must not be compared directly
+with ordinary sample medians.
+
+| Fine | Median (ms) | Cells after recombination | Outer volume | `Axis only` (sum) | `Axis only at cap` (sum) | `Legacy only` (sum) |
+| ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| 3 | 8.827 | 39 | 93750.000000 | 76 | **0** | 0 |
+| 4 | 364.589 | 1048 | 22888.183594 | 1900 | **0** | 702 |
+| 5 | 2767.528 | 5031 | 4156.589508 | 24148 | **8717** | 4617 |
+
+The total `Tests` counts were 1010, 22805, 175804,
+respectively, and the `Jac evals` counts were 106, 10257,
+75623. For f=4 the axis-based test requests parameter splits
+at 1900 nodes where the current criterion does not; **none**
+is at the output-cell depth cap. This contradicts the
+initially suggested direct explanation that the scalar criterion
+prematurely inserts f=4 *terminal cells* despite the
+coordinate-wise diagnostic asking for parameter refinement.
+It does **not** rule out an indirect effect of earlier
+split decisions if the algorithm were changed: this experiment
+did not run an alternative algorithm or compare its geometry.
+
+For f=5, the 8717 `Axis only at cap` suggestions are
+substantial, but they do not prove that further parameter
+subdivision would allow any particular terminal cell
+to be removed. Nor is the coordinate-wise diagnostic
+necessarily a sound aggregate Lipschitz bound for
+simultaneous parameter variations; it uses `max_j` rather
+than summing all contributions.
+
+**Five-dimensional cell-volume accounting.**
+The synthetic grid has side lengths `(1,200,200,20,20)`,
+whose product is 16000000. Full-depth cell volume is
+`16000000 / 2^(5*f)`. The reported pre-recombination
+cell totals were 192, 1500 and 8717 at f=3, 4 and 5:
+their products with the respective single-cell volumes
+488.28125, 15.2587890625, 0.476837158203125 reproduce
+the exact total outer volumes (up to decimal printing).
+From f=4 to f=5 the number of occupied depth-level
+cells grows 5.81x while each cell's volume shrinks 32x,
+yielding the observed **81.8% volume reduction**.
+This is a plausible ordinary grid-refinement effect;
+the headline 81.8% decrease alone is not an algorithmic
+anomaly.
+
+**The distinct f=4 quality gap remains important.**
+On this same f=4 surrogate, the previously reported
+Subdivision paving had 696 pre-recombination fine cells
+(571 after recombination), whereas Constraint had 1500
+(1048 after recombination). The 804 additional depth-4
+cells account for the exact 2.155x outer-volume ratio
+`22888.183594 / 10620.117188`, because both cover the
+same-sized depth-4 cells. Those 804 cells are **not
+certified false positives** merely because the
+Subdivision paving is a smaller certified outer
+approximation. They are candidates for improved
+separation/refinement.
+
+**Next investigation:** focus on what happens to the cells
+in `Constraint f=4 \ Subdivision f=4` (set difference).
+For each, use independent certified separation checks
+and record whether the cause is insufficient parameter
+subdivision, weak joint map/constraint interval exclusion,
+or unresolved boundary intersection. Any proposed
+criterion change should then be tested A/B with exact
+geometric containment, preserving the original
+certified outer-approximation semantics. Neither Paver
+has been modified in response to these measurements.
