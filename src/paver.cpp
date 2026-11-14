@@ -138,7 +138,6 @@ OutputStream& ReducePaver::_write(OutputStream& os) const {
         case ReducePaverReductionMode::Full: return os << "ReducePaver()";
         case ReducePaverReductionMode::BoxOnly: return os << "ReducePaver(BoxOnly)";
         case ReducePaverReductionMode::HullOnly: return os << "ReducePaver(HullOnly)";
-        case ReducePaverReductionMode::HullOnlyCertifiedSkip: return os << "ReducePaver(HullOnlyCertifiedSkip)";
         default: return os;
     }
 }
@@ -401,8 +400,7 @@ Void procedure_constraint_adjoin_outer_approximation_recursion(
     static const ExactDouble ACCEPTABLE_REDUCTION_FACTOR = 0.75_x;
 
     // The Full mode follows the original contractor order exactly.
-    if (reduction_mode != ReducePaverReductionMode::HullOnly &&
-        reduction_mode != ReducePaverReductionMode::HullOnlyCertifiedSkip) {
+    if (reduction_mode != ReducePaverReductionMode::HullOnly) {
         // ExactBoxType reduction steps
         for (SizeType i = 0; i != nf; ++i) {
             for (SizeType j = 0; j != m; ++j) {
@@ -443,22 +441,7 @@ Void procedure_constraint_adjoin_outer_approximation_recursion(
         LOGGING_PRINTLN_AT(1, "domwdth=" << newdomwdth << " olddomwdth=" << olddomwdth << " dom=" << new_domain << " box reduce");
     }
 
-    // Optional certified shortcut. If the interval image of the *entire*
-    // parameter domain lies inside this cell and all parameter constraints
-    // hold throughout that domain, every point already satisfies all targets
-    // passed to hull_reduce. A correct contractor cannot remove any point.
-    // This is a sufficient, never heuristic, condition: an inconclusive
-    // inclusion test retains the original HullOnly path.
-    bool skip_hull = false;
-    if (reduction_mode == ReducePaverReductionMode::HullOnlyCertifiedSkip &&
-        definitely(subset(bbox, cell_box))) {
-        skip_hull = ng == 0u ||
-            definitely(subset(profile_constraint_range(g, old_domain, diagnostics), codomain));
-        if (skip_hull && diagnostics != nullptr)
-            ++diagnostics->certified_hull_skips;
-    }
-
-    if (reduction_mode != ReducePaverReductionMode::BoxOnly && !skip_hull) {
+    if (reduction_mode != ReducePaverReductionMode::BoxOnly) {
         // Hull reduction steps
         do {
             olddomwdth = newdomwdth;

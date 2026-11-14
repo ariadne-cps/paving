@@ -1978,3 +1978,39 @@ insufficient. If the certificate adds overhead without enough skipped
 contractors, the hypothesis is disproved for this workload and the
 mode should not replace HullOnly.
 
+### Result of certified HullOnly skip trial (2026-11-14)
+
+User-run standalone SPRE22 Release benchmark, 48 real enclosures, fineness 4,
+five samples:
+
+| Strategy | Median (ms) | MAD (ms) | Cells | Outer volume |
+| --- | ---: | ---: | ---: | ---: |
+| Constraint | 1498.520292 | 6.766751 | 1624 | 56030.273438 |
+| HullOnly | 3095.228375 | 3.158125 | 1523 | 47561.645508 |
+| Hybrid 16+32 | 1606.143125 | 5.290417 | 1523 | 47561.645508 |
+| HullOnlyCertifiedSkip | 3105.078584 | 6.762543 | 1523 | 47561.645508 |
+
+`SPRE22_FIXTURE_CERTIFIED_DIAGNOSTICS` reported
+`skipped_nodes=0 hull_reduction_calls=2768 visited_nodes=597`.
+The new mode prevented **zero** hull reductions and added 9.850209 ms
+(+0.318%) compared with HullOnly. Bidirectional final geometry was equal.
+This disproves the proposed performance benefit for the measured workload.
+
+**Decision:** Retire the experimental skip mode without altering the
+original ConstraintPaver or ReducePaver(HullOnly) implementations.
+Testing whether the full parameter domain satisfies the cell constraints
+is too restrictive: a hull contraction can be *geometrically redundant*
+without being the identity on that parameter domain. Keep the failed
+experiment recorded in the design journal, not in the production API.
+
+**Input inspection, exploratory only:** The committed 48-enclosure header
+contains 75 Taylor monomials per enclosure in group 1–16, 77 in group
+17–32, and 77–79 in group 33–48 (sum of five state Taylor components
+and one constraint model). The same sixteen spatial parameter boxes
+appear in each group. Neither monomial counts nor sequence position
+constitute a mathematical proof of when HullOnly is necessary. Any
+future adaptive selection should measure exact output geometry and
+avoid an SPRE22-specific rule disguised as a generic algorithm.
+
+The reference remains the Hybrid 16+32: 1606.143125 ms and 1523 cells,
+with outer volume 47561.645508, versus 3095.228375 ms for HullOnly.

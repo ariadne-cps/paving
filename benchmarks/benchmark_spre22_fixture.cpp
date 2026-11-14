@@ -38,7 +38,6 @@ struct Options {
     unsigned samples = 5u;
     unsigned max_enclosures = 48u;
     unsigned switch_after = 16u;
-    bool certified_skip = false;
 };
 
 unsigned positive(const std::string& s, const char* flag) {
@@ -54,13 +53,9 @@ Options parse(int argc, const char* argv[]) {
     for (int i = 1; i < argc; ++i) {
         const std::string flag(argv[i]);
         if (flag == "--help") {
-            std::cout << "--fineness 4 --samples 5 --max-enclosures 48 --hybrid-switch 16 [--certified-skip]\n";
+            std::cout << "--fineness 4 --samples 5 --max-enclosures 48 --hybrid-switch 16\n";
             result.samples = 0u;
             return result;
-        }
-        if (flag == "--certified-skip") {
-            result.certified_skip = true;
-            continue;
         }
         if (i + 1 >= argc)
             throw std::invalid_argument("missing value for " + flag);
@@ -123,11 +118,10 @@ int run(int argc, const char* argv[]) {
     const Grid grid(Vector<ApproximateDouble>{1.0, 200.0, 200.0, 20.0, 20.0});
     const Paver constraint{ConstraintPaver()};
     const Paver hull{ReducePaver(ReducePaverReductionMode::HullOnly)};
-    const Paver certified{ReducePaver(ReducePaverReductionMode::HullOnlyCertifiedSkip)};
-    const std::string names[4]{"constraint", "reduce-hull", "hybrid-constraint-hull", "reduce-hull-certified-skip"};
+    const std::string names[3]{"constraint", "reduce-hull", "hybrid-constraint-hull"};
     std::vector<Outcome> results;
     std::cout << std::fixed << std::setprecision(6);
-    for (unsigned strategy = 0u; strategy != (options.certified_skip ? 4u : 3u); ++strategy) {
+    for (unsigned strategy = 0u; strategy != 3u; ++strategy) {
         std::vector<double> samples;
         std::unique_ptr<BinaryTreePaving> reference;
         for (unsigned sample = 0u; sample < options.samples; ++sample) {
@@ -135,8 +129,7 @@ int run(int argc, const char* argv[]) {
             const auto start = std::chrono::steady_clock::now();
             for (unsigned i = 0u; i < options.max_enclosures; ++i) {
                 const Paver& selected =
-                    strategy == 3u ? certified :
-                    (strategy == 1u or (strategy == 2u and i >= options.switch_after))
+                    strategy == 1u or (strategy == 2u and i >= options.switch_after)
                     ? hull : constraint;
                 selected.adjoin_outer_approximation(paving, sets[i], options.fineness);
             }
@@ -157,8 +150,8 @@ int run(int argc, const char* argv[]) {
                   << " outer_volume=" << reference->measure().raw().get_d() << "\n";
         results.push_back({names[strategy], time, std::move(reference)});
     }
-    for (unsigned i = 0u; i != results.size(); ++i)
-        for (unsigned j = i + 1u; j != results.size(); ++j)
+    for (unsigned i = 0u; i != 3u; ++i)
+        for (unsigned j = i + 1u; j != 3u; ++j)
             std::cout << "SPRE22_FIXTURE_GEOMETRY A=" << results[i].name
                       << " B=" << results[j].name
                       << " relation=" << relation(*results[i].paving, *results[j].paving)
@@ -171,34 +164,6 @@ int run(int argc, const char* argv[]) {
               << " hull_over_hybrid=" << results[1].median_ms / results[2].median_ms
               << " geometry_vs_hull=" << geometry << "\n";
 
-    if (options.certified_skip) {
-        const std::string certified_geometry =
-            relation(*results[3].paving, *results[1].paving);
-        std::cout << "SPRE22_FIXTURE_CERTIFIED f=" << options.fineness
-                  << " selected=" << options.max_enclosures
-                  << " hull_over_certified=" << results[1].median_ms / results[3].median_ms
-                  << " geometry_vs_hull=" << certified_geometry << "\n";
-        if (certified_geometry != "equal")
-            return 3;
-
-        // Separate untimed diagnostic pass: instrumented runs have a different
-        // cost profile and must not contaminate the timing medians.
-        BinaryTreePaving instrumented(grid);
-        PaverDiagnostics diagnostics;
-        const ReducePaver candidate(ReducePaverReductionMode::HullOnlyCertifiedSkip);
-        for (unsigned i = 0u; i < options.max_enclosures; ++i)
-            candidate.adjoin_outer_approximation(
-                instrumented, sets[i], options.fineness, diagnostics);
-        instrumented.recombine();
-        if (not contains(instrumented, *results[3].paving) or
-            not contains(*results[3].paving, instrumented))
-            throw std::runtime_error("instrumented certified replay changed geometry");
-        std::cout << "SPRE22_FIXTURE_CERTIFIED_DIAGNOSTICS f=" << options.fineness
-                  << " selected=" << options.max_enclosures
-                  << " skipped_nodes=" << diagnostics.certified_hull_skips
-                  << " hull_reduction_calls=" << diagnostics.hull_reduction_calls
-                  << " visited_nodes=" << diagnostics.visited_nodes << "\n";
-    }
     if (options.fineness == 4u and options.max_enclosures == 48u and
         options.switch_after == 16u) {
         // User-measured ARCH baseline. Count and volume are necessary,
