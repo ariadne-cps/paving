@@ -1752,7 +1752,7 @@ SPRE22-inspired synthetic Taylor-model images**. They cannot demonstrate
 performance on the actual evolver-generated enclosure distribution.
 
 A new standalone manual benchmark is implemented in
-`ariadne-cps/arch` on `main`, commit
+`ariadne-cps/arch` on branch `spre22-paver-benchmark`, commit
 `f66aba75306eb362217f10d8da1fbc6bacd1e13e`, at
 `suite/nln/benchmark_spre22_pavers.cpp`. It creates the original
 space-rendezvous problem using `make_space_rendezvous_problem()`
@@ -1802,3 +1802,10 @@ then the full manual sample set if evolution completes.
 The smaller horizon and possible smaller enclosure count must
 be retained in every report; this experiment does not silently
 substitute for full SPRE22 reachability.
+
+**Branch correction (2026-11-14):** The real-SPRE22 benchmark lives
+on the dedicated `ariadne-cps/arch` branch `spre22-paver-benchmark`.
+The `arch/main` branch was reset to its previous commit
+`20d2b6160ef8daa0986d5258a50ed01fa6661060`, with a
+force-with-lease ref update; the benchmark commit is retained
+on the dedicated branch, not on `arch/main`.
