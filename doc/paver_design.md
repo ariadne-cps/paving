@@ -326,3 +326,65 @@ alternate five-sample baseline/candidate runs of
 Record medians, MADs, evaluator counts and timing buckets before
 claiming an improvement. Revert if there is a correctness regression or
 no reproducible wall-clock benefit.
+
+## 2026-11-14 - ConstraintPaver domain-evaluation reuse (first measurements)
+
+**Disposition: KEEP provisionally (strong performance gain, full correctness validation pending).**
+User-supplied "before" and "after" Release measurements on dimension 3,
+fineness 4, with five completed samples per shape, `--max-case-ms 0`
+and `--diagnostics`, using only `--pavers constraint`. The source
+change is commit [`d047cb6b`](https://github.com/ariadne-cps/paving/commit/d047cb6b3507e51b59b52327dec0adf8f45fa498).
+Both runs completed 5/5 samples; there were no soft-budget rows.
+The reported runs are not documented as interleaved A/B runs.
+
+### User-supplied wall-clock timings
+
+| Case | Before median (ms) | Before MAD (ms) | After median (ms) | After MAD (ms) | Median reduction | Speedup |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| `uv-triangle` | 294.600 | 1.609 | 193.748 | 0.699 | 34.2% | 1.52x |
+| `correlated-strip` | 290.806 | 1.683 | 200.252 | 3.361 | 31.1% | 1.45x |
+| `product-cap` | 227.488 | 0.782 | 156.831 | 0.301 | 31.1% | 1.45x |
+| `folded-quadratic` | 689.069 | 2.939 | 431.226 | 5.097 | 37.4% | 1.60x |
+
+### Per-invocation diagnostic replay counts
+
+| Case | Visits (both) | Parameter / cell splits (both) | Map evals before -> after | Constraint evals before -> after | Sensitivity before -> after |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| `uv-triangle` | 90535 | 22568 / 22699 | 78735 -> 41295 | 0 -> 0 | 48651 -> 25284 |
+| `correlated-strip` | 102049 | 26086 / 24938 | 88185 -> 45876 | 88185 -> 45876 | 54876 -> 28965 |
+| `product-cap` | 82267 | 21333 / 19800 | 71599 -> 37925 | 71599 -> 37925 | 44247 -> 23613 |
+| `folded-quadratic` | 154829 | 36609 / 40805 | 130393 -> 63012 | 0 -> 0 | 83246 -> 43519 |
+
+For each case, disjoint rejection, previously covered, and adjoin counts
+also remained identical: `uv-triangle` (30083 / 11801 / 3384),
+`correlated-strip` (33308 / 13865 / 3852), `product-cap`
+(27351 / 10669 / 3114), and `folded-quadratic` (47146 / 24437 / 5832).
+The joint-function construction count stayed at one per invocation.
+
+### Instrumented operation times (not wall-clock medians)
+
+| Case | Map or joint before -> after (ms) | Sensitivity before -> after (ms) | Other before -> after (ms) |
+| --- | ---: | ---: | ---: |
+| `uv-triangle` | 25.466 -> 13.244 | 179.896 -> 93.607 | 89.949 -> 88.481 |
+| `correlated-strip` | 36.922 -> 19.030 | 155.920 -> 82.022 | 101.641 -> 98.740 |
+| `product-cap` | 23.877 -> 12.160 | 125.703 -> 66.698 | 80.755 -> 77.999 |
+| `folded-quadratic` | 90.143 -> 44.450 | 430.431 -> 225.351 | 165.572 -> 161.375 |
+
+The reduction in map/constraint evaluation and Jacobian sensitivity
+work is consistent with caching across output-cell children. The
+recursive traversal itself has not shrunk. `Other (ms)` is now a
+notable target for profiling; it includes recursion, bookkeeping,
+geometric box construction and profiling overhead, so attributing it
+to a single bottleneck without further measurements is unjustified.
+
+**Geometry and verification:** cell counts and approximate outer
+volumes stayed identical (`uv-triangle` 701 / 0.826172,
+`correlated-strip` 706 / 0.940430, `product-cap` 627 / 0.760254,
+`folded-quadratic` 1065 / 1.423828). Exact baseline/candidate
+bidirectional cell containment is **not established** by these
+aggregates or by the single-Paver benchmark output. The successful
+benchmark execution does not establish that all `test_paver` cases
+and supported-platform builds have passed. Retain the experiment
+pending geometry equivalence and test-suite verification; repeat
+controlled interleaved A/B timings if small subsequent changes are
+to be ranked.
