@@ -92,7 +92,8 @@ std::vector<Strategy> parse_pavers(const String& selection) {
     const std::string input(selection);
     if (input == "all")
         return {{"subdivision", Paver(SubdivisionPaver())},
-                {"constraint", Paver(ConstraintPaver())}};
+                {"constraint", Paver(ConstraintPaver())},
+                {"reduce", Paver(ReducePaver())}};
     if (input.empty() or input.front() == ',' or input.back() == ',')
         throw std::invalid_argument("invalid paver selection");
     std::vector<Strategy> result;
@@ -101,13 +102,16 @@ std::vector<Strategy> parse_pavers(const String& selection) {
         const std::size_t end = input.find(',', start);
         const std::string name = input.substr(
             start, end == std::string::npos ? end : end - start);
-        if ((name != "subdivision" and name != "constraint") or
+        if ((name != "subdivision" and name != "constraint" and name != "reduce") or
             std::any_of(result.begin(), result.end(),
                         [&name](const Strategy& s) { return s.name == name; }))
             throw std::invalid_argument("unknown or duplicate paver: " + name);
-        result.push_back(name == "subdivision"
-                             ? Strategy{"subdivision", Paver(SubdivisionPaver())}
-                             : Strategy{"constraint", Paver(ConstraintPaver())});
+        if (name == "subdivision")
+            result.push_back({"subdivision", Paver(SubdivisionPaver())});
+        else if (name == "constraint")
+            result.push_back({"constraint", Paver(ConstraintPaver())});
+        else
+            result.push_back({"reduce", Paver(ReducePaver())});
         if (end == std::string::npos)
             break;
         start = end + 1u;
@@ -350,6 +354,12 @@ void run(const Bench::CommandLine& cli, const Bench::Matrix& matrix,
                                          {"Tests"}, {"Jac evals"}, {"Legacy splits"},
                                          {"Axis suggests"}, {"Axis only"},
                                          {"Axis only at cap"}, {"Legacy only"}});
+    // ReducePaver uses ConstraintSolver's box/hull contractors. Account
+    // for their work only in the untimed instrumented replay.
+    Bench::Table reduction_diagnostics({{"Scenario"}, {"Mode"}, {"Fine"}, {"Step"},
+                                        {"Reduce calls"}, {"Box calls"}, {"Hull calls"},
+                                        {"Constraint calls"}, {"Disjoint"}, {"Adjoins"},
+                                        {"Box (ms)"}, {"Hull (ms)"}});
     // Different finenesses must be compared geometrically, not only by
     // outer volume or equal numeric fineness settings.
     Bench::Table across_fineness({{"Scenario"}, {"Mode"}, {"Steps"}, {"A"}, {"B"},
@@ -478,8 +488,11 @@ void run(const Bench::CommandLine& cli, const Bench::Matrix& matrix,
                     if (strategy.name == "subdivision")
                         SubdivisionPaver().adjoin_outer_approximation(
                             paving, sets[i], f, counts);
-                    else
+                    else if (strategy.name == "constraint")
                         ConstraintPaver().adjoin_outer_approximation(
+                            paving, sets[i], f, counts);
+                    else
+                        ReducePaver().adjoin_outer_approximation(
                             paving, sets[i], f, counts);
                     const auto elapsed = std::chrono::duration_cast<
                         std::chrono::nanoseconds>(
@@ -505,6 +518,19 @@ void run(const Bench::CommandLine& cli, const Bench::Matrix& matrix,
                             std::to_string(counts.axis_only_split_suggestions),
                             std::to_string(counts.axis_only_at_depth_limit),
                             std::to_string(counts.legacy_only_split_suggestions)});
+                    } else if (strategy.name == "reduce") {
+                        reduction_diagnostics.add_row({
+                            scenario, mode, std::to_string(f), std::to_string(i),
+                            std::to_string(counts.reduction_calls),
+                            std::to_string(counts.box_reduction_calls),
+                            std::to_string(counts.hull_reduction_calls),
+                            std::to_string(counts.constraint_reduction_calls),
+                            std::to_string(counts.disjoint_rejections),
+                            std::to_string(counts.adjoin_calls),
+                            Bench::Table::number(
+                                static_cast<double>(counts.box_reduction_ns) / 1e6, 3u),
+                            Bench::Table::number(
+                                static_cast<double>(counts.hull_reduction_ns) / 1e6, 3u)});
                     }
                 }
                 const auto replay = instrumented.merged(grid);
@@ -661,6 +687,8 @@ void run(const Bench::CommandLine& cli, const Bench::Matrix& matrix,
         LOGGING_PRINTLN(per_step.str())
         LOGGING_PRINTLN("ConstraintPaver axis-sensitivity counterfactual (diagnostic only):")
         LOGGING_PRINTLN(axis_split_diagnostics.str())
+        LOGGING_PRINTLN("ReducePaver contractor breakdown (diagnostic replay only):")
+        LOGGING_PRINTLN(reduction_diagnostics.str())
     }
 }
 
@@ -704,7 +732,7 @@ int main(int argc, const char* argv[]) {
         cli.add_parameters(matrix);
         List<ArgumentParser> options;
         options.append(make_valued_argument_parser(
-            "", "pavers", "subdivision,constraint or all (default: all)",
+            "", "pavers", "subdivision,constraint,reduce or all (default: all)",
             [&selected](const String& s) -> VoidFunction {
                 auto parsed = parse_pavers(s);
                 return [&selected, parsed = std::move(parsed)]() mutable {

@@ -1250,3 +1250,60 @@ an explicit budget before considering any integration
 with the separate `ConstraintSolver` algorithms.
 Do not tune the algorithm using only the surrogate
 and generalize to SPRE22.
+
+
+## 2026-11-14 - Add ReducePaver to SPRE22-inspired enclosure sequence comparison
+
+**Status: implementation committed for user-side compilation/runtime
+verification; no ReducePaver timings measured yet.**
+
+The original critical six-enclosure workload has been exercised
+with `SubdivisionPaver` and `ConstraintPaver`, but not with
+`ReducePaver`, which exercises actual `ConstraintSolver`
+box/hull contractors. The exhaustive depth-6 difference
+probe identified 214 of 804 exact-fineness-4 extra cells
+from Constraint as certifiably excludable by independent
+parameter subdivision; this alone cannot predict the
+performance or resulting geometry of Reduce.
+
+Extend `benchmark_paver_sequences` parser to accept
+`--pavers reduce` and mixtures, and make `all` include
+`subdivision,constraint,reduce`. Reuse the **exact same**
+prebuilt five-state validated constrained-image sequence,
+grid lengths, fineness, modes, geometric equality checks,
+sample timing and Pareto frontier; do not modify any
+Paver implementation. Pairwise exact bidirectional cell
+coverage is computed for all three algorithms, including
+the possibility that Reduce is incomparable to the others.
+The existing `--difference-probe` retains its specific
+meaning: Constraint minus Subdivision; it is not changed
+to assume a relationship involving Reduce.
+
+The optional `--diagnostics` replay now dispatches to
+`ReducePaver().adjoin_outer_approximation(...,diagnostics)`
+rather than erroneously routing all non-Subdivision
+strategies to Constraint. A new `ReducePaver contractor
+breakdown` reports box/hull reduction calls, calls on
+explicit constraints, disjoint rejections, adjoin calls
+and contractor durations. As for existing diagnostic
+replays, assert exact geometric equality against the
+corresponding ordinary run before accepting the profile.
+The timed samples do not incur this instrumentation.
+
+**Validation commands (Release build directory):**
+
+```bash
+cmake --build . --target benchmark_paver_sequences
+./benchmarks/benchmark_paver_sequences --finenesses 4 --steps 1 --samples 1 --scenarios overlap --modes accumulating --pavers subdivision,constraint,reduce --verify-only -t dark
+./benchmarks/benchmark_paver_sequences --finenesses 4 --steps 6 --samples 5 --scenarios overlap --modes accumulating --pavers subdivision,constraint,reduce --max-case-ms 0 --diagnostics -t dark
+```
+
+The first run tests the full three-way selection and pairwise
+geometry without measured time; only if it is tractable should
+the full six-enclosure five-sample comparison be attempted.
+The soft time budget does not interrupt an expensive call.
+Key questions: whether Reduce's output is contained in
+Constraint's at the **same fineness**, whether it is
+comparable to Subdivision's exact geometry, and what
+runtime/contractor-work cost is associated with the
+difference. No ordering is assumed a priori.

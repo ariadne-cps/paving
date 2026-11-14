@@ -282,9 +282,9 @@ These are manual benchmarks; they are not CTest performance tests.
 
 ## Reachability-style Paver sequence benchmark
 
-The standalone `benchmark_paver_sequences` compares `SubdivisionPaver` and
-`ConstraintPaver` on **the same ordered sequence of validated 5D
-constrained image sets**. The controlled fixture is inspired by
+The standalone `benchmark_paver_sequences` compares `SubdivisionPaver`,
+`ConstraintPaver` and `ReducePaver` on **the same ordered sequence of
+validated 5D constrained image sets**. The controlled fixture is inspired by
 SPRE22's `(t,x,y,vx,vy)` state variables and scaling (grid lengths
 `1,200,200,20,20`), with nonlinear correlated Taylor-model maps,
 constraints on parameters, and repeated insertions. **It is not a
@@ -338,6 +338,46 @@ cannot interrupt a single run. Matching requested fineness is a
 controlled comparison of algorithm settings, **not a guarantee of
 equal outer-approximation tightness**; compare the resulting paving
 geometries as well as times.
+
+
+### Comparing ReducePaver on the fineness-4 quality gap
+
+`--pavers all` now selects `subdivision,constraint,reduce`.
+Alternatively, list any subset explicitly. All strategies use the **same
+prebuilt enclosures**, grid, fineness and accumulation mode. The benchmark
+reports both timed results and **every pairwise exact geometric containment
+relation**, including cases where the resulting sets are incomparable.
+The optional `--difference-probe` still examines only
+`Constraint minus Subdivision` and requires those two Pavers; adding
+`reduce` does not change that analysis.
+
+`ReducePaver` invokes `ConstraintSolver` box and hull contractors in
+its normal algorithm. With `--diagnostics`, a separate replay reports
+`ReducePaver contractor breakdown` (total, box, hull and
+constraint-related reduction calls; disjoint rejections; adjoins;
+box/hull contractor times). The ordinary median timings exclude this
+instrumentation and are validated against the replay's **exact output
+geometry**.
+
+Start with a one-enclosure geometry smoke test:
+
+```bash
+./benchmarks/benchmark_paver_sequences --finenesses 4 --steps 1 --samples 1 --scenarios overlap --modes accumulating --pavers subdivision,constraint,reduce --verify-only -t dark
+```
+
+Then run the **original critical six-enclosure workload**:
+
+```bash
+./benchmarks/benchmark_paver_sequences --finenesses 4 --steps 6 --samples 5 --scenarios overlap --modes accumulating --pavers subdivision,constraint,reduce --max-case-ms 0 --diagnostics -t dark
+```
+
+If the contractor approach is prohibitively expensive, use
+`--samples 1` for a preliminary complete sequence, not a claimed
+five-sample comparison. `--max-case-ms` is a **soft** sample-level
+budget, not a timeout. No Paver is excluded from either run; the
+fineness stays identical for all strategies. A smaller output volume
+alone is not proof of exact geometric containment or proof of
+superior accuracy for the underlying reachable set.
 
 ### Certified difference-cell investigation
 
