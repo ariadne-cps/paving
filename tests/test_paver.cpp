@@ -525,7 +525,11 @@ class TestPaver : public Ariadne::Testing::ContextFixture {
             ARIADNE_TESTING_EXPECT_EQUAL(counters.constraint_evaluations, 0u);
             ARIADNE_TESTING_EXPECT_EQUAL(counters.constraint_reduction_calls, 0u);
             ARIADNE_TESTING_PROVE(counters.cell_splits > 0u);
-            ARIADNE_TESTING_EXPECT_EQUAL(counters.coverage_checks, counters.visited_nodes);
+            // Each parameter split saves one redundant coverage query on
+            // its first child; the second child must still be checked.
+            ARIADNE_TESTING_EXPECT_EQUAL(
+                counters.coverage_checks + counters.parameter_splits,
+                counters.visited_nodes);
             ARIADNE_TESTING_PROVE(counters.disjoint_checks > 0u);
             ARIADNE_TESTING_EXPECT_EQUAL(counters.cell_box_constructions, counters.disjoint_checks);
             ARIADNE_TESTING_EXPECT_EQUAL(counters.product_box_constructions, counters.disjoint_checks);
@@ -557,7 +561,9 @@ class TestPaver : public Ariadne::Testing::ContextFixture {
             ARIADNE_TESTING_PROVE(interval_only.constraint_evaluations > 0u);
             ARIADNE_TESTING_EXPECT_EQUAL(interval_only.constraint_reduction_calls, 0u);
             ARIADNE_TESTING_EXPECT_EQUAL(interval_only.join_constructions, 1u);
-            ARIADNE_TESTING_EXPECT_EQUAL(interval_only.coverage_checks, interval_only.visited_nodes);
+            ARIADNE_TESTING_EXPECT_EQUAL(
+                interval_only.coverage_checks + interval_only.parameter_splits,
+                interval_only.visited_nodes);
             ARIADNE_TESTING_EXPECT_EQUAL(interval_only.cell_box_constructions, interval_only.disjoint_checks);
             ARIADNE_TESTING_EXPECT_EQUAL(interval_only.product_box_constructions, interval_only.disjoint_checks);
             ARIADNE_TESTING_PROVE(

@@ -548,18 +548,25 @@ Void interval_constraint_adjoin_outer_approximation_recursion(
     const ValidatedVectorMultivariateFunction& constraints,
     const ValidatedVectorMultivariateFunction& combined,
     const ExactBoxType& bounds, const GridCell& cell, Nat fineness,
-    PaverDiagnostics* diagnostics, ConstraintDomainEvaluation* inherited_evaluation) {
+    PaverDiagnostics* diagnostics, ConstraintDomainEvaluation* inherited_evaluation,
+    bool known_uncovered) {
     if (diagnostics != nullptr)
         ++diagnostics->visited_nodes;
-    if (diagnostics != nullptr)
-        ++diagnostics->coverage_checks;
-    const bool covered = profile_paver_operation(
-        diagnostics, &PaverDiagnostics::coverage_ns,
-        [&] { return paving.superset(cell); });
-    if (covered) {
+    // The first child of a parameter split visits exactly the same cell
+    // before any paving mutation. Its parent has already proved that the
+    // cell is not covered, so repeating the query cannot change the result.
+    // Recheck the second child because the first one may have inserted cells.
+    if (not known_uncovered) {
         if (diagnostics != nullptr)
-            ++diagnostics->already_covered;
-        return;
+            ++diagnostics->coverage_checks;
+        const bool covered = profile_paver_operation(
+            diagnostics, &PaverDiagnostics::coverage_ns,
+            [&] { return paving.superset(cell); });
+        if (covered) {
+            if (diagnostics != nullptr)
+                ++diagnostics->already_covered;
+            return;
+        }
     }
 
     // A cell split retains this domain; a parameter split must start with
@@ -612,8 +619,8 @@ Void interval_constraint_adjoin_outer_approximation_recursion(
         if (diagnostics != nullptr)
             ++diagnostics->parameter_splits;
         const auto domains = domain.split(sensitivity.first);
-        interval_constraint_adjoin_outer_approximation_recursion(paving, domains.first, function, constraints, combined, bounds, cell, fineness, diagnostics, nullptr);
-        interval_constraint_adjoin_outer_approximation_recursion(paving, domains.second, function, constraints, combined, bounds, cell, fineness, diagnostics, nullptr);
+        interval_constraint_adjoin_outer_approximation_recursion(paving, domains.first, function, constraints, combined, bounds, cell, fineness, diagnostics, nullptr, true);
+        interval_constraint_adjoin_outer_approximation_recursion(paving, domains.second, function, constraints, combined, bounds, cell, fineness, diagnostics, nullptr, false);
     } else if (cell.depth() >= Int(fineness * cell.dimension())) {
         if (diagnostics != nullptr)
             ++diagnostics->adjoin_calls;
@@ -624,8 +631,8 @@ Void interval_constraint_adjoin_outer_approximation_recursion(
         if (diagnostics != nullptr)
             ++diagnostics->cell_splits;
         const auto cells = cell.split();
-        interval_constraint_adjoin_outer_approximation_recursion(paving, domain, function, constraints, combined, bounds, cells.first, fineness, diagnostics, &evaluation);
-        interval_constraint_adjoin_outer_approximation_recursion(paving, domain, function, constraints, combined, bounds, cells.second, fineness, diagnostics, &evaluation);
+        interval_constraint_adjoin_outer_approximation_recursion(paving, domain, function, constraints, combined, bounds, cells.first, fineness, diagnostics, &evaluation, false);
+        interval_constraint_adjoin_outer_approximation_recursion(paving, domain, function, constraints, combined, bounds, cells.second, fineness, diagnostics, &evaluation, false);
     }
 }
 
@@ -652,7 +659,7 @@ Void constraint_adjoin_outer_approximation(
         [&] { return join(function, constraints); });
     interval_constraint_adjoin_outer_approximation_recursion(
         paving, domain, function, constraints, combined, constraint_bounds,
-        cell, fineness, diagnostics, nullptr);
+        cell, fineness, diagnostics, nullptr, false);
 }
 
 Void procedure_constraint_adjoin_outer_approximation(PavingInterface& p, const ExactBoxType& d, const ValidatedVectorMultivariateFunction& f,

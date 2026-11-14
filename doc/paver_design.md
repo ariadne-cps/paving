@@ -427,3 +427,53 @@ dominates, then choose a single targeted optimization.
 Do not assume cheaper cell geometry or faster coverage queries
 without first observing these costs. Exact cross-revision geometric
 containment remains a separate outstanding verification.
+
+## 2026-11-14 - ConstraintPaver: skip provably redundant coverage queries
+
+**Status: committed candidate; benchmarks and tests pending.** Following
+the traversal-only profiling on the four dimension-3, fineness-4 cases,
+the measured wall-clock medians were 193.173 / 196.969 / 156.321 /
+423.669 ms (`uv-triangle`, `correlated-strip`, `product-cap`,
+`folded-quadratic`). The traversal diagnostic replay recorded:
+
+| Case | Visits | Parameter splits | `superset(cell)` before (ms) | `cell.box()` + product + disjoint (ms) | Baseline `Other` (ms) |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| `uv-triangle` | 90535 | 22568 | 28.403 | 4.264 | 61.580 |
+| `correlated-strip` | 102049 | 26086 | 31.938 | 5.039 | 68.973 |
+| `product-cap` | 82267 | 21333 | 25.904 | 3.987 | 54.451 |
+| `folded-quadratic` | 154829 | 36609 | 50.368 | 7.046 | 113.622 |
+
+The timings above belong to an **instrumented replay**, not the
+standard medians. `superset(cell)` accounts for around 12-16% of the
+profiled total; the three other explicit geometry operations together
+cost much less, so reducing box construction first is unlikely to pay.
+
+An internal `known_uncovered` flag is propagated **only** from a
+parameter-splitting parent to its first recursive child. Both visit
+the *same output cell*, and no paving mutation occurs between the
+parent's unsuccessful `superset(cell)` query and that first visit.
+Therefore the first child's identical coverage query is redundant.
+The second child continues to check coverage because the first child
+may have enabled cells. Both children of a **cell split** still check
+coverage, since a parent not covered can have individually covered
+subcells. This skips one check per parameter split but changes no
+constraint, sensitivity, disjointness, splitting, insertion, or
+geometric equality predicate. It requires no new state in the backend
+and preserves the generic `PavingInterface` dispatch.
+
+The instrumented invariant becomes
+`coverage_checks + parameter_splits == visited_nodes`, replacing
+`coverage_checks == visited_nodes`. The four previous runs imply
+candidate coverage-check counts of 67967, 75963, 60934 and 118220
+respectively **if the traversal counts remain unchanged**. These
+are predictions to validate, not observed candidate measurements.
+
+**Validation:** build and run `test_paver`, then run
+`benchmark_pavers --dimensions 3 --finenesses 4
+--shapes uv-triangle,correlated-strip,product-cap,folded-quadratic
+--pavers constraint --samples 5 --max-case-ms 0 --diagnostics`
+and compare exact resulting pavings across revisions by bidirectional
+cell containment (not only cell counts and volume). Check both fresh
+and pre-enabled pavings, since a second parameter child can observe
+insertions by its first sibling. Revert if the gain is not repeatable
+or any geometric regression occurs.
