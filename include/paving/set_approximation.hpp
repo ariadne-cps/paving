@@ -30,6 +30,7 @@
 #define ARIADNE_PAVING_SET_APPROXIMATION_HPP
 
 #include "geometry/declarations.hpp"
+#include "geometry/set.decl.hpp"
 
 namespace Ariadne {
 
@@ -45,8 +46,6 @@ class ConstrainedImageSet;
 class ValidatedConstrainedImageSet;
 /** @brief ValidatedAffineConstrainedImageSet undefined used by paving algorithms. */
 class ValidatedAffineConstrainedImageSet;
-/** @brief EffectiveEuclideanCompactSetInterface supports compact set classification. */
-class EffectiveEuclideanCompactSetInterface;
 
 namespace PavingDetail {
 

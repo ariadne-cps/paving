@@ -3364,8 +3364,8 @@ out of `src/prepared_separation.hpp`, which is deleted. The logical
 home is the existing `include/paving/set_approximation.hpp`, where
 the signature is declared, with the implementation in the existing
 `src/set_approximation.cpp`. Keep the interface header lightweight:
-its callers need only the `ConstrainedImageSet` and
-`EffectiveEuclideanCompactSetInterface` forward declarations;
+its callers need only a `ConstrainedImageSet` forward declaration and
+the existing `EffectiveEuclideanCompactSetInterface` type alias;
 the implementation owns the `<typeinfo>` and `set/function_set.hpp`
 dependencies. This avoids adding a heavy set header and RTTI
 implementation code to every consumer of a public paving header.
@@ -3392,3 +3392,25 @@ concurrency and prepared-separation tests remain registered.
 --output-on-failure`; check that no active source refers
 to either removed private helper header. No benchmark
 runtime improvements are claimed for this code move.
+
+### 2026-11-14 - Correct the prepared-separation interface alias declaration
+
+The ARCH nested build exposed a compile error in
+`include/paving/set_approximation.hpp`: the previously introduced
+`class EffectiveEuclideanCompactSetInterface;` forward declaration
+conflicts with the existing type alias from
+`geometry/set.decl.hpp`:
+`using EffectiveEuclideanCompactSetInterface = CompactSetInterface<EffectiveTag, RealVector>;`.
+
+Include the existing lightweight `geometry/set.decl.hpp` header
+and remove the illegal class forward declaration. Keep the
+`PavingDetail::prepared_separation_source` signature and
+`src/set_approximation.cpp` implementation unchanged. No
+Paving algorithm or constructor behavior changes. This
+addresses the exact diagnostic from the ARCH compiler;
+local rebuild and tests are still required.
+
+After committing, propagate the resulting Paving commit through
+the nested Drawing, Labelled, Hybrid, System, Evolution,
+Reasoning, Ariadne and experimental ARCH branch gitlinks;
+do not modify `arch/main`.
