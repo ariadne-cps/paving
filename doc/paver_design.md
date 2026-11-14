@@ -1936,3 +1936,45 @@ retaining HullOnly geometry *without a hard-coded switch index*.
 No production Paver algorithm or nested gitlink was modified in
 the fixture capture/replay work.
 
+### Certified HullOnly contractor elision experiment (2026-11-14)
+
+The `ReducePaverReductionMode::HullOnlyCertifiedSkip` mode is a
+**non-default, experimental** optimization. The original
+`ReducePaver(HullOnly)`, full Reduce and Constraint implementations
+are unchanged. Before running any hull contractor at a recursion node,
+the new mode checks whether the already evaluated validated image
+range of the complete parameter domain lies within the candidate output
+cell. Only in that case does it additionally evaluate the constraint
+range; if every constraint range also lies within its allowed bounds,
+the whole parameter domain already satisfies every contractor target.
+No sound contractor can narrow this domain, so the hull pass is
+omitted. Any uncertain proof attempt runs the original contractor.
+
+The condition is per recursion node, not a hard-coded enclosure index,
+model count, grid threshold, or fitted SPRE22 classifier. Diagnostics
+count skipped hull nodes separately. This experiment does not yet
+constitute a general adaptive choice between Constraint and HullOnly:
+it tests whether certified redundant *hull reductions* can be cheaply
+detected while retaining HullOnly geometry.
+
+With the 48 real SPRE22 fixtures present, run:
+
+```sh
+cmake --build build-release --target benchmark_spre22_fixture
+./build-release/benchmarks/benchmark_spre22_fixture \
+  --fineness 4 --samples 5 --max-enclosures 48 --hybrid-switch 16 \
+  --certified-skip
+```
+
+The option runs a fourth pure sequence (`reduce-hull-certified-skip`),
+reports its timing, verifies exact bidirectional geometry against
+HullOnly, and fails with code 3 on mismatch. A separate untimed,
+instrumented candidate replay reports how many contractor passes
+the certificate skipped. The established three-strategy baseline is
+still the default when the flag is absent. The comparison must be
+compiled and run before claiming either an improvement or equal
+geometry of the new candidate; equality of output volumes alone is
+insufficient. If the certificate adds overhead without enough skipped
+contractors, the hypothesis is disproved for this workload and the
+mode should not replace HullOnly.
+

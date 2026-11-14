@@ -96,6 +96,7 @@ struct PaverDiagnostics {
     SizeType reduction_calls = 0u;
     SizeType box_reduction_calls = 0u;
     SizeType hull_reduction_calls = 0u;
+    SizeType certified_hull_skips = 0u;
     SizeType constraint_reduction_calls = 0u;
     SizeType join_constructions = 0u;
     SizeType disjoint_rejections = 0u;
@@ -160,7 +161,7 @@ class SubdivisionPaver : public PaverInterface {
 
 //! \brief Reduction passes enabled by ReducePaver.
 //! \details Non-default modes are intended for controlled contractor ablations.
-enum class ReducePaverReductionMode { Full, BoxOnly, HullOnly };
+enum class ReducePaverReductionMode { Full, BoxOnly, HullOnly, HullOnlyCertifiedSkip };
 
 //! \brief A class for computing outer approximations to sets defined by functions.
 class ReducePaver : public PaverInterface {
