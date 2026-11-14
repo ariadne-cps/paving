@@ -565,3 +565,16 @@ exact geometry per strategy, geometric relations across strategies,
 and the isolated/accumulating relationship before interpreting
 speed ratios. Record the measured times and profiles here only
 after they have been obtained; do not assume a winner.
+
+### First build feedback: effective-function constant type
+
+The first macOS arm64 Release compile failed in
+`benchmark_paver_sequences.cpp` at the time-map expression
+`k * 0.125_x + u[0] * 0.0625_x`. The left term has type
+`ApproximateDouble`, which cannot be added directly to an
+`EffectiveScalarMultivariateFunction`. Replace it with an explicit
+effective constant function for the exact rational offset `k/8`
+(`EffectiveScalarMultivariateFunction::constant(5u, Real(k)/Real(8))`).
+This changes only construction of the deterministic fixture, not
+Paver algorithms or benchmark measurement logic. **Build status
+remains unverified until the user recompiles.**

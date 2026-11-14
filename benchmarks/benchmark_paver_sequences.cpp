@@ -140,7 +140,11 @@ make_enclosures(const std::string& scenario, unsigned steps) {
         const int dy = (scenario == "overlap" ? 1 : 25) * k;
 
         List<EffectiveScalarMultivariateFunction> components;
-        components.append(k * 0.125_x + u[0] * 0.0625_x);
+        // Use an exact symbolic constant: k * 0.125_x would be an
+        // ApproximateDouble and cannot be added to an effective function.
+        const auto time_offset =
+            EffectiveScalarMultivariateFunction::constant(5u, Real(k) / Real(8));
+        components.append(time_offset + u[0] * 0.0625_x);
         components.append(-900 + dx + 16 * u[0] + 8 * u[1] + 2 * u[0] * u[1]);
         components.append(-400 + dy + 12 * u[1] + 6 * u[2] + 2 * u[1] * u[2]);
         components.append(2 + u[2] * 0.5_x + u[3] * 0.25_x + u[0] * u[0] * 0.125_x);
