@@ -477,3 +477,42 @@ cell containment (not only cell counts and volume). Check both fresh
 and pre-enabled pavings, since a second parameter child can observe
 insertions by its first sibling. Revert if the gain is not repeatable
 or any geometric regression occurs.
+
+## 2026-11-14 - Measured results of redundant-coverage elimination
+
+**Disposition: KEEP on main based on user-supplied performance evidence;
+cross-revision exact geometry comparison and complete test status remain
+unverified.** The candidate is commit
+[`900f0f6`](https://github.com/ariadne-cps/paving/commit/900f0f6ff00025a22527ffb6ba8fca2b76d4466a).
+Release, dimension 3, fineness 4, five completed samples per case,
+`--diagnostics`, `--pavers constraint`. The preceding measurements
+were from the profiling-only revision `1674b28`; these runs were not
+documented as interleaved A/B trials.
+
+| Case | Before median (ms) | After median (ms) | After MAD (ms) | Reduction | Superset before -> after (ms) | Coverage checks before -> after |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| `uv-triangle` | 193.173 | 185.474 | 0.186 | 4.0% | 28.403 -> 22.045 | 90535 -> 67967 |
+| `correlated-strip` | 196.969 | 190.181 | 0.330 | 3.4% | 31.938 -> 25.104 | 102049 -> 75963 |
+| `product-cap` | 156.321 | 149.547 | 0.165 | 4.3% | 25.904 -> 19.625 | 82267 -> 60934 |
+| `folded-quadratic` | 423.669 | 412.313 | 0.077 | 2.7% | 50.368 -> 39.390 | 154829 -> 118220 |
+
+The measured coverage counts exactly match `visits - parameter_splits`
+(22568, 26086, 21333, 36609 split domains respectively).
+All four cases retained identical visits, parameter splits, cell splits,
+map/constraint evaluations, sensitivity evaluations, rejections, already
+covered counts and adjoins. Final cell counts and approximate volumes
+were unchanged: `uv-triangle` 701 / 0.826172; `correlated-strip` 706 / 0.940430; `product-cap` 627 / 0.760254; `folded-quadratic` 1065 / 1.423828.
+
+The reduced `superset` cost and improved wall-clock medians are
+consistent with the intended removal of one redundant query per parameter
+split, without a change in traversal. The remaining `Other` times
+are 61.574 / 69.050 / 54.381 / 113.169 ms; this is still an unassigned
+mixture of recursion, bookkeeping, splitting and measurement overhead,
+not evidence of any single bottleneck. The detailed geometry operations
+are each small compared with coverage and sensitivity.
+
+**Outstanding:** exact baseline/candidate bidirectional cell containment
+(including pre-enabled pavings), platform builds, and full `test_paver`
+results were not supplied. Equal aggregate geometry and identical
+algorithm counters do not establish exact cell equivalence. Do not
+report these as passed.
