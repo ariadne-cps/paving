@@ -45,6 +45,18 @@ class ConstrainedImageSet;
 class ValidatedConstrainedImageSet;
 /** @brief ValidatedAffineConstrainedImageSet undefined used by paving algorithms. */
 class ValidatedAffineConstrainedImageSet;
+/** @brief EffectiveEuclideanCompactSetInterface supports compact set classification. */
+class EffectiveEuclideanCompactSetInterface;
+
+namespace PavingDetail {
+
+// Preparation snapshots the base ConstrainedImageSet implementation.
+// Derived virtual predicates must retain their dispatch and the solver
+// requires positive dimension. Return nullptr for other set kinds.
+const ConstrainedImageSet* prepared_separation_source(
+    const EffectiveEuclideanCompactSetInterface& set);
+
+} // namespace PavingDetail
 
 // Paving operations for set-owned representations. The set module does not depend on paving.
 /** @brief Perform the requested paving operation. */

@@ -28,6 +28,8 @@
 
 #include "paving/set_approximation.hpp"
 
+#include <typeinfo>
+
 #include "algebra/matrix.hpp"
 #include "algebra/vector.hpp"
 #include "logging/logging.hpp"
@@ -44,6 +46,19 @@
 #include "linear-programming/linear_simplex_algorithm.hpp"
 
 namespace Ariadne {
+
+namespace PavingDetail {
+
+const ConstrainedImageSet* prepared_separation_source(
+    const EffectiveEuclideanCompactSetInterface& set) {
+    const auto* constrained = dynamic_cast<const ConstrainedImageSet*>(&set);
+    if (constrained and typeid(*constrained) == typeid(ConstrainedImageSet) and
+        constrained->dimension() != 0u)
+        return constrained;
+    return nullptr;
+}
+
+} // namespace PavingDetail
 
 // Feasibility data local to paving. Set exposes its coefficients directly.
 struct PavingFeasibilityData {

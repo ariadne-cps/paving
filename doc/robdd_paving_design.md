@@ -3355,3 +3355,40 @@ run `ctest --test-dir build-release -R '^test_paving_backends$'
 --output-on-failure`; inspect the repo for any remaining references
 to the removed symbol in active source or CMake. Source edits
 alone do not establish successful local compilation.
+
+
+## 2026-11-14 - Relocate preparation helper to set approximation
+
+Move the single `PavingDetail::prepared_separation_source` function
+out of `src/prepared_separation.hpp`, which is deleted. The logical
+home is the existing `include/paving/set_approximation.hpp`, where
+the signature is declared, with the implementation in the existing
+`src/set_approximation.cpp`. Keep the interface header lightweight:
+its callers need only the `ConstrainedImageSet` and
+`EffectiveEuclideanCompactSetInterface` forward declarations;
+the implementation owns the `<typeinfo>` and `set/function_set.hpp`
+dependencies. This avoids adding a heavy set header and RTTI
+implementation code to every consumer of a public paving header.
+
+The predicate keeps its exact original behavior: only a concrete
+`ConstrainedImageSet` of nonzero dimension can be prepared;
+derived sets retain their virtual `separated()` dispatch.
+Both existing callers in `binary_tree_paving.cpp` and
+`robdd_paving.cpp` continue using precisely the same shared
+`PavingDetail` function. The prepared snapshot and all
+set/solver semantics are unchanged. Update the backend regression's
+include while preserving `test_prepared_solver_dispatch`.
+
+**Residual retirement fix:** the previous removal of experimental
+parallel ROBDD classification left `test_parallel_classification.cpp`
+and its `tests/CMakeLists.txt` registration behind. Since that
+test depends on the now-deleted `src/parallel_classification.hpp`,
+delete the obsolete test and its CMake entry. All unrelated paving
+concurrency and prepared-separation tests remain registered.
+
+**Validation still required:** build the Paving module and
+`test_paving_backends` and run `ctest --test-dir build-release
+-R '^(test_paving_backends|test_set_approximation)$'
+--output-on-failure`; check that no active source refers
+to either removed private helper header. No benchmark
+runtime improvements are claimed for this code move.

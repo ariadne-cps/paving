@@ -40,7 +40,7 @@
 #include "paving/binary_tree_paving.hpp"
 #include "paving/grid_cell_alignment.hpp"
 #include "paving/paving_cell_operations.hpp"
-#include "prepared_separation.hpp"
+#include "paving/set_approximation.hpp"
 #include "set/function_set.hpp"
 #include "utility/macros.hpp"
 

@@ -31,7 +31,7 @@
 #include <type_traits>
 #include <vector>
 
-#include "../src/prepared_separation.hpp"
+#include "paving/set_approximation.hpp"
 #include "paving/binary_tree_paving.hpp"
 #include "paving/paving_cell_operations.hpp"
 #include "paving/robdd_paving.hpp"

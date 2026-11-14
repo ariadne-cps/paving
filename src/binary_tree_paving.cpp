@@ -39,7 +39,7 @@
 #include "geometry/set_interface.hpp"
 #include "paving/grid_cell_alignment.hpp"
 #include "paving/paving_cell_operations.hpp"
-#include "prepared_separation.hpp"
+#include "paving/set_approximation.hpp"
 #include "set/function_set.hpp"
 #include "set/list_set.hpp"
 #include "tree/binary_tree.hpp"
