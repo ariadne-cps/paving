@@ -25,3 +25,13 @@ add_executable(benchmark_cached_binary_tree_paving benchmark_cached_binary_tree_
 target_link_libraries(benchmark_cached_binary_tree_paving PRIVATE
     ariadne-paving paving ariadne-benchmarking)
 add_dependencies(benchmarks benchmark_cached_binary_tree_paving)
+
+# Optional real SPRE22 replay. Do not substitute a synthetic fixture.
+if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/fixtures/spre22_enclosures.generated.hpp")
+    add_executable(benchmark_spre22_fixture benchmark_spre22_fixture.cpp)
+    target_link_libraries(benchmark_spre22_fixture PRIVATE
+        ariadne-paving paving ariadne-benchmarking)
+    add_dependencies(benchmarks benchmark_spre22_fixture)
+else()
+    message(STATUS "Real SPRE22 fixture absent; generate it from ARCH before building benchmark_spre22_fixture")
+endif()
