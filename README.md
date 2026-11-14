@@ -339,6 +339,46 @@ controlled comparison of algorithm settings, **not a guarantee of
 equal outer-approximation tightness**; compare the resulting paving
 geometries as well as times.
 
+### Certified difference-cell investigation
+
+Use `--difference-probe` to inspect the **geometric difference**
+`ConstraintPaver \ SubdivisionPaver` for the **same fineness, input
+sequence and grid**. The option requires both Pavers and verifies
+that Subdivision's resulting paving is contained in Constraint's
+before proceeding. This probe is independent of `--diagnostics`;
+it never affects timed Paver work or their produced geometries.
+
+The exact paving difference is expanded into uniform cells at the
+requested fineness. For each selected excess cell, the probe attempts
+to certify **disjointness from every original enclosure** using
+validated interval evaluation of the combined map and parameter
+constraints. If a full-domain interval enclosure overlaps, the
+diagnostic recursively bisects parameter domains in a fixed cyclic
+order up to `--difference-depth` (default 6). An inconclusive
+result remains `Unresolved`: it is **not** evidence that the cell
+intersects the true image.
+
+`--difference-cells` controls the number of uniformly distributed
+deterministic samples of excess cells (default 64; **0 means all**).
+The table gives `Extra cells` (total at this fineness), `Probed`,
+`Root excluded` (no subdivision needed), `Refined excluded`
+(certified only after parameter subdivision), `Unresolved`,
+and `Range evals`. A sampled result must not be extrapolated as
+a count for all excess cells.
+
+Run from the Release build directory:
+
+```bash
+./benchmarks/benchmark_paver_sequences --finenesses 4 --steps 6 --samples 1 --scenarios overlap --modes accumulating --pavers subdivision,constraint --verify-only --difference-probe --difference-cells 64 --difference-depth 6 -t dark
+```
+
+For a **complete** exhaustive check at that depth, replace
+`--difference-cells 64` with `--difference-cells 0`. The
+probe is separate from normal timings and can be computationally
+expensive: a depth increment can double the number of interval
+evaluations per unresolved cell. The certificate is based on
+strict interval separation and never removes or adds output cells.
+
 For a **time versus geometric-tightness frontier**, select multiple
 finenesses in one invocation, keeping scenario, mode and enclosure
 count identical:

@@ -1017,3 +1017,90 @@ criterion change should then be tested A/B with exact
 geometric containment, preserving the original
 certified outer-approximation semantics. Neither Paver
 has been modified in response to these measurements.
+
+
+## 2026-11-14 - Certified exclusion probe for Constraint-only cells
+
+**Status: standalone benchmark diagnostic implemented, compilation and
+runtime validation pending; no changes to either Paver algorithm.**
+
+At five-dimensional fineness 4 on the user-supplied six-enclosure
+SPRE22-inspired sequence, `ConstraintPaver` gives 1500 uniform
+fine cells prior to recombination, versus 696 from
+`SubdivisionPaver`. Since the latter is exactly contained in
+the former on this case, 804 uniform f=4 cells lie in
+`Constraint \ Subdivision`. Merely comparing the two outputs
+does not establish which of these cells can be removed without
+violating outer-approximation soundness.
+
+New optional `benchmark_paver_sequences --difference-probe`
+performs a *separate*, untimed and non-mutating experiment,
+only for configurations running **both** Pavers at the same
+fineness. Construct the exact set difference using the paving
+library's `difference(constraint, subdivision)`; enumerate
+its enabled cells at exact requested fineness using
+`for_each_enabled_cell_at_exact_fineness` (regardless of
+their underlying recombined representation). Verify
+Subdivision is geometrically contained in Constraint.
+Record the exact number of exclusive cells, not inferred
+from total cell count or volume.
+
+For each investigated cell, build the validated combined
+map `join(set.function(), set.constraint_function())`,
+and `set.constraint_bounds()` for each original
+enclosure in the sequence. Perform certified interval
+separation using
+`definitely(disjoint(apply(combined, domain),
+product(cell.box(), constraint_bounds)))`.
+If the initial test fails, bisect the *parameter domain*
+in a fixed cyclic coordinate order, rechecking subdomains
+up to configurable depth. A cell can be proved excluded
+from the **union of enclosures** only if the separation
+proof succeeds for every enclosure. Otherwise report
+`Unresolved`: non-disjoint interval bounds at finite
+depth are **not proof of intersection**. No boundary
+touching is treated as definite separation.
+
+The table records `Extra cells`, `Probed`, `Root
+excluded` (all enclosure roots disjoint), `Refined
+excluded` (at least one enclosure requires domain
+bisecting), `Unresolved`, `Range evals`, and the
+maximum parameter split depth. `--difference-cells 64`
+samples 64 approximately evenly spaced cells
+deterministically from the enumeration; `0` probes all
+of them. `--difference-depth 6` bounds each
+unresolved search branch by six parameter bisections;
+increasing it can cause exponential work. Probes
+run after measurement or `--verify-only` and are
+never part of Paver wall-clock samples.
+
+The procedure deliberately uses only the public
+validated map/constraint interval API, not the
+internal `ConstraintPaver` recursion or its
+stopping criterion. Consequently it can independently
+certify *some* lost precision and reveal whether
+more parameter refinement would help, but it is
+not a proof that the legacy algorithm's particular
+decision was wrong. A cell that is certified excluded
+by the deeper probe is a candidate for removal by a
+future certified refinement algorithm, not a mutation
+performed by the diagnostic.
+
+**Validation commands (from Release build directory):**
+
+```bash
+cmake --build . --target benchmark_paver_sequences
+./benchmarks/benchmark_paver_sequences --finenesses 4 --steps 6 --samples 1 --scenarios overlap --modes accumulating --pavers subdivision,constraint --verify-only --difference-probe --difference-cells 64 --difference-depth 6 -t dark
+./benchmarks/benchmark_paver_sequences --finenesses 4 --steps 6 --samples 1 --scenarios overlap --modes accumulating --pavers subdivision,constraint --verify-only --difference-probe --difference-cells 0 --difference-depth 6 -t dark
+```
+
+Validate exact-geometry pairwise comparison and the
+expected count of 804 exclusive uniform cells for this
+fixture. Do not use the sampling result to infer the
+number of all excluded cells; use `--difference-cells 0`
+for exhaustive enumeration. Repeat with different
+depths to determine whether unresolved classifications
+are caused by a weak interval enclosure, a shallow
+split budget, or possible true/boundary intersection.
+Keep the historical benchmarks and both Paver algorithms
+unchanged.

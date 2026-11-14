@@ -170,6 +170,108 @@ make_enclosures(const std::string& scenario, unsigned steps) {
     return sets;
 }
 
+// Diagnostic-only data for validating that an output cell is disjoint
+// from the image of one of the sequence's original enclosures.
+struct SeparationContext {
+    ExactBoxType domain;
+    ValidatedVectorMultivariateFunction combined;
+    ExactBoxType bounds;
+};
+
+// A failed interval disjointness test is inconclusive; never treat it as
+// an intersection certificate. Subdivide the parameter domain using a
+// fixed cyclic order, so the additional check is independent of either
+// Paver's split choices and deterministic across runs.
+bool prove_disjoint_by_domain_splitting(
+    const ValidatedVectorMultivariateFunction& combined,
+    const ExactBoxType& target, const ExactBoxType& domain,
+    unsigned remaining_depth, unsigned split_index, SizeType& evaluations,
+    bool& used_refinement) {
+    ++evaluations;
+    const auto image = apply(combined, domain);
+    if (definitely(disjoint(image, target)))
+        return true;
+    if (remaining_depth == 0u or domain.dimension() == 0u)
+        return false;
+    used_refinement = true;
+    const SizeType axis = static_cast<SizeType>(split_index) % domain.dimension();
+    const auto halves = domain.split(axis);
+    return prove_disjoint_by_domain_splitting(
+               combined, target, halves.first, remaining_depth - 1u,
+               split_index + 1u, evaluations, used_refinement) &&
+           prove_disjoint_by_domain_splitting(
+               combined, target, halves.second, remaining_depth - 1u,
+               split_index + 1u, evaluations, used_refinement);
+}
+
+struct DifferenceProbe {
+    SizeType exclusive_cells = 0u;
+    SizeType tested_cells = 0u;
+    SizeType root_certified = 0u;
+    SizeType refined_certified = 0u;
+    SizeType unresolved = 0u;
+    SizeType range_evaluations = 0u;
+};
+
+// Build all combined validated maps once, outside the timed benchmark.
+// If every enclosure is disjoint from the cell, then the union is
+// certified disjoint. This is a sufficient test, not a membership test.
+DifferenceProbe analyze_exclusive_cells(
+    const BinaryTreePaving& subdivision, const BinaryTreePaving& constraint,
+    const std::vector<ValidatedConstrainedImageSet>& sets,
+    unsigned fineness, unsigned maximum_cells, unsigned parameter_depth) {
+    const auto exclusive = difference(constraint, subdivision);
+    std::vector<GridCell> cells;
+    exclusive.for_each_enabled_cell_at_exact_fineness(
+        fineness, [&](const GridCell& cell) { cells.push_back(cell); });
+
+    DifferenceProbe result;
+    result.exclusive_cells = cells.size();
+    const SizeType requested = maximum_cells == 0u
+        ? cells.size()
+        : std::min(cells.size(), static_cast<SizeType>(maximum_cells));
+    result.tested_cells = requested;
+    if (requested == 0u)
+        return result;
+
+    std::vector<SeparationContext> contexts;
+    contexts.reserve(sets.size());
+    for (const auto& set: sets)
+        contexts.push_back({
+            set.reduced_domain(),
+            join(set.function(), set.constraint_function()),
+            set.constraint_bounds()});
+
+    // Sample across the entire exact-depth cell stream (deterministic
+    // systematic positions), not just its beginning. 0 means all cells.
+    for (SizeType i = 0u; i != requested; ++i) {
+        const SizeType index = requested == 1u ? 0u
+            : i * (cells.size() - 1u) / (requested - 1u);
+        const auto& cell = cells[index];
+        bool refined = false;
+        bool all_excluded = true;
+        for (const auto& context: contexts) {
+            const auto target = product(cell.box(), context.bounds);
+            if (not prove_disjoint_by_domain_splitting(
+                    context.combined, target, context.domain,
+                    parameter_depth, 0u, result.range_evaluations, refined)) {
+                all_excluded = false;
+                break;
+            }
+        }
+        if (not all_excluded)
+            ++result.unresolved;
+        else if (refined)
+            ++result.refined_certified;
+        else
+            ++result.root_certified;
+    }
+    if (result.root_certified + result.refined_certified +
+        result.unresolved != result.tested_cells)
+        throw std::runtime_error("difference-probe classification mismatch");
+    return result;
+}
+
 // Exactly the same sequence is presented to both Pavers. In "isolated",
 // every enclosure starts with an empty paving; their union is constructed
 // only in verify(). In "accumulating", the same paving is reused, allowing
@@ -213,7 +315,9 @@ void run(const Bench::CommandLine& cli, const Bench::Matrix& matrix,
          const Bench::Parameter<unsigned>& steps,
          const Bench::Parameter<unsigned>& samples,
          const std::vector<Strategy>& strategies,
-         bool diagnostics, bool verify_only, unsigned max_case_ms) {
+         bool diagnostics, bool verify_only, unsigned max_case_ms,
+         bool difference_probe, unsigned difference_cells,
+         unsigned difference_depth) {
     Bench::Runner runner(cli, matrix.combinations());
     Bench::Runner sample_runner(0u, matrix.combinations());
     auto fields = cli.summary_fields();
@@ -253,6 +357,22 @@ void run(const Bench::CommandLine& cli, const Bench::Matrix& matrix,
     Bench::Table frontier({{"Scenario"}, {"Mode"}, {"Steps"}, {"Samples"},
                            {"Fineness"}, {"Paver"}, {"Median (ms)"}, {"Cells"},
                            {"Outer volume"}, {"Volume / tightest"}, {"Status"}});
+    Bench::Table exclusive_probe({{"Scenario"}, {"Mode"}, {"Fine"}, {"Steps"},
+                                  {"Extra cells"}, {"Probed"}, {"Root excluded"},
+                                  {"Refined excluded"}, {"Unresolved"},
+                                  {"Range evals"}, {"Max depth"}});
+
+    if (difference_probe) {
+        const bool has_subdivision = std::any_of(
+            strategies.begin(), strategies.end(),
+            [](const Strategy& s) { return s.name == "subdivision"; });
+        const bool has_constraint = std::any_of(
+            strategies.begin(), strategies.end(),
+            [](const Strategy& s) { return s.name == "constraint"; });
+        if (not has_subdivision or not has_constraint)
+            throw std::invalid_argument(
+                "--difference-probe requires --pavers subdivision,constraint");
+    }
 
     const Grid grid = scaled_grid();
     std::vector<Outcome> finished;
@@ -408,6 +528,36 @@ void run(const Bench::CommandLine& cli, const Bench::Matrix& matrix,
                                   relation(*case_outcomes[i].paving,
                                            *case_outcomes[j].paving)});
 
+        if (difference_probe) {
+            const BinaryTreePaving* subdivision = nullptr;
+            const BinaryTreePaving* constraint = nullptr;
+            for (const auto& outcome: case_outcomes) {
+                if (outcome.strategy == "subdivision")
+                    subdivision = outcome.paving.get();
+                else if (outcome.strategy == "constraint")
+                    constraint = outcome.paving.get();
+            }
+            if (subdivision == nullptr or constraint == nullptr)
+                throw std::invalid_argument(
+                    "--difference-probe requires both subdivision and constraint");
+            if (not contains(*constraint, *subdivision))
+                throw std::runtime_error(
+                    "difference probe requires Subdivision subset of Constraint; "
+                    "Pavers are geometrically incomparable");
+            const auto probe = analyze_exclusive_cells(
+                *subdivision, *constraint, sets, f, difference_cells,
+                difference_depth);
+            exclusive_probe.add_row({
+                scenario, mode, std::to_string(f), std::to_string(count),
+                std::to_string(probe.exclusive_cells),
+                std::to_string(probe.tested_cells),
+                std::to_string(probe.root_certified),
+                std::to_string(probe.refined_certified),
+                std::to_string(probe.unresolved),
+                std::to_string(probe.range_evaluations),
+                std::to_string(difference_depth)});
+        }
+
         for (auto& outcome: case_outcomes)
             finished.push_back(std::move(outcome));
         runner.configuration_completed(c);
@@ -500,6 +650,10 @@ void run(const Bench::CommandLine& cli, const Bench::Matrix& matrix,
     LOGGING_PRINTLN(across_fineness.str())
     LOGGING_PRINTLN("Paver pairwise geometry (bidirectional cell coverage):")
     LOGGING_PRINTLN(pairwise.str())
+    if (difference_probe) {
+        LOGGING_PRINTLN("Constraint minus Subdivision: certified cell exclusion (not timed):")
+        LOGGING_PRINTLN(exclusive_probe.str())
+    }
     LOGGING_PRINTLN("Isolated versus accumulating geometry (same Paver):")
     LOGGING_PRINTLN(mode_geometry.str())
     if (diagnostics) {
@@ -541,6 +695,9 @@ int main(int argc, const char* argv[]) {
 
         bool diagnostics = false;
         bool verify_only = false;
+        bool difference_probe = false;
+        unsigned difference_cells = 64u;
+        unsigned difference_depth = 6u;
         unsigned max_case_ms = 5000u;
         auto selected = parse_pavers(String("all"));
         Bench::CommandLine cli;
@@ -560,6 +717,24 @@ int main(int argc, const char* argv[]) {
         options.append(make_unvalued_argument_parser(
             "", "verify-only", "Validate sequence geometry without timing",
             [&verify_only] { verify_only = true; }));
+        options.append(make_unvalued_argument_parser(
+            "", "difference-probe",
+            "Certify cells in Constraint minus Subdivision (outside timed samples)",
+            [&difference_probe] { difference_probe = true; }));
+        options.append(make_valued_argument_parser(
+            "", "difference-cells",
+            "Number of evenly sampled exclusive cells (0 = all; default 64)",
+            [&difference_cells](const String& value) -> VoidFunction {
+                const unsigned n = Bench::parse_unsigned<unsigned>(value);
+                return [&difference_cells, n] { difference_cells = n; };
+            }));
+        options.append(make_valued_argument_parser(
+            "", "difference-depth",
+            "Max parameter bisections per branch in exclusion probe (default 6)",
+            [&difference_depth](const String& value) -> VoidFunction {
+                const unsigned n = Bench::parse_unsigned<unsigned>(value);
+                return [&difference_depth, n] { difference_depth = n; };
+            }));
         options.append(make_valued_argument_parser(
             "", "max-case-ms", "Soft time budget per configuration/Paver (0 disables)",
             [&max_case_ms](const String& value) -> VoidFunction {
@@ -570,7 +745,8 @@ int main(int argc, const char* argv[]) {
         if (not cli.acquire(argc, argv))
             return 0;
         run(cli, matrix, finenesses, scenarios, modes, steps, samples,
-            selected, diagnostics, verify_only, max_case_ms);
+            selected, diagnostics, verify_only, max_case_ms,
+            difference_probe, difference_cells, difference_depth);
         return 0;
     } catch (const std::exception& exception) {
         LOGGING_PRINTLN("benchmark_paver_sequences: " << exception.what())
