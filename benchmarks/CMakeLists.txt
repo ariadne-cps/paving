@@ -31,6 +31,15 @@ if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/fixtures/spre22_enclosures.generated.hpp"
     add_executable(benchmark_spre22_fixture benchmark_spre22_fixture.cpp)
     target_link_libraries(benchmark_spre22_fixture PRIVATE
         ariadne-paving paving ariadne-benchmarking)
+    # The captured 48-enclosure header expands into one extremely large
+    # inline factory. GCC can skip memory-intensive optimization passes
+    # for this function and report -Wdisabled-optimization. Do not turn
+    # off -Werror globally: downgrade only that warning, only for this
+    # optional benchmark target, and only when compiling with GCC.
+    if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
+        target_compile_options(benchmark_spre22_fixture PRIVATE
+            -Wno-error=disabled-optimization)
+    endif()
     add_dependencies(benchmarks benchmark_spre22_fixture)
 else()
     message(STATUS "Real SPRE22 fixture absent; generate it from ARCH before building benchmark_spre22_fixture")
