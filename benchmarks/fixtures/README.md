@@ -28,21 +28,9 @@ generator commit and capture parameters in the fixture commit message.
 
 No production Paving code or gitlinks depend on this fixture.
 
-## Exact static geometric analysis (no benchmark required)
+## Static geometric analysis
 
-The committed `analyze_spre22_geometry.py` checks the captured Taylor
-maps and uniform errors using exact rational Bernstein bounds. It shows
-why the later enclosure families can be proved separated from the lower
-spatial faces of their original parameter boxes even though independent
-coefficient interval bounds overlap those faces.
-
-```sh
-python3 benchmarks/fixtures/analyze_spre22_geometry.py --full
-```
-
-This reads the real header directly and requires only Python 3.9+;
-it does not compile/run Pavers or evolve SPRE22. It proves geometrical
-disjointness of certain grid-aligned candidate boxes, not which cells
-remain in the two Paver outputs. See `doc/paver_design.md` for the
-certified margins and interpretation.
-
+The results of the exact-rational Bernstein inspection of the real
+fixture, including certified margins and limitations, are recorded
+in `doc/paver_design.md`. The one-off Python script was intentionally
+removed; any future automated analysis will use C++.

@@ -2080,14 +2080,11 @@ for every xi in [-1,1]^5:
     F_j(xi) >= min(BernsteinCoefficients(p_j)) - e_j.
 ```
 
-This bound is computed with Python `fractions.Fraction`, not rounded
-arithmetic, in `benchmarks/fixtures/analyze_spre22_geometry.py`.
+The results below are retained as a record of the exact-rational
+analysis performed on the captured header. The standalone analysis
+script was subsequently removed to keep tooling in C++.
 The first nominal parameter is fixed to zero; no model polynomial
-depends on it. To reproduce the calculations without building C++:
-
-```sh
-python3 benchmarks/fixtures/analyze_spre22_geometry.py --full
-```
+depends on it.
 
 The analysis compares the *lower* image coordinate with the lower
 boundary of the enclosure's corresponding initial spatial parameter
@@ -2171,3 +2168,8 @@ boundary-separation tests** derived from shared parameter
 dependencies. No fixed coefficient-count rule or generic
 switching policy is justified by this observation.
 
+
+**Tooling decision (2026-11-15):** The one-off Python analysis script
+was removed from the repository at the user's request. The numerical
+certificates and their limitations remain documented above. Future
+reproducible tooling for this project should be implemented in C++.
