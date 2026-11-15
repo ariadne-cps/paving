@@ -2350,3 +2350,70 @@ claim of generalization or geometry preservation.
 **Status:** Source change is published for user compilation;
 the full 48-enclosure audit and its output are not yet experimentally
 verified. The earlier 12-cell trial remains limited evidence.
+
+### Input-only Bernstein boundary preflight, offline classification and full-sequence validation (2026-11-15)
+
+The exhaustive offline audit of all 48 captured real SPRE22 enclosures
+gave 16 geometry-equal cases and 32 cases in which HullOnly is strictly
+tighter. Every one of the 6,976 exclusive exact-fineness cell occurrences
+was certified image-disjoint after bounded parameter subdivision;
+5,312 were immediately emptied by one contractor sweep. Those
+labels are **offline ground truth**; the online classifier cannot
+obtain them by running both Pavers.
+
+An experimental C++ mode in `benchmarks/benchmark_spre22_fixture.cpp`
+tests an **input-only and cell-aware** preflight:
+
+```sh
+cmake --build build-release --target benchmark_spre22_fixture
+./build-release/benchmarks/benchmark_spre22_fixture \
+  --fineness 4 --samples 5 --max-enclosures 48 --preflight
+```
+
+The preflight computes validated interval coordinate ranges on the
+original reduced domain. For each state coordinate it inspects the
+first actual fineness-level grid face strictly inside that coordinate
+range. The face is reconstructed with the Grid API rather than used
+as a rounded floating-point guess. It then computes a **validated
+tensor-product Bernstein lower enclosure** of the DP Taylor model
+using the Ariadne `FloatDPBounds` arithmetic and its original
+uniform error. A `witness` means that the broad independent interval
+range straddles the face while the validated Bernstein lower bound
+lies strictly above it. `no_witness` means the search did not find
+such a certificate. `unknown` means the model or arithmetic work
+exceeded the preflight's supported scope. Neither `no_witness` nor
+`unknown` proves equality of the two Paver outputs. The fixed
+Bernstein basis cap is a computational budget, **not** a fitted
+geometry or Taylor coefficient classification threshold.
+
+The new `SPRE22_PREFLIGHT` lines report a decision and classifier
+median/MAD for every enclosure. An independent, deliberately
+untimed pair of pure Constraint and HullOnly runs supplies the
+isolated reference label. `SPRE22_PREFLIGHT_CLASSIFICATION` reports
+true/false positives/negatives, unknown cases, and median cost.
+
+The **separate full-sequence** replay then measures pure Constraint,
+pure HullOnly, and an experimental `preflight-adaptive` selection,
+using HullOnly for `witness` and `unknown` and Constraint for
+`no_witness`. The **classifier is recomputed inside every timed
+adaptive sample** and counted in the resulting median. All
+geometry comparisons, snapshot retention and recombination occur
+outside timing. `SPRE22_PREFLIGHT_RESULT` prints exact bidirectional
+geometry-vs-HullOnly and the performance ratios. An observed
+geometric mismatch returns exit code 2; it is never silently
+accepted as a successful optimization.
+
+**Limitations and required next checks:** The preflight examines
+only one lower face per coordinate, not all target cell boxes, and
+is a geometric witness rather than a proof that HullOnly's entire
+paving is needed. A false positive adds cost; a false negative can
+produce a looser result and must be detected. A correct fit on this
+single orbit is not enough to justify generalization. Check both
+compilation and performance before interpreting results, and
+validate on independent models, grids and finenesses before any
+production change. The production Pavers, their default modes and
+all gitlinks are untouched.
+
+**Status:** Experimental source is committed but not yet compiled
+or run on the user's macOS Release environment. No classification
+accuracy, speedup or geometric equivalence is claimed yet.

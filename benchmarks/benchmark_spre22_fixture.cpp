@@ -16,10 +16,12 @@
 
 #include <algorithm>
 #include <chrono>
+#include <cstdint>
 #include <cmath>
 #include <iomanip>
 #include <iostream>
 #include <memory>
+#include <optional>
 #include <stdexcept>
 #include <sstream>
 #include <string>
@@ -49,6 +51,7 @@ struct Options {
     unsigned inspect_depth = 6u;
     bool audit_all_cells = false;
     bool audit_verbose = false;
+    bool preflight = false;
 };
 
 unsigned positive(const std::string& s, const char* flag) {
@@ -67,7 +70,8 @@ Options parse(int argc, const char* argv[]) {
             std::cout << "--fineness 4 --samples 5 --max-enclosures 48 --hybrid-switch 16 "
                       << "[--analyze-enclosures] [--inspect-cells 1,17] "
                       << "[--inspect-limit 12] [--inspect-depth 6] "
-                      << "[--audit-all-cells] [--audit-verbose]\n";
+                      << "[--audit-all-cells] [--audit-verbose] "
+                      << "[--preflight]\n";
             result.samples = 0u;
             return result;
         }
@@ -81,6 +85,10 @@ Options parse(int argc, const char* argv[]) {
         }
         if (flag == "--audit-verbose") {
             result.audit_verbose = true;
+            continue;
+        }
+        if (flag == "--preflight") {
+            result.preflight = true;
             continue;
         }
         if (i + 1 >= argc)
@@ -631,11 +639,297 @@ int inspect_cell_differences(
 }
 
 
+
+// Input-only, cell-aware witness: the ordinary interval image overlaps a
+// real grid boundary, while a tight validated Bernstein bound excludes it.
+// This does NOT prove the two Pavers return different geometry.
+struct BoundaryPreflight {
+    enum class Decision { Witness, NoWitness, Unknown };
+    Decision decision = Decision::NoWitness;
+    unsigned tested_faces = 0u;
+    SizeType witness_axis = 0u;
+    double witness_face = 0.0;
+    double witness_margin = 0.0;
+};
+
+std::uint64_t preflight_binomial(unsigned n, unsigned k) {
+    if (k > n) return 0u;
+    k = std::min(k, n-k);
+    std::uint64_t v = 1u;
+    for (unsigned i = 1u; i <= k; ++i)
+        v = (v * (n-k+i)) / i;
+    return v;
+}
+
+// Validated Bernstein coefficient of (2u-1)^exponent, in degree d,
+// at basis position b. Every rational division uses directed bounds.
+FloatDPBounds preflight_weight(unsigned exponent, unsigned d, unsigned b) {
+    FloatDPBounds result(0u, dp);
+    for (unsigned k = 0u; k <= std::min(exponent,b); ++k) {
+        const std::uint64_t n = preflight_binomial(exponent,k)
+            * (std::uint64_t{1} << k) * preflight_binomial(b,k);
+        const std::uint64_t denominator = preflight_binomial(d,k);
+        const FloatDPBounds term =
+            FloatDPBounds(n, dp) / FloatDPBounds(denominator, dp);
+        if ((exponent-k) % 2u) result -= term;
+        else result += term;
+    }
+    return result;
+}
+
+// On normalized [-1,1]^n, the tensor Bernstein polynomial has range
+// contained in the convex hull of its coefficients. Include every DP
+// rounding error with Bounds and subtract the original uniform error.
+// The 4096-basis computational limit is NOT an empirical class threshold:
+// if exceeded, the preflight returns Unknown and uses HullOnly.
+std::optional<FloatDP> preflight_bernstein_lower(
+    const ValidatedTaylorModelDP& model, SizeType max_basis = 4096u) {
+    const SizeType dimensions = model.argument_size();
+    std::vector<unsigned> degrees(dimensions, 0u);
+    for (auto it = model.begin(); it != model.end(); ++it)
+        for (SizeType j = 0u; j < dimensions; ++j)
+            degrees[j] = std::max(degrees[j],
+                static_cast<unsigned>(it->index()[j]));
+
+    SizeType count = 1u;
+    for (const unsigned d : degrees) {
+        if (d > 8u or count > max_basis / (d+1u))
+            return std::nullopt;
+        count *= d+1u;
+    }
+    std::vector<std::vector<FloatDPBounds>> weights;
+    weights.reserve(dimensions);
+    for (const unsigned d : degrees) {
+        std::vector<FloatDPBounds> table;
+        table.reserve(static_cast<std::size_t>(d+1u)*(d+1u));
+        for (unsigned p = 0u; p <= d; ++p)
+            for (unsigned b = 0u; b <= d; ++b)
+                table.emplace_back(preflight_weight(p,d,b));
+        weights.push_back(std::move(table));
+    }
+
+    std::vector<unsigned> indices(dimensions, 0u);
+    FloatDP minimum(0u, dp);
+    bool initialized = false;
+    for (SizeType position = 0u; position < count; ++position) {
+        SizeType remaining = position;
+        for (SizeType j = 0u; j < dimensions; ++j) {
+            indices[j] = static_cast<unsigned>(remaining % (degrees[j]+1u));
+            remaining /= degrees[j]+1u;
+        }
+        FloatDPBounds coefficient(0u, dp);
+        for (auto it = model.begin(); it != model.end(); ++it) {
+            FloatDPBounds term(it->coefficient());
+            for (SizeType j = 0u; j < dimensions; ++j) {
+                const unsigned p = static_cast<unsigned>(it->index()[j]);
+                term *= weights[j][p*(degrees[j]+1u)+indices[j]];
+            }
+            coefficient += term;
+        }
+        if (not initialized or coefficient.lower_raw() < minimum) {
+            minimum = coefficient.lower_raw();
+            initialized = true;
+        }
+    }
+    if (not initialized) return std::nullopt;
+    return sub(down, minimum, model.error().raw());
+}
+
+BoundaryPreflight inspect_boundary_witness(
+    const ValidatedConstrainedImageSet& set, const Grid& grid, unsigned fineness) {
+    BoundaryPreflight result;
+    const auto* patch =
+        dynamic_cast<const ValidatedVectorMultivariateTaylorFunctionModelDP*>(
+            set.function().raw_pointer());
+    if (patch == nullptr or fineness > 24u) {
+        result.decision = BoundaryPreflight::Decision::Unknown;
+        return result;
+    }
+    const auto range = apply(set.function(), set.reduced_domain());
+    if (range.dimension() != grid.dimension() or
+        patch->result_size() != range.dimension()) {
+        result.decision = BoundaryPreflight::Decision::Unknown;
+        return result;
+    }
+    for (SizeType j = 0u; j < range.dimension(); ++j) {
+        const double step = std::ldexp(grid.lengths()[j].get_d(),
+                                       -static_cast<int>(fineness));
+        const double origin = grid.origin()[j].get_d();
+        const double lower = range[j].lower_bound().raw().get_d();
+        const double upper = range[j].upper_bound().raw().get_d();
+        if (not (std::isfinite(step) and step > 0.0 and
+                 std::isfinite(lower) and std::isfinite(upper))) {
+            result.decision = BoundaryPreflight::Decision::Unknown;
+            return result;
+        }
+        const double near_index = std::ceil((lower-origin)/step);
+        if (not std::isfinite(near_index) or
+            std::abs(near_index) > 1000000000.0) {
+            result.decision = BoundaryPreflight::Decision::Unknown;
+            return result;
+        }
+        const FloatDP face = grid.subdivision_coordinate(
+            j, Dyadic(Integer(static_cast<std::int64_t>(near_index)),
+                      static_cast<std::size_t>(fineness)));
+        if (not (face.get_d() > lower and face.get_d() < upper))
+            continue;
+        ++result.tested_faces;
+        const auto certified = preflight_bernstein_lower(patch->model(j));
+        if (not certified) {
+            result.decision = BoundaryPreflight::Decision::Unknown;
+            return result;
+        }
+        if (*certified > face) {
+            result.decision = BoundaryPreflight::Decision::Witness;
+            result.witness_axis = j;
+            result.witness_face = face.get_d();
+            result.witness_margin = sub(down,*certified,face).get_d();
+            return result;
+        }
+    }
+    return result;
+}
+
+const char* preflight_name(BoundaryPreflight::Decision decision) {
+    if (decision == BoundaryPreflight::Decision::Witness) return "witness";
+    if (decision == BoundaryPreflight::Decision::NoWitness) return "no_witness";
+    return "unknown";
+}
+
+
+int evaluate_preflight(const Options& options,
+                       const std::vector<ValidatedConstrainedImageSet>& sets,
+                       const Grid& grid) {
+    const Paver constraint{ConstraintPaver()};
+    const Paver hull{ReducePaver(ReducePaverReductionMode::HullOnly)};
+    unsigned tp = 0u, fp = 0u, tn = 0u, fn = 0u, unknown = 0u;
+    std::vector<double> classifier_costs;
+    classifier_costs.reserve(options.max_enclosures);
+    std::cout << std::fixed << std::setprecision(6);
+
+    // Geometric labels are computed only AFTER the individual preflight
+    // samples have finished and are never supplied to the preflight.
+    for (unsigned i = 0u; i < options.max_enclosures; ++i) {
+        std::vector<double> times;
+        times.reserve(options.samples);
+        BoundaryPreflight first_decision;
+        for (unsigned sample = 0u; sample < options.samples; ++sample) {
+            const auto start = std::chrono::steady_clock::now();
+            const auto result =
+                inspect_boundary_witness(sets[i], grid, options.fineness);
+            times.push_back(std::chrono::duration<double, std::milli>(
+                std::chrono::steady_clock::now() - start).count());
+            if (sample == 0u) first_decision = result;
+            else if (result.decision != first_decision.decision or
+                     result.witness_axis != first_decision.witness_axis)
+                throw std::runtime_error("nondeterministic preflight decision");
+        }
+        const double cost = median(times);
+        classifier_costs.push_back(cost);
+
+        BinaryTreePaving a(grid), b(grid);
+        constraint.adjoin_outer_approximation(a, sets[i], options.fineness);
+        hull.adjoin_outer_approximation(b, sets[i], options.fineness);
+        a.recombine();
+        b.recombine();
+        if (not contains(a,b))
+            throw std::runtime_error("HullOnly not contained in Constraint");
+        const bool tighter = not contains(b,a);
+        if (first_decision.decision == BoundaryPreflight::Decision::Unknown) {
+            ++unknown;
+        } else if (first_decision.decision == BoundaryPreflight::Decision::Witness) {
+            if (tighter) ++tp; else ++fp;
+        } else {
+            if (tighter) ++fn; else ++tn;
+        }
+        std::cout << "SPRE22_PREFLIGHT index=" << i+1u
+                  << " decision=" << preflight_name(first_decision.decision)
+                  << " reference=" << (tighter ? "hull_tighter" : "equal")
+                  << " tested_faces=" << first_decision.tested_faces
+                  << " witness_axis=" << first_decision.witness_axis
+                  << " witness_face=" << first_decision.witness_face
+                  << " witness_margin=" << first_decision.witness_margin
+                  << " median_ms=" << cost
+                  << " mad_ms=" << mad(times)
+                  << "\n";
+    }
+    std::cout << "SPRE22_PREFLIGHT_CLASSIFICATION selected="
+              << options.max_enclosures
+              << " f=" << options.fineness
+              << " true_positive=" << tp
+              << " false_positive=" << fp
+              << " true_negative=" << tn
+              << " false_negative=" << fn
+              << " unknown=" << unknown
+              << " median_preflight_ms=" << median(classifier_costs)
+              << "\n";
+
+    // Preflight and selected Paver are timed together. Full sequence
+    // geometries are compared by bidirectional containment, separately.
+    const std::string names[3]{
+        "constraint", "reduce-hull", "preflight-adaptive"
+    };
+    std::unique_ptr<BinaryTreePaving> references[3];
+    double medians[3]{0.0,0.0,0.0};
+    for (unsigned strategy = 0u; strategy < 3u; ++strategy) {
+        std::vector<double> samples;
+        samples.reserve(options.samples);
+        for (unsigned sample = 0u; sample < options.samples; ++sample) {
+            BinaryTreePaving paving(grid);
+            const auto start = std::chrono::steady_clock::now();
+            for (unsigned i = 0u; i < options.max_enclosures; ++i) {
+                bool use_hull = strategy == 1u;
+                if (strategy == 2u) {
+                    const auto result =
+                        inspect_boundary_witness(sets[i], grid, options.fineness);
+                    // Unknown: retain HullOnly. NoWitness: experimental
+                    // prediction, not a proof of equal output geometry.
+                    use_hull =
+                        result.decision != BoundaryPreflight::Decision::NoWitness;
+                }
+                (use_hull ? hull : constraint).adjoin_outer_approximation(
+                    paving, sets[i], options.fineness);
+            }
+            samples.push_back(std::chrono::duration<double,std::milli>(
+                std::chrono::steady_clock::now() - start).count());
+            paving.recombine();
+            if (not references[strategy])
+                references[strategy] = std::make_unique<BinaryTreePaving>(paving);
+            else if (not contains(*references[strategy], paving) or
+                     not contains(paving, *references[strategy]))
+                throw std::runtime_error("nondeterministic preflight strategy geometry");
+        }
+        medians[strategy] = median(samples);
+        std::cout << "SPRE22_PREFLIGHT_SEQUENCE strategy=" << names[strategy]
+                  << " median_ms=" << medians[strategy]
+                  << " mad_ms=" << mad(samples)
+                  << " cells=" << references[strategy]->size()
+                  << " outer_volume=" << references[strategy]->measure().raw().get_d()
+                  << "\n";
+    }
+    const auto geometry = relation(*references[2], *references[1]);
+    std::cout << "SPRE22_PREFLIGHT_RESULT"
+              << " selected=" << options.max_enclosures
+              << " f=" << options.fineness
+              << " geometry_vs_hull=" << geometry
+              << " hull_over_adaptive=" << medians[1] / medians[2]
+              << " adaptive_over_constraint=" << medians[2] / medians[0]
+              << " classifier_included_in_timing=true"
+              << "\n";
+    // Explicitly fail geometric regressions; never silently declare an
+    // experimentally fitted approximation equivalent to HullOnly.
+    return geometry == "equal" ? 0 : 2;
+}
+
 int run(int argc, const char* argv[]) {
     auto options = parse(argc, argv);
     if (options.samples == 0u) return 0;
     if (options.audit_verbose and not options.audit_all_cells)
         throw std::invalid_argument("--audit-verbose requires --audit-all-cells");
+    if (options.preflight and
+        (options.audit_all_cells or options.analyze_enclosures or
+         not options.inspected_indices.empty()))
+        throw std::invalid_argument("--preflight is exclusive with other inspection modes");
     if (options.audit_all_cells) {
         if (options.analyze_enclosures or not options.inspected_indices.empty())
             throw std::invalid_argument(
@@ -648,11 +942,14 @@ int run(int argc, const char* argv[]) {
     if (sets.size() != 48u)
         throw std::runtime_error("fixture must contain all 48 real enclosures");
     if (options.max_enclosures > sets.size() or
-        (not options.analyze_enclosures and options.inspected_indices.empty() and
+        (not options.preflight and not options.analyze_enclosures and
+         options.inspected_indices.empty() and
          options.switch_after >= options.max_enclosures))
         throw std::invalid_argument("invalid enclosure count or hybrid switch");
 
     const Grid grid(Vector<ApproximateDouble>{1.0, 200.0, 200.0, 20.0, 20.0});
+    if (options.preflight)
+        return evaluate_preflight(options, sets, grid);
     if (options.analyze_enclosures) {
         if (not options.inspected_indices.empty())
             throw std::invalid_argument("--analyze-enclosures and --inspect-cells are exclusive");
