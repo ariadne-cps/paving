@@ -361,8 +361,8 @@ CellHullProbe probe_hull_once(
     }
     const UpperBoxType initial(original_domain);
     for (SizeType j = 0u; j < reduced.size(); ++j) {
-        if (reduced[j].lower_raw().get_d() > initial[j].lower_raw().get_d() or
-            reduced[j].upper_raw().get_d() < initial[j].upper_raw().get_d())
+        if (reduced[j].lower_bound().raw() > initial[j].lower_bound().raw() or
+            reduced[j].upper_bound().raw() < initial[j].upper_bound().raw())
             ++result.narrowed_parameters;
     }
     return result;
