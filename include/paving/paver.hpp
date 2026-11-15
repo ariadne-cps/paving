@@ -105,6 +105,7 @@ struct PaverDiagnostics {
     // ConstraintPaver-only traversal operation counts.
     SizeType coverage_checks = 0u;
     SizeType cell_box_constructions = 0u;
+    // Diagnostic-only legacy box construction for differential validation.
     SizeType product_box_constructions = 0u;
     SizeType disjoint_checks = 0u;
 
@@ -132,7 +133,7 @@ struct PaverDiagnostics {
     // ConstraintPaver-only costs, exclusive of range and sensitivity work.
     std::uint64_t coverage_ns = 0u;
     std::uint64_t cell_box_ns = 0u;
-    std::uint64_t product_box_ns = 0u;
+    std::uint64_t product_box_ns = 0u; // Diagnostic-only legacy reference.
     std::uint64_t disjoint_ns = 0u;
 };
 

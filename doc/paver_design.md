@@ -2520,3 +2520,52 @@ silently revise the criterion to match the observed labels.
 
 No production code or submodule links were changed in response
 to these measurements.
+
+## 2026-11-15 - ConstraintPaver: eliminate per-node product-box allocation in the normal path
+
+**Objective reset:** The user elected to stop pursuing an adaptive
+Constraint/HullOnly hybrid and optimize ConstraintPaver itself.
+The uncommitted offline oracle-replay experiment was deliberately
+discarded; the existing SPRE22 benchmark and prior modes are unchanged.
+
+**Candidate (requires build, tests and measurements):** In
+`interval_constraint_adjoin_outer_approximation_recursion` the
+combined validated interval image is currently compared with
+`product(cell.box(), constraint_bounds)` on every non-covered node.
+Instead of allocating that temporary Cartesian-product box,
+perform the equivalent component-wise certified-disjointness test:
+
+```text
+separated = any definitely(disjoint(range[i], cell_box[i]))
+            over output coordinates i
+         OR any definitely(disjoint(range[f_dim + j], bounds[j]))
+            over explicit constraint coordinates j
+```
+
+Stopping at the first definitely-disjoint coordinate preserves the
+decision: for finite boxes, disjointness of a Cartesian product
+is the disjunction of interval disjointness predicates. It does
+**not** remove explicit constraints, change the validated range,
+change sensitivity or splitting, or change the cell coverage test.
+The per-node `cell.box()` construction still happens.
+
+When `PaverDiagnostics*` is nonnull, a **diagnostic-only
+differential assertion on every reached domain/cell pair**
+recomputes the legacy product box and original full-box
+predicate. A disagreement throws `std::logic_error`. These
+reference allocations are explicitly excluded from normal timing
+and retained in diagnostic counters so existing traversal tests
+still see one `product_box_constructions` per disjoint check.
+The `product_box_ns` bucket now measures validation of the legacy
+reference only and is **not** a production-path cost: do not
+interpret its timings as the normal algorithm's work.
+
+**Validation before keeping:** Build and run `test_paver`, then
+the SPRE22 real fixture benchmark at `--fineness 4 --samples 5
+--max-enclosures 48` and the diagnostic `benchmark_pavers`
+cases (including empty and active constraints). Compare exact
+output geometry to the parent commit by bidirectional containment,
+not just counts and volume. Use paired/interleaved Release timing
+measurements and keep the change only if the speedup is repeatable
+without semantic regressions. The normal SPRE22 baseline checks
+remain unchanged. No timing or build success is claimed yet.
