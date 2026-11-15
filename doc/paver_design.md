@@ -2295,3 +2295,58 @@ these witness cells and compare them with validated domain-splitting
 certificates; it should not be represented as a necessary benchmark
 for the already established geometry.
 
+### Exhaustive grid-cell audit before any enclosure-level adaptive policy (2026-11-15)
+
+The previous `--inspect-cells 1,17 --inspect-limit 12` inspection was a sample,
+not a sufficient basis for selecting a Paver. The standalone real-fixture
+C++ benchmark now offers an **untimed exhaustive audit** across all
+selected enclosures and all exact-fineness difference cells:
+
+```sh
+cmake --build build-release --target benchmark_spre22_fixture
+./build-release/benchmarks/benchmark_spre22_fixture \
+  --max-enclosures 48 --fineness 4 \
+  --audit-all-cells --inspect-depth 6
+```
+
+Add `--audit-verbose` to print a detailed witness for **every**
+exclusive cell. Without it, emit per-enclosure and overall summaries.
+The optional split-depth bound determines proof effort, not which
+cells get examined: unresolved cases remain explicitly unresolved.
+
+Each isolated reference pair uses independent fresh Constraint and HullOnly
+pavings; the exact difference is `difference(Constraint,HullOnly)`.
+At the requested exact fineness, the audit enumerates all cells of both
+outputs and their difference and requires, for every enclosure:
+
+```text
+constraint_exact_cells == shared_exact_cells + exclusive_exact_cells
+equal_geometry == (exclusive_exact_cells == 0)
+```
+
+Thus **every enabled Constraint cell** is accounted for as either shared
+or Constraint-only. On every exclusive cell, the auditor applies the
+validated full-range test, bounded parameter-domain subdivision, and
+one sweep of compiled hull contractors. It separately reports
+root-disjoint, refined-disjoint, unresolved, and one-sweep hull
+rejections. An inconclusive test is *not* evidence of intersection.
+
+`SPRE22_CELL_AUDIT_LABEL` contains each enclosure's offline
+geometric reference class and input-only features;
+`SPRE22_CELL_AUDIT_CERTIFICATES` and `SPRE22_CELL_AUDIT_SUMMARY`
+report all proof outcomes. The exhaustive audit is deliberately
+untimed and may be expensive. No Python code or production
+Paver or gitlink change is made.
+
+**Critical separation of roles:** The audit creates *offline
+reference labels* from both Paver outputs. Those labels cannot
+serve as an inexpensive online classifier. A potential runtime
+classifier must use features calculable from the input, grid,
+fineness, and current paving, and its computation time must count
+toward the selected strategy's time. It must be validated against
+all reference labels and independent workloads before any
+claim of generalization or geometry preservation.
+
+**Status:** Source change is published for user compilation;
+the full 48-enclosure audit and its output are not yet experimentally
+verified. The earlier 12-cell trial remains limited evidence.

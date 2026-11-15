@@ -47,6 +47,8 @@ struct Options {
     std::vector<unsigned> inspected_indices;
     unsigned inspect_limit = 12u;
     unsigned inspect_depth = 6u;
+    bool audit_all_cells = false;
+    bool audit_verbose = false;
 };
 
 unsigned positive(const std::string& s, const char* flag) {
@@ -64,12 +66,21 @@ Options parse(int argc, const char* argv[]) {
         if (flag == "--help") {
             std::cout << "--fineness 4 --samples 5 --max-enclosures 48 --hybrid-switch 16 "
                       << "[--analyze-enclosures] [--inspect-cells 1,17] "
-                      << "[--inspect-limit 12] [--inspect-depth 6]\n";
+                      << "[--inspect-limit 12] [--inspect-depth 6] "
+                      << "[--audit-all-cells] [--audit-verbose]\n";
             result.samples = 0u;
             return result;
         }
         if (flag == "--analyze-enclosures") {
             result.analyze_enclosures = true;
+            continue;
+        }
+        if (flag == "--audit-all-cells") {
+            result.audit_all_cells = true;
+            continue;
+        }
+        if (flag == "--audit-verbose") {
+            result.audit_verbose = true;
             continue;
         }
         if (i + 1 >= argc)
@@ -414,6 +425,16 @@ int inspect_cell_differences(
         {1.25_x, 2.5_x}
     };
     std::cout << std::fixed << std::setprecision(6);
+    SizeType all_common = 0u;
+    SizeType all_exclusive = 0u;
+    SizeType all_root_certified = 0u;
+    SizeType all_refined_certified = 0u;
+    SizeType all_unresolved = 0u;
+    SizeType all_first_sweep = 0u;
+    SizeType all_range_evaluations = 0u;
+    SizeType equal_enclosures = 0u;
+    SizeType tighter_enclosures = 0u;
+    SizeType inspected_enclosures = 0u;
     for (const unsigned index: options.inspected_indices) {
         if (index > sets.size() or index > options.max_enclosures)
             throw std::invalid_argument("inspect index is outside selected enclosures");
@@ -426,6 +447,10 @@ int inspect_cell_differences(
         hull_paving.recombine();
         if (not contains(constraint_paving, hull_paving))
             throw std::runtime_error("HullOnly not geometrically contained in Constraint");
+        const bool same_geometry = contains(hull_paving, constraint_paving);
+        ++inspected_enclosures;
+        if (same_geometry) ++equal_enclosures;
+        else ++tighter_enclosures;
 
         BinaryTreePaving difference_paving =
             difference(constraint_paving, hull_paving);
@@ -433,6 +458,39 @@ int inspect_cell_differences(
         std::vector<GridCell> extra;
         difference_paving.for_each_enabled_cell_at_exact_fineness(
             options.fineness, [&](const GridCell& cell) { extra.push_back(cell); });
+
+        // Exhaustively partition the finite grid-cell universe at the
+        // requested fineness. This is a reference label, NOT a cheap
+        // online decision criterion for choosing a Paver.
+        SizeType constraint_exact = 0u, shared_exact = 0u;
+        constraint_paving.for_each_enabled_cell_at_exact_fineness(
+            options.fineness, [&](const GridCell&) { ++constraint_exact; });
+        hull_paving.for_each_enabled_cell_at_exact_fineness(
+            options.fineness, [&](const GridCell&) { ++shared_exact; });
+        if (constraint_exact != shared_exact + extra.size() or
+            same_geometry != extra.empty()) {
+            throw std::runtime_error(
+                "exact-fineness partition differs from geometric containment at enclosure " +
+                std::to_string(index));
+        }
+        all_common += shared_exact;
+        all_exclusive += extra.size();
+        if (options.audit_all_cells) {
+            const auto features = describe_enclosure(set);
+            std::cout << "SPRE22_CELL_AUDIT_LABEL index=" << index
+                      << " f=" << options.fineness
+                      << " label=" << (same_geometry ? "equal" : "hull_tighter")
+                      << " constraint_exact_cells=" << constraint_exact
+                      << " shared_exact_cells=" << shared_exact
+                      << " exclusive_exact_cells=" << extra.size()
+                      << " hull_only_exact_cells=0"
+                      << " state_terms=" << features.state_terms
+                      << " nonlinear_terms=" << features.nonlinear_terms
+                      << " max_degree=" << features.maximum_degree
+                      << " total_taylor_error=" << features.total_taylor_error
+                      << " mean_parameter_width=" << features.mean_parameter_width
+                      << "\n";
+        }
 
         std::cout << "SPRE22_CELL_DIFFERENCE index=" << index
                   << " f=" << options.fineness
@@ -458,7 +516,13 @@ int inspect_cell_differences(
                       << "\n";
         }
 
-        if (extra.empty()) continue;
+        if (extra.empty()) {
+            if (options.audit_all_cells)
+                std::cout << "SPRE22_CELL_AUDIT_CERTIFICATES index=" << index
+                          << " inspected=0 root_disjoint=0 refined_disjoint=0"
+                          << " unresolved=0 first_sweep_hull_rejections=0\n";
+            continue;
+        }
         const auto f = set.function();
         const auto g = set.constraint_function();
         const auto combined = join(f, g);
@@ -472,8 +536,9 @@ int inspect_cell_differences(
         for (SizeType j = 0u; j < g.result_size(); ++j)
             procedures.append(make_procedure(g[j]));
 
-        const SizeType shown = std::min(
-            extra.size(), static_cast<SizeType>(options.inspect_limit));
+        const SizeType shown = options.audit_all_cells
+            ? extra.size()
+            : std::min(extra.size(), static_cast<SizeType>(options.inspect_limit));
         SizeType root_certified = 0u, refined_certified = 0u;
         SizeType unresolved = 0u, immediate_hull_rejections = 0u;
         for (SizeType k = 0u; k < shown; ++k) {
@@ -498,11 +563,13 @@ int inspect_cell_differences(
             if (root_separated) ++root_certified;
             else if (separated) ++refined_certified;
             else ++unresolved;
+            all_range_evaluations += evaluations;
 
             const auto hull_probe = probe_hull_once(set, cell, procedures);
             if (hull_probe.proved_empty) ++immediate_hull_rejections;
 
-            std::cout << "SPRE22_CELL_WITNESS index=" << index
+            if (not options.audit_all_cells or options.audit_verbose)
+                std::cout << "SPRE22_CELL_WITNESS index=" << index
                       << " sample=" << k+1u
                       << " exact_cell_index=" << sample_position+1u
                       << " cell_extent=" << cell.root_extent()
@@ -517,6 +584,18 @@ int inspect_cell_differences(
                       << " narrowed_parameters=" << hull_probe.narrowed_parameters
                       << "\n";
         }
+        all_root_certified += root_certified;
+        all_refined_certified += refined_certified;
+        all_unresolved += unresolved;
+        all_first_sweep += immediate_hull_rejections;
+        if (options.audit_all_cells)
+            std::cout << "SPRE22_CELL_AUDIT_CERTIFICATES index=" << index
+                      << " inspected=" << shown
+                      << " root_disjoint=" << root_certified
+                      << " refined_disjoint=" << refined_certified
+                      << " unresolved=" << unresolved
+                      << " first_sweep_hull_rejections=" << immediate_hull_rejections
+                      << "\n";
         std::cout << "SPRE22_CELL_DIFFERENCE_SUMMARY index=" << index
                   << " f=" << options.fineness
                   << " difference_exact_cells=" << extra.size()
@@ -528,13 +607,43 @@ int inspect_cell_differences(
                   << " max_split_depth=" << options.inspect_depth
                   << "\n";
     }
+    if (options.audit_all_cells) {
+        if (equal_enclosures + tighter_enclosures != inspected_enclosures or
+            all_root_certified + all_refined_certified + all_unresolved !=
+                all_exclusive)
+            throw std::runtime_error("exhaustive audit count invariant failed");
+        std::cout << "SPRE22_CELL_AUDIT_SUMMARY"
+                  << " selected=" << inspected_enclosures
+                  << " f=" << options.fineness
+                  << " equal=" << equal_enclosures
+                  << " hull_tighter=" << tighter_enclosures
+                  << " shared_exact_cells=" << all_common
+                  << " exclusive_exact_cells=" << all_exclusive
+                  << " certified_root=" << all_root_certified
+                  << " certified_split=" << all_refined_certified
+                  << " unresolved=" << all_unresolved
+                  << " first_sweep_hull_rejections=" << all_first_sweep
+                  << " total_interval_evaluations=" << all_range_evaluations
+                  << " max_split_depth=" << options.inspect_depth
+                  << "\n";
+    }
     return 0;
 }
 
 
 int run(int argc, const char* argv[]) {
-    const auto options = parse(argc, argv);
+    auto options = parse(argc, argv);
     if (options.samples == 0u) return 0;
+    if (options.audit_verbose and not options.audit_all_cells)
+        throw std::invalid_argument("--audit-verbose requires --audit-all-cells");
+    if (options.audit_all_cells) {
+        if (options.analyze_enclosures or not options.inspected_indices.empty())
+            throw std::invalid_argument(
+                "--audit-all-cells cannot be combined with --analyze-enclosures or --inspect-cells");
+        options.inspected_indices.reserve(options.max_enclosures);
+        for (unsigned i = 1u; i <= options.max_enclosures; ++i)
+            options.inspected_indices.push_back(i);
+    }
     const auto sets = SPRE22Fixture::real_enclosures();
     if (sets.size() != 48u)
         throw std::runtime_error("fixture must contain all 48 real enclosures");
