@@ -52,6 +52,7 @@ struct Options {
     bool audit_all_cells = false;
     bool audit_verbose = false;
     bool preflight = false;
+    double spatial_grid_phase = 0.0;
 };
 
 unsigned positive(const std::string& s, const char* flag) {
@@ -71,7 +72,7 @@ Options parse(int argc, const char* argv[]) {
                       << "[--analyze-enclosures] [--inspect-cells 1,17] "
                       << "[--inspect-limit 12] [--inspect-depth 6] "
                       << "[--audit-all-cells] [--audit-verbose] "
-                      << "[--preflight]\n";
+                      << "[--preflight] [--spatial-grid-phase 0.5]\n";
             result.samples = 0u;
             return result;
         }
@@ -94,7 +95,15 @@ Options parse(int argc, const char* argv[]) {
         if (i + 1 >= argc)
             throw std::invalid_argument("missing value for " + flag);
         const std::string value(argv[++i]);
-        if (flag == "--fineness") result.fineness = positive(value, "--fineness");
+        if (flag == "--spatial-grid-phase") {
+            std::size_t pos = 0u;
+            const double phase = std::stod(value, &pos);
+            if (pos != value.size() or not std::isfinite(phase) or
+                phase < 0.0 or phase >= 1.0)
+                throw std::invalid_argument("invalid --spatial-grid-phase (expected [0,1))");
+            result.spatial_grid_phase = phase;
+        }
+        else if (flag == "--fineness") result.fineness = positive(value, "--fineness");
         else if (flag == "--samples") result.samples = positive(value, "--samples");
         else if (flag == "--max-enclosures")
             result.max_enclosures = positive(value, "--max-enclosures");
@@ -857,6 +866,7 @@ int evaluate_preflight(const Options& options,
     std::cout << "SPRE22_PREFLIGHT_CLASSIFICATION selected="
               << options.max_enclosures
               << " f=" << options.fineness
+              << " spatial_grid_phase=" << options.spatial_grid_phase
               << " true_positive=" << tp
               << " false_positive=" << fp
               << " true_negative=" << tn
@@ -912,6 +922,7 @@ int evaluate_preflight(const Options& options,
     std::cout << "SPRE22_PREFLIGHT_RESULT"
               << " selected=" << options.max_enclosures
               << " f=" << options.fineness
+              << " spatial_grid_phase=" << options.spatial_grid_phase
               << " geometry_vs_hull=" << geometry
               << " hull_over_adaptive=" << medians[1] / medians[2]
               << " adaptive_over_constraint=" << medians[2] / medians[0]
@@ -931,6 +942,8 @@ int run(int argc, const char* argv[]) {
         (options.audit_all_cells or options.analyze_enclosures or
          not options.inspected_indices.empty()))
         throw std::invalid_argument("--preflight is exclusive with other inspection modes");
+    if (options.spatial_grid_phase != 0.0 and not options.preflight)
+        throw std::invalid_argument("--spatial-grid-phase requires --preflight");
     if (options.audit_all_cells) {
         if (options.analyze_enclosures or not options.inspected_indices.empty())
             throw std::invalid_argument(
@@ -948,7 +961,18 @@ int run(int argc, const char* argv[]) {
          options.switch_after >= options.max_enclosures))
         throw std::invalid_argument("invalid enclosure count or hybrid switch");
 
-    const Grid grid(Vector<ApproximateDouble>{1.0, 200.0, 200.0, 20.0, 20.0});
+    // A phase shift changes the position of cell boundaries without
+    // changing the enclosure, fineness, or grid strides. It is opt-in
+    // and restricted to the preflight experiment to preserve the
+    // exact original benchmark baseline and its reference assertions.
+    const double spatial_shift = std::ldexp(
+        200.0 * options.spatial_grid_phase,
+        -static_cast<int>(options.fineness));
+    const Grid grid = options.spatial_grid_phase == 0.0
+        ? Grid(Vector<ApproximateDouble>{1.0, 200.0, 200.0, 20.0, 20.0})
+        : Grid(Vector<ApproximateDouble>{
+                   0.0, spatial_shift, spatial_shift, 0.0, 0.0},
+               Vector<ApproximateDouble>{1.0, 200.0, 200.0, 20.0, 20.0});
     if (options.preflight)
         return evaluate_preflight(options, sets, grid);
     if (options.analyze_enclosures) {

@@ -2417,3 +2417,61 @@ all gitlinks are untouched.
 **Status:** Experimental source is committed but not yet compiled
 or run on the user's macOS Release environment. No classification
 accuracy, speedup or geometric equivalence is claimed yet.
+
+### Verified original-grid preflight; shifted-grid sensitivity experiment (2026-11-15)
+
+The user ran the experimental C++ `--preflight` on all 48 real
+SPRE22 enclosures at `fineness=4`, five timing samples, zero grid origin.
+The offline reference classification was recovered exactly:
+`true_positive=32`, `false_positive=0`, `true_negative=16`,
+`false_negative=0`, `unknown=0`. The median preflight cost per
+enclosure was **0.164626 ms**.
+
+| Strategy | Median ms | MAD ms | Recombined cells | Outer volume |
+| --- | ---: | ---: | ---: | ---: |
+| Constraint | 1487.754708 | 2.078208 | 1624 | 56030.273438 |
+| HullOnly | 3094.307666 | 0.449582 | 1523 | 47561.645508 |
+| Preflight-adaptive | 1611.144917 | 1.330125 | 1523 | 47561.645508 |
+
+The adaptive sequence was geometrically identical to HullOnly by
+bidirectional containment; its measured time included the
+preflight calls. HullOnly/adaptive median time ratio was 1.920564;
+adaptive/Constraint ratio was 1.082937.
+
+All positive preflight witnesses came from the `x` axis at a grid
+face which coincided with the lower boundary of the initial
+spatial parameter box. Group 2 margins ranged roughly
+0.0110-0.0115; group 3 margins roughly 0.0432-0.0451.
+The 48 inputs belong to three highly related time-slice
+families, not 48 independent generalization examples.
+
+To falsify an accidental reliance on the **particular original
+grid alignment**, the C++ benchmark now accepts
+`--spatial-grid-phase phi` only with `--preflight`, with
+`0 <= phi < 1`. For `fineness=f` it translates both x and y
+grid origins by `phi * 200 / 2^f`, holding the state maps,
+constraints and grid steps fixed. The default phi=0 preserves
+the original grid and all baseline code paths.
+
+```sh
+./build-release/benchmarks/benchmark_spre22_fixture --preflight --fineness 4 --samples 5 --max-enclosures 48 --spatial-grid-phase 0.25
+./build-release/benchmarks/benchmark_spre22_fixture --preflight --fineness 4 --samples 5 --max-enclosures 48 --spatial-grid-phase 0.5
+./build-release/benchmarks/benchmark_spre22_fixture --preflight --fineness 4 --samples 5 --max-enclosures 48 --spatial-grid-phase 0.75
+```
+
+The classification confusion counts and complete adaptive-vs-Hull
+geometry are computed afresh for each shift; any mismatch is printed
+and exits with status 2. This is a deliberate test of robustness:
+a `no_witness` classification is not a mathematical proof of
+equal geometry. It is permissible and informative for the new
+experiments to expose false negatives and lose geometrical
+equality; that failure must not be hidden by tuning phase-dependent
+thresholds or changing the reference output.
+
+A success at all three phases would still not establish
+generalization: it is only the first controlled grid perturbation.
+No production Paver or submodule changes are involved.
+
+**Status:** The shifted-origin code is available for build and
+execution. No shifted-phase timings or output classifications
+are claimed until they are actually measured.
