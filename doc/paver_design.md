@@ -2569,3 +2569,40 @@ not just counts and volume. Use paired/interleaved Release timing
 measurements and keep the change only if the speedup is repeatable
 without semantic regressions. The normal SPRE22 baseline checks
 remain unchanged. No timing or build success is claimed yet.
+
+## 2026-11-15 - Reject coordinate-disjointness candidate: improvement below 10% threshold
+
+**Disposition: REVERT candidate `3a607bc4`; preserve this negative result.**
+The user clarified that optimization work must show at least **10% runtime
+reduction on comparable hardware**, with equivalent validated geometry.
+Small percentage improvements are not worth further optimization effort.
+
+The initial historical 13-15% improvement claim used measurements
+potentially obtained on different machines and is **not valid A/B evidence**.
+The parent `20a0d643` was subsequently rerun on the same machine
+and with the same benchmark arguments as the candidate (Release,
+dimension 3, fineness 4, 5 samples, diagnostics):
+
+| Workload | Parent median (ms) | Candidate median (ms) | Change in time |
+| --- | ---: | ---: | ---: |
+| uv-triangle | 160.729 | 160.943 | +0.13% (regression) |
+| correlated-strip | 163.370 | 162.436 | -0.57% |
+| product-cap | 130.977 | 127.970 | -2.30% |
+| folded-quadratic | 357.762 | 350.858 | -1.93% |
+| empty-constraints | 0.003 | 0.003 | indistinguishable |
+
+Traversal, range/sensitivity, disjoint rejection, coverage, split,
+and adjoin counts matched; cell counts and rounded volumes matched.
+The candidate's diagnostic original-vs-coordinate-disjointness check
+completed successfully on these cases. Exact cross-revision paving
+containment and full tests were not supplied and are **not claimed**.
+
+The candidate delivered no double-digit gain in this controlled
+hardware comparison. Revert only the source and diagnostic-header
+changes to their parent blobs; retain all intervening documentation.
+Do not pursue the discarded hybrid or oracle classifier. New
+ConstraintPaver ideas must first target a plausibly >=10% bottleneck;
+actual retention requires >=10% measured improvement on comparable
+hardware, no loss of correctness or geometric precision, and
+validation on representative workloads. Avoid patching production
+code merely to try speculative low-single-digit micro-optimizations.

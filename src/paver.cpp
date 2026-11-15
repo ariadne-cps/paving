@@ -30,7 +30,6 @@
 
 #include <chrono>
 #include <optional>
-#include <stdexcept>
 #include <type_traits>
 #include <vector>
 
@@ -608,36 +607,16 @@ Void interval_constraint_adjoin_outer_approximation_recursion(
     const auto cell_box = profile_paver_operation(
         diagnostics, &PaverDiagnostics::cell_box_ns,
         [&] { return cell.box(); });
-    // A Cartesian product of the output cell and constraint bounds
-    // is disjoint from the combined range iff at least one component
-    // interval is definitely disjoint. Avoid allocating that temporary
-    // product on every recursive visit and stop on the first witness.
+    if (diagnostics != nullptr)
+        ++diagnostics->product_box_constructions;
+    const auto target_box = profile_paver_operation(
+        diagnostics, &PaverDiagnostics::product_box_ns,
+        [&] { return product(cell_box, bounds); });
     if (diagnostics != nullptr)
         ++diagnostics->disjoint_checks;
     const bool separated = profile_paver_operation(
         diagnostics, &PaverDiagnostics::disjoint_ns,
-        [&] {
-            const auto& range = *evaluation.combined_range;
-            for (SizeType i = 0u; i != cell_box.dimension(); ++i)
-                if (definitely(disjoint(range[i], cell_box[i])))
-                    return true;
-            for (SizeType i = 0u; i != bounds.dimension(); ++i)
-                if (definitely(disjoint(range[cell_box.dimension() + i], bounds[i])))
-                    return true;
-            return false;
-        });
-    if (diagnostics != nullptr) {
-        // Diagnostic-only differential check of *every visited pair*
-        // against the original full-box disjoint predicate. The ordinary
-        // Paver path does not construct or inspect this temporary box.
-        ++diagnostics->product_box_constructions;
-        const auto reference_target = profile_paver_operation(
-            diagnostics, &PaverDiagnostics::product_box_ns,
-            [&] { return product(cell_box, bounds); });
-        const bool reference = definitely(disjoint(*evaluation.combined_range, reference_target));
-        if (reference != separated)
-            throw std::logic_error("ConstraintPaver coordinate disjointness differs from full-box reference");
-    }
+        [&] { return definitely(disjoint(*evaluation.combined_range, target_box)); });
     if (separated) {
         if (diagnostics != nullptr)
             ++diagnostics->disjoint_rejections;
