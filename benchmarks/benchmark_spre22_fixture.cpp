@@ -768,9 +768,10 @@ BoundaryPreflight inspect_boundary_witness(
             result.decision = BoundaryPreflight::Decision::Unknown;
             return result;
         }
+        // Grid::DyadicType is double. The checked integer grid index
+        // is scaled by a power of two (exact in binary64 here).
         const FloatDP face = grid.subdivision_coordinate(
-            j, Dyadic(Integer(static_cast<std::int64_t>(near_index)),
-                      static_cast<std::size_t>(fineness)));
+            j, std::ldexp(near_index, -static_cast<int>(fineness)));
         if (not (face.get_d() > lower and face.get_d() < upper))
             continue;
         ++result.tested_faces;
