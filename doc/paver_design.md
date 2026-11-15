@@ -2475,3 +2475,48 @@ No production Paver or submodule changes are involved.
 **Status:** The shifted-origin code is available for build and
 execution. No shifted-phase timings or output classifications
 are claimed until they are actually measured.
+
+### Verified shifted-grid outcomes and clarified optimization objective (2026-11-15)
+
+The user executed the three independently shifted-origin SPRE22
+experiments. At `fineness=4`, each reported 32 `equal` isolated
+enclosures and 16 where HullOnly was strictly tighter.
+The input-only boundary preflight returned `no_witness` for **all**
+48 cases at each phase: TP=0, FP=0, TN=32, FN=16, unknown=0.
+The original-grid perfect confusion matrix therefore does **not**
+generalize even to these simple phase translations.
+
+| Phase | Constraint median ms | HullOnly median ms | Adaptive median ms | Constraint volume | HullOnly volume |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| 0.25 | 803.740917 | 1843.079584 | 837.006500 | 38909.912109 | 35476.684570 |
+| 0.50 | 1199.339334 | 1869.154083 | 1228.371375 | 38909.912109 | 35476.684570 |
+| 0.75 | 801.966125 | 1848.682875 | 838.286833 | 38909.912109 | 35476.684570 |
+
+The shifted outputs had 1080 recombined Constraint leaves and
+1099 HullOnly leaves. These leaf counts do not measure geometric
+quality: the HullOnly volume was **8.82% smaller relative to
+Constraint**, despite having more recombined leaves. In every
+shifted run the adaptive result was equal to Constraint, not
+HullOnly; the benchmark correctly reported `A strictly contains B`.
+The baseline zero-phase experiment had a **15.11%** relative
+volume improvement for HullOnly.
+
+**Objective must be specified before designing further preflights.**
+If the downstream user explicitly treats this difference in
+outer-approximation precision as irrelevant, both Pavers retain
+validated outer-approximation correctness and there is no reason
+to pay the preflight or HullOnly cost: Constraint was fastest in
+all measured configurations. If the requirement is **HullOnly
+geometric precision at lower runtime**, then this preflight fails
+on the shifted configurations and cannot be deployed as is.
+No precision-equivalent guarantee follows from an absent
+boundary witness.
+
+The distinct behavior by time-slice family suggests possible
+separate sources of precision gains, including a time-constraint
+cut in the final family, but this is a hypothesis rather than a
+proof of causality or a basis for a new threshold. Do not
+silently revise the criterion to match the observed labels.
+
+No production code or submodule links were changed in response
+to these measurements.
