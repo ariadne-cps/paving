@@ -2173,3 +2173,72 @@ switching policy is justified by this observation.
 was removed from the repository at the user's request. The numerical
 certificates and their limitations remain documented above. Future
 reproducible tooling for this project should be implemented in C++.
+
+
+### Real cell-difference and contractor witness inspection (2026-11-15)
+
+The standalone SPRE22 C++ fixture benchmark now has an **untimed,
+opt-in geometry inspection** to connect the previously derived
+boundary-separation certificates to actual cells in the Paver outputs.
+This is not a new algorithm, a classifier or a new timing baseline.
+
+Run (after building the existing C++ benchmark target):
+
+```sh
+cmake --build build-release --target benchmark_spre22_fixture
+./build-release/benchmarks/benchmark_spre22_fixture \
+  --fineness 4 --max-enclosures 48 \
+  --inspect-cells 1,17 --inspect-limit 12 --inspect-depth 6
+```
+
+The command constructs independently fresh isolated
+`ConstraintPaver` and `ReducePaver(HullOnly)` results for precisely
+the selected real fixtures and checks that the latter is geometrically
+contained in the former. Then it computes the **exact paving difference**
+`difference(constraint_paving, hull_paving)`, enumerates its enabled
+cells at the common requested fineness (independent of tree
+recombination), and reports cell coordinates plus root extent and
+binary word. The detailed witness log samples cells deterministically
+across the entire difference, not merely the first few. If no
+difference exists, as expected in the first SPRE22 family, the report
+states that explicitly; no cell is fabricated.
+
+For each inspected **actual output-difference cell**, the diagnostic:
+
+1. tests validated disjointness of the *joint state-and-constraint
+   interval image* against the cell and the constraint bounds on the
+   full reduced parameter domain;
+2. if inconclusive, subdivides the parameter domain (round-robin
+   nondegenerate axes, bounded recursive depth), using the same
+   validated interval predicate; a positive result is a certified
+   disjointness proof, while failure means only "unresolved";
+3. separately applies **one sweep** of the same compiled hull
+   contractors used by ReducePaver to the original domain, in state
+   coordinate order followed by constraint order. It records the
+   first target proving emptiness, the number of calls and how many
+   parameter intervals narrowed. One nonempty sweep is inconclusive
+   because the production Paver may repeat/split.
+
+The summary categorizes root interval certificates, certificates
+requiring subdivision, unresolved cases, and one-sweep hull
+rejections. It also tests the specific previously proposed
+grid-aligned boundary box for input indices 1 and 17, recording
+whether either paving or their difference **intersects its interior**
+or covers it; this deliberately distinguishes a valid disjointness
+certificate from a real Paver output difference.
+
+All calls, contractor probing, difference enumeration and printed
+analysis are **outside timing**. The original baseline
+and `--analyze-enclosures` modes are unchanged; inspect and
+per-enclosure profiling are mutually exclusive. No output from the
+new mode has yet been independently built or executed at the time of
+this source-only change, so no claim about actual witness cells or
+contractor behavior is made here.
+
+The method is intentionally diagnostic: proving a real difference
+cell disjoint from the valid image establishes how a tighter outer
+approximation *could* avoid it. It does not prove that this specific
+one-sweep contractor was responsible for the production Paver's
+traversal unless the actual traversal is instrumented and checked
+independently.
+

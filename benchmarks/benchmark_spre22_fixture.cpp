@@ -21,9 +21,13 @@
 #include <iostream>
 #include <memory>
 #include <stdexcept>
+#include <sstream>
 #include <string>
 #include <vector>
 
+#include "constraint-solving/constraint_solver.hpp"
+#include "function/box_function.hpp"
+#include "function/procedure.hpp"
 #include "function/taylor_function.hpp"
 #include "paving/binary_tree_paving.hpp"
 #include "paving/paver.hpp"
@@ -40,6 +44,9 @@ struct Options {
     unsigned max_enclosures = 48u;
     unsigned switch_after = 16u;
     bool analyze_enclosures = false;
+    std::vector<unsigned> inspected_indices;
+    unsigned inspect_limit = 12u;
+    unsigned inspect_depth = 6u;
 };
 
 unsigned positive(const std::string& s, const char* flag) {
@@ -55,7 +62,9 @@ Options parse(int argc, const char* argv[]) {
     for (int i = 1; i < argc; ++i) {
         const std::string flag(argv[i]);
         if (flag == "--help") {
-            std::cout << "--fineness 4 --samples 5 --max-enclosures 48 --hybrid-switch 16 [--analyze-enclosures]\n";
+            std::cout << "--fineness 4 --samples 5 --max-enclosures 48 --hybrid-switch 16 "
+                      << "[--analyze-enclosures] [--inspect-cells 1,17] "
+                      << "[--inspect-limit 12] [--inspect-depth 6]\n";
             result.samples = 0u;
             return result;
         }
@@ -72,6 +81,20 @@ Options parse(int argc, const char* argv[]) {
             result.max_enclosures = positive(value, "--max-enclosures");
         else if (flag == "--hybrid-switch")
             result.switch_after = positive(value, "--hybrid-switch");
+        else if (flag == "--inspect-cells") {
+            if (not result.inspected_indices.empty())
+                throw std::invalid_argument("--inspect-cells may occur only once");
+            std::istringstream indices(value);
+            std::string token;
+            while (std::getline(indices, token, ','))
+                result.inspected_indices.push_back(positive(token, "--inspect-cells"));
+            if (result.inspected_indices.empty() or value.back() == ',')
+                throw std::invalid_argument("empty --inspect-cells list");
+        }
+        else if (flag == "--inspect-limit")
+            result.inspect_limit = positive(value, "--inspect-limit");
+        else if (flag == "--inspect-depth")
+            result.inspect_depth = positive(value, "--inspect-depth");
         else throw std::invalid_argument("unknown option " + flag);
     }
     return result;
@@ -295,6 +318,220 @@ int analyze_enclosures(const Options& options,
     return 0;
 }
 
+
+// Diagnostic of genuine output cells, not a surrogate or a fitted classifier.
+// The exact difference is enumerated at a common grid fineness so internal
+// tree recombination does not affect which cell boxes are compared.
+struct CellHullProbe {
+    SizeType calls = 0u;
+    bool proved_empty = false;
+    std::string first_empty_target = "none";
+    SizeType narrowed_parameters = 0u;
+};
+
+// One sweep of the same compiled hull contractors used by ReducePaver.
+// A non-empty result is INCONCLUSIVE: the real Paver may repeat/split later.
+CellHullProbe probe_hull_once(
+    const ValidatedConstrainedImageSet& set, const GridCell& cell,
+    const List<ValidatedProcedure>& procedures) {
+    const auto f = set.function();
+    const auto g = set.constraint_function();
+    const auto& bounds = set.constraint_bounds();
+    const auto& original_domain = set.reduced_domain();
+    UpperBoxType reduced(original_domain);
+    ConstraintSolver solver;
+    CellHullProbe result;
+    for (SizeType j = 0u; j < f.result_size(); ++j) {
+        ++result.calls;
+        solver.hull_reduce(reduced, procedures[j], cell.box()[j]);
+        if (definitely(reduced.is_empty())) {
+            result.proved_empty = true;
+            result.first_empty_target = "state_" + std::to_string(j);
+            return result;
+        }
+    }
+    for (SizeType j = 0u; j < g.result_size(); ++j) {
+        ++result.calls;
+        solver.hull_reduce(reduced, procedures[f.result_size()+j], bounds[j]);
+        if (definitely(reduced.is_empty())) {
+            result.proved_empty = true;
+            result.first_empty_target = "constraint_" + std::to_string(j);
+            return result;
+        }
+    }
+    const UpperBoxType initial(original_domain);
+    for (SizeType j = 0u; j < reduced.size(); ++j) {
+        if (reduced[j].lower_raw().get_d() > initial[j].lower_raw().get_d() or
+            reduced[j].upper_raw().get_d() < initial[j].upper_raw().get_d())
+            ++result.narrowed_parameters;
+    }
+    return result;
+}
+
+// Independent validated set-disjointness test on the SAME cell and model.
+// Failure to prove means unknown, never "the set intersects the cell".
+// Skip zero-width parameters and cycle among remaining parameters.
+bool certify_disjoint_by_subdivision(
+    const ValidatedVectorMultivariateFunction& combined,
+    const ExactBoxType& target, const ExactBoxType& domain,
+    unsigned remaining_depth, SizeType next_axis, SizeType& evaluations) {
+    ++evaluations;
+    if (definitely(disjoint(apply(combined, domain), target)))
+        return true;
+    if (remaining_depth == 0u or domain.size() == 0u)
+        return false;
+    SizeType axis = domain.size();
+    for (SizeType offset = 0u; offset < domain.size(); ++offset) {
+        const SizeType candidate = (next_axis + offset) % domain.size();
+        if (domain[candidate].upper_bound().get_d() >
+            domain[candidate].lower_bound().get_d()) {
+            axis = candidate;
+            break;
+        }
+    }
+    if (axis == domain.size())
+        return false;
+    const auto halves = domain.split(axis);
+    return certify_disjoint_by_subdivision(
+               combined, target, halves.first, remaining_depth,
+               axis + 1u, evaluations) &&
+           certify_disjoint_by_subdivision(
+               combined, target, halves.second, remaining_depth,
+               axis + 1u, evaluations);
+}
+
+// Recompute only two selected isolated pavings: no timing and no changes
+// to the Paver implementation. Also inspect the explicit boundary cell
+// previously proposed from static Taylor-model analysis.
+int inspect_cell_differences(
+    const Options& options, const std::vector<ValidatedConstrainedImageSet>& sets,
+    const Grid& grid) {
+    const Paver constraint{ConstraintPaver()};
+    const Paver hull{ReducePaver(ReducePaverReductionMode::HullOnly)};
+    const ExactBoxType previously_proposed{
+        {0.0_x, 0.0625_x}, {-937.5_x, -925.0_x},
+        {-425.0_x, -412.5_x}, {1.25_x, 2.5_x},
+        {1.25_x, 2.5_x}
+    };
+    std::cout << std::fixed << std::setprecision(6);
+    for (const unsigned index: options.inspected_indices) {
+        if (index > sets.size() or index > options.max_enclosures)
+            throw std::invalid_argument("inspect index is outside selected enclosures");
+        const auto& set = sets[index-1u];
+
+        BinaryTreePaving constraint_paving(grid), hull_paving(grid);
+        constraint.adjoin_outer_approximation(constraint_paving, set, options.fineness);
+        hull.adjoin_outer_approximation(hull_paving, set, options.fineness);
+        constraint_paving.recombine();
+        hull_paving.recombine();
+        if (not contains(constraint_paving, hull_paving))
+            throw std::runtime_error("HullOnly not geometrically contained in Constraint");
+
+        BinaryTreePaving difference_paving =
+            difference(constraint_paving, hull_paving);
+        difference_paving.recombine();
+        std::vector<GridCell> extra;
+        difference_paving.for_each_enabled_cell_at_exact_fineness(
+            options.fineness, [&](const GridCell& cell) { extra.push_back(cell); });
+
+        std::cout << "SPRE22_CELL_DIFFERENCE index=" << index
+                  << " f=" << options.fineness
+                  << " relation=" << relation(constraint_paving, hull_paving)
+                  << " constraint_cells=" << constraint_paving.size()
+                  << " hull_cells=" << hull_paving.size()
+                  << " difference_tree_cells=" << difference_paving.size()
+                  << " difference_exact_cells=" << extra.size()
+                  << " difference_volume="
+                  << difference_paving.measure().raw().get_d() << "\n";
+
+        // A deliberately explicit falsification check of our prior
+        // candidate: overlapping an OUTPUT difference is a stricter
+        // observation than proving only that the true image is disjoint.
+        if (index == 1u or index == 17u) {
+            std::cout << "SPRE22_CELL_PREVIOUS_CANDIDATE index=" << index
+                      << " cell=" << previously_proposed
+                      << " constraint_intersects=" << constraint_paving.intersects(previously_proposed)
+                      << " hull_intersects=" << hull_paving.intersects(previously_proposed)
+                      << " difference_intersects=" << difference_paving.intersects(previously_proposed)
+                      << " constraint_covers=" << constraint_paving.superset(previously_proposed)
+                      << " hull_covers=" << hull_paving.superset(previously_proposed)
+                      << "\n";
+        }
+
+        if (extra.empty()) continue;
+        const auto f = set.function();
+        const auto g = set.constraint_function();
+        const auto combined = join(f, g);
+        const auto domain = set.reduced_domain();
+        const auto bounds = set.constraint_bounds();
+
+        List<ValidatedProcedure> procedures;
+        procedures.reserve(f.result_size() + g.result_size());
+        for (SizeType j = 0u; j < f.result_size(); ++j)
+            procedures.append(make_procedure(f[j]));
+        for (SizeType j = 0u; j < g.result_size(); ++j)
+            procedures.append(make_procedure(g[j]));
+
+        const SizeType shown = std::min(
+            extra.size(), static_cast<SizeType>(options.inspect_limit));
+        SizeType root_certified = 0u, refined_certified = 0u;
+        SizeType unresolved = 0u, immediate_hull_rejections = 0u;
+        for (SizeType k = 0u; k < shown; ++k) {
+            const SizeType sample_position =
+                shown == 1u ? 0u : k * (extra.size()-1u) / (shown-1u);
+            const GridCell& cell = extra[sample_position];
+            const auto target = product(cell.box(), bounds);
+            SizeType evaluations = 0u;
+            // The combined range is validated; true proves the cell is
+            // disjoint from the original constrained image.
+            ++evaluations;
+            const bool root_separated =
+                definitely(disjoint(apply(combined, domain), target));
+            bool separated = root_separated;
+            if (not separated) {
+                // Full depth includes the initial check above; the recursive
+                // helper includes its own root range check as its first call.
+                evaluations = 0u;
+                separated = certify_disjoint_by_subdivision(
+                    combined, target, domain, options.inspect_depth, 0u, evaluations);
+            }
+            if (root_separated) ++root_certified;
+            else if (separated) ++refined_certified;
+            else ++unresolved;
+
+            const auto hull_probe = probe_hull_once(set, cell, procedures);
+            if (hull_probe.proved_empty) ++immediate_hull_rejections;
+
+            std::cout << "SPRE22_CELL_WITNESS index=" << index
+                      << " sample=" << k+1u
+                      << " exact_cell_index=" << sample_position+1u
+                      << " cell_extent=" << cell.root_extent()
+                      << " cell_word=" << cell.word()
+                      << " box=" << cell.box()
+                      << " root_interval_disjoint=" << root_separated
+                      << " split_validated_disjoint=" << separated
+                      << " interval_evaluations=" << evaluations
+                      << " hull_one_sweep_empty=" << hull_probe.proved_empty
+                      << " hull_first_empty=" << hull_probe.first_empty_target
+                      << " hull_calls=" << hull_probe.calls
+                      << " narrowed_parameters=" << hull_probe.narrowed_parameters
+                      << "\n";
+        }
+        std::cout << "SPRE22_CELL_DIFFERENCE_SUMMARY index=" << index
+                  << " f=" << options.fineness
+                  << " difference_exact_cells=" << extra.size()
+                  << " inspected=" << shown
+                  << " root_disjoint=" << root_certified
+                  << " refined_disjoint=" << refined_certified
+                  << " unresolved=" << unresolved
+                  << " first_sweep_hull_rejections=" << immediate_hull_rejections
+                  << " max_split_depth=" << options.inspect_depth
+                  << "\n";
+    }
+    return 0;
+}
+
+
 int run(int argc, const char* argv[]) {
     const auto options = parse(argc, argv);
     if (options.samples == 0u) return 0;
@@ -302,12 +539,18 @@ int run(int argc, const char* argv[]) {
     if (sets.size() != 48u)
         throw std::runtime_error("fixture must contain all 48 real enclosures");
     if (options.max_enclosures > sets.size() or
-        (not options.analyze_enclosures and options.switch_after >= options.max_enclosures))
+        (not options.analyze_enclosures and options.inspected_indices.empty() and
+         options.switch_after >= options.max_enclosures))
         throw std::invalid_argument("invalid enclosure count or hybrid switch");
 
     const Grid grid(Vector<ApproximateDouble>{1.0, 200.0, 200.0, 20.0, 20.0});
-    if (options.analyze_enclosures)
+    if (options.analyze_enclosures) {
+        if (not options.inspected_indices.empty())
+            throw std::invalid_argument("--analyze-enclosures and --inspect-cells are exclusive");
         return analyze_enclosures(options, sets, grid);
+    }
+    if (not options.inspected_indices.empty())
+        return inspect_cell_differences(options, sets, grid);
     const Paver constraint{ConstraintPaver()};
     const Paver hull{ReducePaver(ReducePaverReductionMode::HullOnly)};
     const std::string names[3]{"constraint", "reduce-hull", "hybrid-constraint-hull"};
