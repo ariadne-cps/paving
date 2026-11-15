@@ -133,8 +133,8 @@ class RobddPaving : public virtual PavingInterface {
     ValidatedLowerKleenean overlaps(const ExactBoxType& box) const override;
 
     //! \brief Underlying grid shared by all cells in the paving.
-    //! \warning This reference does not preserve its lifetime across
-    //! concurrent assignment. Use root_cell() for a detached geometry value.
+    //! \details This grid is stable across same-grid paving updates,
+    //! including concurrent adjoin and assignment. Root-cell geometry may change.
     const Grid& grid() const override { return _root_cell.grid(); }
 
     //! \brief Dimension of the underlying grid, synchronized with assignment.

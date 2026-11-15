@@ -253,6 +253,11 @@ class GridCell : public GridAbstractCell {
     //! \brief Allows to assign one GridCell to another
     GridCell& operator=(const GridCell& otherCell);
 
+    /** @brief Assign cell geometry without replacing the intrinsic grid.
+     *  @pre Both cells belong to equal grids.
+     */
+    Void assign_on_same_grid(const GridCell& otherCell);
+
     //! \brief A total order on cells on the same grid, by height and word prefix.
     Bool operator<(const GridCell& otherCell) const;
 
@@ -505,6 +510,15 @@ inline GridCell& GridCell::operator=(const GridCell& otherCell) {
     /** @brief Perform the specified paving operation. */
     GridAbstractCell::operator=(otherCell);
     return *this;
+}
+
+/** @brief Assign only geometry; a paving's Grid must remain stable across updates. */
+inline Void GridCell::assign_on_same_grid(const GridCell& otherCell) {
+    ARIADNE_PRECONDITION_MSG(_theGrid == otherCell._theGrid,
+                             "Cannot assign cell geometry from a different grid");
+    _theExtent = otherCell._theExtent;
+    _theWord = otherCell._theWord;
+    _theBoxType = otherCell._theBoxType;
 }
 
 /** @brief Perform the specified paving operation. */

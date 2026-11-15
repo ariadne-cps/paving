@@ -377,7 +377,7 @@ RobddPaving& RobddPaving::operator=(const RobddPaving& other) {
                                  "Cannot assign a paving from a different grid");
         _manager_owner = std::move(state.manager_owner);
         _manager = state.manager;
-        _root_cell = std::move(state.root_cell);
+        _root_cell.assign_on_same_grid(state.root_cell);
         _root = state.root;
         _depth = state.depth;
     }
@@ -645,7 +645,7 @@ Void RobddPaving::clear() {
 
 Void RobddPaving::_adjoin_unlocked(const RobddPaving& other) {
     RobddPaving united = _join_unlocked(other);
-    _root_cell = std::move(united._root_cell);
+    _root_cell.assign_on_same_grid(united._root_cell);
     _root = united._root;
     _depth = united._depth;
 }
@@ -688,7 +688,7 @@ Void RobddPaving::adjoin(const std::vector<GridCell>& cells) {
     if (_root.is_false() and _depth == 0u) {
         // Only a genuinely depth-zero empty paving can discard its old
         // metadata. A minced empty paving must retain its logical depth.
-        _root_cell = std::move(additions._root_cell);
+        _root_cell.assign_on_same_grid(additions._root_cell);
         _root = additions._root;
         _depth = additions._depth;
     } else {
@@ -712,7 +712,7 @@ Void RobddPaving::restrict(const RobddPaving& other) {
     RobddPaving source(other);
     std::lock_guard<std::mutex> lock(_adjoin_mutex);
     RobddPaving result = _intersection_unlocked(source);
-    _root_cell = std::move(result._root_cell);
+    _root_cell.assign_on_same_grid(result._root_cell);
     _root = result._root;
     _depth = result._depth;
 }
@@ -735,7 +735,7 @@ Void RobddPaving::remove(const RobddPaving& other) {
     RobddPaving source(other);
     std::lock_guard<std::mutex> lock(_adjoin_mutex);
     RobddPaving result = _difference_unlocked(source);
-    _root_cell = std::move(result._root_cell);
+    _root_cell.assign_on_same_grid(result._root_cell);
     _root = result._root;
     _depth = result._depth;
 }
@@ -958,7 +958,7 @@ Void RobddPaving::remove(const GridCell& cell) {
     std::lock_guard<std::mutex> lock(_adjoin_mutex);
     RobddPaving singleton(*_manager, cell, _manager->constant(true), 0u);
     RobddPaving result = _difference_unlocked(singleton);
-    _root_cell = std::move(result._root_cell);
+    _root_cell.assign_on_same_grid(result._root_cell);
     _root = result._root;
     _depth = result._depth;
 }

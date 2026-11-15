@@ -26,9 +26,11 @@
  *  @brief Test paving geometry and backend behavior.
  */
 
+#include <atomic>
 #include <limits>
 #include <memory>
 #include <sstream>
+#include <thread>
 #include <type_traits>
 #include <vector>
 
@@ -48,6 +50,42 @@ static_assert(std::is_base_of_v<PavingInterface, BinaryTreePaving>);
 class TestRobddPaving : public Ariadne::Testing::ContextFixture {
   public:
     using ContextFixture::ContextFixture;
+
+    Void test_concurrent_grid_reads_during_root_updates() {
+        Grid grid(1u);
+        Grid equal_grid(1u);
+        GridCell left(grid, 0u, make_binary_word("0"));
+        GridCell right(equal_grid, 0u, make_binary_word("1"));
+        RobddManager manager;
+        RobddPaving paving(manager, left, manager.constant(true), 0u);
+        RobddPaving other(manager, right, manager.constant(true), 0u);
+
+        std::atomic<bool> started{false};
+        std::atomic<bool> stop{false};
+        std::atomic<bool> valid{true};
+        std::thread reader([&] {
+            started.store(true);
+            while (not stop.load()) {
+                // grid() must not expose an internally reassigned shared_ptr
+                // while a different thread updates the paving's root cell.
+                if (paving.grid().lengths().size() != 1u)
+                    valid.store(false);
+            }
+        });
+        while (not started.load())
+            std::this_thread::yield();
+
+        for (unsigned i = 0u; i < 256u; ++i) {
+            paving.adjoin(other);
+            paving.remove(other);
+        }
+        stop.store(true);
+        reader.join();
+        ARIADNE_TESTING_PROVE(valid.load());
+        ARIADNE_TESTING_PROVE(paving.root_cell().grid() == grid);
+        ARIADNE_TESTING_PROVE(paving.superset(left));
+        ARIADNE_TESTING_PROVE(not paving.superset(right));
+    }
 
     Void test_shared_import_and_geometric_box_queries() {
         Grid grid(1u);
@@ -663,6 +701,7 @@ class TestRobddPaving : public Ariadne::Testing::ContextFixture {
 int main(int argc, char **argv) {
     ARIADNE_TESTING_SUITE("test_robdd_paving");
 
+    ARIADNE_TESTING_ADD_TEST(TestRobddPaving, test_concurrent_grid_reads_during_root_updates);
     ARIADNE_TESTING_ADD_TEST(TestRobddPaving, test_shared_manager_lifetime_and_interoperability);
     ARIADNE_TESTING_ADD_TEST(TestRobddPaving, test_shared_import_and_geometric_box_queries);
     ARIADNE_TESTING_ADD_TEST(TestRobddPaving, test_validated_and_overt_approximation_paths);
