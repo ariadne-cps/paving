@@ -2059,3 +2059,115 @@ A fitted feature rule must not be mistaken for a proof of equal geometry:
 the final policy requires independent workloads and exact paving
 comparisons before consideration for production.
 
+
+### Static rational geometry certificates for the real SPRE22 fixture (2026-11-15)
+
+The previous diagnostic results identify the *outputs* that become
+tighter under HullOnly, but monomial counts are not a plausible
+generic selection criterion. A subsequent inspection uses only the
+captured `benchmarks/fixtures/spre22_enclosures.generated.hpp`.
+No Paver execution, fitting or benchmark timing is involved.
+
+**Method and reproducibility.** Each coordinate's concrete validated
+Taylor model is `F_j(xi) = p_j(xi) +/- e_j`, with normalized Taylor
+parameters `xi` in `[-1,1]`. Decode binary64 coefficients and error
+bounds to exact rational values. Substitute `xi=2u-1`, expand into
+a tensor-product Bernstein polynomial on `u in [0,1]^5`, and apply
+the convex-hull property of Bernstein basis functions:
+
+```
+for every xi in [-1,1]^5:
+    F_j(xi) >= min(BernsteinCoefficients(p_j)) - e_j.
+```
+
+This bound is computed with Python `fractions.Fraction`, not rounded
+arithmetic, in `benchmarks/fixtures/analyze_spre22_geometry.py`.
+The first nominal parameter is fixed to zero; no model polynomial
+depends on it. To reproduce the calculations without building C++:
+
+```sh
+python3 benchmarks/fixtures/analyze_spre22_geometry.py --full
+```
+
+The analysis compares the *lower* image coordinate with the lower
+boundary of the enclosure's corresponding initial spatial parameter
+box. The table gives the **minimum** certified gap over all sixteen
+enclosures of each group, alongside the interval-bound gap
+`constant - sum(abs(nonconstant coefficient)) - error`:
+
+| Enclosures | Naive x gap | Certified x gap | Naive y gap | Certified y gap |
+| --- | ---: | ---: | ---: | ---: |
+| 1-16 | -0.05664221 | -0.00000191 | -0.05395678 | -0.00000186 |
+| 17-32 | -0.04206601 | **+0.01101874** | -0.04493974 | **+0.00557989** |
+| 33-48 | -0.01346701 | **+0.04321365** | -0.03053797 | **+0.02188522** |
+
+The exact-rational certificates prove strict separation from BOTH
+lower spatial faces for all 32 enclosures in groups 2 and 3.
+They cannot establish this separation for group 1, where the
+first step includes the initial-time boundary and the model error.
+These positive gaps are properties of the *image*, independent
+of any contraction invoked by ReducePaver, and are not thresholds
+chosen from the sample.
+
+**Explicit comparison: enclosures 1 and 17.** Both have the same
+initial spatial box, `x0 in [-925,-912.5]`,
+`y0 in [-425,-412.5]`. In enclosure 17, simple independent
+Taylor coefficient interval bounds yield
+
+```
+F_x(D): lower bound = -925.041819005030
+F_y(D): lower bound = -425.044653993910
+```
+
+These interval projections still overlap the left and lower
+neighboring grid boxes. Exact Bernstein bounds instead certify
+
+```
+for every parameter point:
+  F_x >= -924.988515
+  F_y >= -424.993881
+```
+
+For the `(t,x,y,vx,vy)` grid of lengths
+`(1,200,200,20,20)`, at per-axis refinement 4,
+the grid-aligned elementary box
+
+```
+[0, 0.0625] x [-937.5, -925] x [-425, -412.5]
+            x [1.25, 2.5] x [1.25, 2.5]
+```
+
+is compatible with each **separately evaluated** coordinate
+interval of enclosure 17 (including its time interval and the
+original constraint range), but is rigorously disjoint from its
+validated image because `F_x > -925`. The first enclosure
+lacks this separation certificate: its Bernstein lower bound
+is `-925.000001910792`, and at the initial-time corner
+the x-model's polynomial evaluates to `-925`, within
+its explicitly retained uniform error.
+
+This concretely illustrates a geometric distinction among the
+triples (image, parameter constraints, grid cell): the second
+step has a strictly positive displacement from its initial
+left/bottom faces, but independent coordinate evaluation
+loses the correlations which establish that displacement.
+The third step has an even greater separation; its temporal
+constraint may introduce an additional, distinct reduction.
+
+**Limits:** The demonstration is an exact proof of geometric
+disjointness of a grid-aligned candidate box; it does **not**
+establish that the candidate is stored in the final Constraint
+paving or absent from the final HullOnly paving. The preceding
+benchmark logs contain cell counts, volumes, and containment,
+but not the actual per-cell differences. Likewise, the
+certificate does not show whether the existing ConstraintPaver
+implementation can eventually reject this box after parameter
+subdivision, nor does it prove that HullOnly uses a Bernstein
+certificate. Thus it explains a concrete *possible source* of
+extra precision, not all 54-cell differences on enclosure 17.
+
+A principled follow-up would study low-cost **validated
+boundary-separation tests** derived from shared parameter
+dependencies. No fixed coefficient-count rule or generic
+switching policy is justified by this observation.
+

@@ -1,8 +1,8 @@
 # Captured SPRE22 enclosure fixture
 
 The file `spre22_enclosures.generated.hpp` is produced from the **real**
-SPRE22 evolver output, not hand-authored or synthesized. It is deliberately
-absent until the one-time capture is run.
+SPRE22 evolver output, not hand-authored or synthesized. It was initially
+absent; the real 48-enclosure capture has now been committed to Paving.
 
 From `ariadne-cps/arch` on `spre22-paver-benchmark`, after building
 `benchmark_spre22_pavers`, run:
@@ -27,3 +27,22 @@ proof of exact cross-repository geometric equality. Preserve the
 generator commit and capture parameters in the fixture commit message.
 
 No production Paving code or gitlinks depend on this fixture.
+
+## Exact static geometric analysis (no benchmark required)
+
+The committed `analyze_spre22_geometry.py` checks the captured Taylor
+maps and uniform errors using exact rational Bernstein bounds. It shows
+why the later enclosure families can be proved separated from the lower
+spatial faces of their original parameter boxes even though independent
+coefficient interval bounds overlap those faces.
+
+```sh
+python3 benchmarks/fixtures/analyze_spre22_geometry.py --full
+```
+
+This reads the real header directly and requires only Python 3.9+;
+it does not compile/run Pavers or evolve SPRE22. It proves geometrical
+disjointness of certain grid-aligned candidate boxes, not which cells
+remain in the two Paver outputs. See `doc/paver_design.md` for the
+certified margins and interpretation.
+
