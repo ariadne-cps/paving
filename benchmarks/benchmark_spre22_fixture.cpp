@@ -16,25 +16,26 @@
 
 #include <algorithm>
 #include <chrono>
-#include <cstdint>
 #include <cmath>
+#include <cstdint>
 #include <iomanip>
 #include <iostream>
 #include <memory>
 #include <optional>
-#include <stdexcept>
 #include <sstream>
+#include <stdexcept>
 #include <string>
 #include <vector>
 
-#include "constraint-solving/constraint_solver.hpp"
+#include "fixtures/spre22_enclosures.generated.hpp"
 #include "function/box_function.hpp"
 #include "function/procedure.hpp"
 #include "function/taylor_function.hpp"
 #include "paving/binary_tree_paving.hpp"
 #include "paving/paver.hpp"
 #include "set/function_set.hpp"
-#include "fixtures/spre22_enclosures.generated.hpp"
+
+#include "constraint-solving/constraint_solver.hpp"
 
 namespace {
 
@@ -102,9 +103,10 @@ Options parse(int argc, const char* argv[]) {
                 phase < 0.0 or phase >= 1.0)
                 throw std::invalid_argument("invalid --spatial-grid-phase (expected [0,1))");
             result.spatial_grid_phase = phase;
-        }
-        else if (flag == "--fineness") result.fineness = positive(value, "--fineness");
-        else if (flag == "--samples") result.samples = positive(value, "--samples");
+        } else if (flag == "--fineness")
+            result.fineness = positive(value, "--fineness");
+        else if (flag == "--samples")
+            result.samples = positive(value, "--samples");
         else if (flag == "--max-enclosures")
             result.max_enclosures = positive(value, "--max-enclosures");
         else if (flag == "--hybrid-switch")
@@ -118,32 +120,37 @@ Options parse(int argc, const char* argv[]) {
                 result.inspected_indices.push_back(positive(token, "--inspect-cells"));
             if (result.inspected_indices.empty() or value.back() == ',')
                 throw std::invalid_argument("empty --inspect-cells list");
-        }
-        else if (flag == "--inspect-limit")
+        } else if (flag == "--inspect-limit")
             result.inspect_limit = positive(value, "--inspect-limit");
         else if (flag == "--inspect-depth")
             result.inspect_depth = positive(value, "--inspect-depth");
-        else throw std::invalid_argument("unknown option " + flag);
+        else
+            throw std::invalid_argument("unknown option " + flag);
     }
     return result;
 }
 
 bool contains(const BinaryTreePaving& outer, const BinaryTreePaving& inner) {
     for (auto it = inner.begin(), end = inner.end(); it != end; ++it)
-        if (not outer.superset(*it)) return false;
+        if (not outer.superset(*it))
+            return false;
     return true;
 }
 
 std::string relation(const BinaryTreePaving& a, const BinaryTreePaving& b) {
     const bool ab = contains(a, b), ba = contains(b, a);
-    if (ab and ba) return "equal";
-    if (ab) return "A strictly contains B";
-    if (ba) return "B strictly contains A";
+    if (ab and ba)
+        return "equal";
+    if (ab)
+        return "A strictly contains B";
+    if (ba)
+        return "B strictly contains A";
     return "incomparable";
 }
 
 double median(std::vector<double> v) {
-    if (v.empty()) throw std::logic_error("no timings");
+    if (v.empty())
+        throw std::logic_error("no timings");
     std::sort(v.begin(), v.end());
     const auto n = v.size();
     return (n % 2u) ? v[n / 2u] : (v[n / 2u - 1u] + v[n / 2u]) / 2.0;
@@ -152,7 +159,8 @@ double median(std::vector<double> v) {
 double mad(const std::vector<double>& values) {
     const double centre = median(values);
     std::vector<double> deviations;
-    for (const auto v: values) deviations.push_back(std::abs(v - centre));
+    for (const auto v: values)
+        deviations.push_back(std::abs(v - centre));
     return median(deviations);
 }
 
@@ -161,7 +169,6 @@ struct Outcome {
     double median_ms;
     std::unique_ptr<BinaryTreePaving> paving;
 };
-
 
 // The features are measured on the INPUT before paving and do not use
 // enclosure indices or output geometry as predictive features.
@@ -179,8 +186,10 @@ void accumulate_model_features(EnclosureFeatures& result,
                                const ValidatedTaylorModelDP& model,
                                bool is_constraint) {
     const SizeType terms = model.number_of_terms();
-    if (is_constraint) result.constraint_terms += terms;
-    else result.state_terms += terms;
+    if (is_constraint)
+        result.constraint_terms += terms;
+    else
+        result.state_terms += terms;
     result.maximum_degree = std::max(
         result.maximum_degree, static_cast<unsigned>(model.degree()));
     const double error = model.error().raw().get_d();
@@ -233,8 +242,7 @@ int analyze_enclosures(const Options& options,
                        const Grid& grid) {
     const Paver pavers[2]{
         Paver(ConstraintPaver()),
-        Paver(ReducePaver(ReducePaverReductionMode::HullOnly))
-    };
+        Paver(ReducePaver(ReducePaverReductionMode::HullOnly))};
     std::vector<EnclosureFeatures> features;
     features.reserve(options.max_enclosures);
     for (unsigned i = 0u; i < options.max_enclosures; ++i)
@@ -248,12 +256,10 @@ int analyze_enclosures(const Options& options,
 
         for (unsigned sample = 0u; sample < options.samples; ++sample) {
             BinaryTreePaving accumulated[2]{
-                BinaryTreePaving(grid), BinaryTreePaving(grid)
-            };
+                BinaryTreePaving(grid), BinaryTreePaving(grid)};
             for (unsigned i = 0u; i < options.max_enclosures; ++i) {
                 BinaryTreePaving isolated[2]{
-                    BinaryTreePaving(grid), BinaryTreePaving(grid)
-                };
+                    BinaryTreePaving(grid), BinaryTreePaving(grid)};
                 // Reverse the order for successive samples and enclosures.
                 for (unsigned position = 0u; position != 2u; ++position) {
                     const unsigned which = (position + sample + i) % 2u;
@@ -263,7 +269,8 @@ int analyze_enclosures(const Options& options,
                     pavers[which].adjoin_outer_approximation(
                         destination, sets[i], options.fineness);
                     const double millis = std::chrono::duration<double, std::milli>(
-                        std::chrono::steady_clock::now() - start).count();
+                                              std::chrono::steady_clock::now() - start)
+                                              .count();
                     records[i].timings[which].push_back(millis);
 
                     BinaryTreePaving snapshot(destination);
@@ -295,10 +302,14 @@ int analyze_enclosures(const Options& options,
             ratios.push_back(ratio);
             const std::string geometry =
                 relation(*measurement.geometry[0], *measurement.geometry[1]);
-            if (geometry == "equal") ++equal;
-            else if (geometry == "A strictly contains B") ++hull_tighter;
-            else if (geometry == "B strictly contains A") ++constraint_tighter;
-            else ++incomparable;
+            if (geometry == "equal")
+                ++equal;
+            else if (geometry == "A strictly contains B")
+                ++hull_tighter;
+            else if (geometry == "B strictly contains A")
+                ++constraint_tighter;
+            else
+                ++incomparable;
 
             std::cout << "SPRE22_ENCLOSURE_ANALYSIS mode=" << mode_name
                       << " index=" << i + 1u
@@ -346,7 +357,6 @@ int analyze_enclosures(const Options& options,
     return 0;
 }
 
-
 // Diagnostic of genuine output cells, not a surrogate or a fitted classifier.
 // The exact difference is enumerated at a common grid fineness so internal
 // tree recombination does not affect which cell boxes are compared.
@@ -380,7 +390,7 @@ CellHullProbe probe_hull_once(
     }
     for (SizeType j = 0u; j < g.result_size(); ++j) {
         ++result.calls;
-        solver.hull_reduce(reduced, procedures[f.result_size()+j], bounds[j]);
+        solver.hull_reduce(reduced, procedures[f.result_size() + j], bounds[j]);
         if (definitely(reduced.is_empty())) {
             result.proved_empty = true;
             result.first_empty_target = "constraint_" + std::to_string(j);
@@ -437,9 +447,11 @@ int inspect_cell_differences(
     const Paver constraint{ConstraintPaver()};
     const Paver hull{ReducePaver(ReducePaverReductionMode::HullOnly)};
     const ExactBoxType previously_proposed{
-        {0.0_x, 0.0625_x}, {-937.5_x, -925.0_x},
-        {-425.0_x, -412.5_x}, {1.25_x, 2.5_x},
-        {1.25_x, 2.5_x}
+        {   0.0_x, 0.0625_x},
+        {-937.5_x, -925.0_x},
+        {-425.0_x, -412.5_x},
+        {  1.25_x,    2.5_x},
+        {  1.25_x,    2.5_x}
     };
     std::cout << std::fixed << std::setprecision(6);
     SizeType all_common = 0u;
@@ -455,7 +467,7 @@ int inspect_cell_differences(
     for (const unsigned index: options.inspected_indices) {
         if (index > sets.size() or index > options.max_enclosures)
             throw std::invalid_argument("inspect index is outside selected enclosures");
-        const auto& set = sets[index-1u];
+        const auto& set = sets[index - 1u];
 
         BinaryTreePaving constraint_paving(grid), hull_paving(grid);
         constraint.adjoin_outer_approximation(constraint_paving, set, options.fineness);
@@ -466,8 +478,10 @@ int inspect_cell_differences(
             throw std::runtime_error("HullOnly not geometrically contained in Constraint");
         const bool same_geometry = contains(hull_paving, constraint_paving);
         ++inspected_enclosures;
-        if (same_geometry) ++equal_enclosures;
-        else ++tighter_enclosures;
+        if (same_geometry)
+            ++equal_enclosures;
+        else
+            ++tighter_enclosures;
 
         BinaryTreePaving difference_paving =
             difference(constraint_paving, hull_paving);
@@ -554,13 +568,13 @@ int inspect_cell_differences(
             procedures.append(make_procedure(g[j]));
 
         const SizeType shown = options.audit_all_cells
-            ? extra.size()
-            : std::min(extra.size(), static_cast<SizeType>(options.inspect_limit));
+                                 ? extra.size()
+                                 : std::min(extra.size(), static_cast<SizeType>(options.inspect_limit));
         SizeType root_certified = 0u, refined_certified = 0u;
         SizeType unresolved = 0u, immediate_hull_rejections = 0u;
         for (SizeType k = 0u; k < shown; ++k) {
             const SizeType sample_position =
-                shown == 1u ? 0u : k * (extra.size()-1u) / (shown-1u);
+                shown == 1u ? 0u : k * (extra.size() - 1u) / (shown - 1u);
             const GridCell& cell = extra[sample_position];
             const auto target = product(cell.box(), bounds);
             SizeType evaluations = 0u;
@@ -577,29 +591,33 @@ int inspect_cell_differences(
                 separated = certify_disjoint_by_subdivision(
                     combined, target, domain, options.inspect_depth, 0u, evaluations);
             }
-            if (root_separated) ++root_certified;
-            else if (separated) ++refined_certified;
-            else ++unresolved;
+            if (root_separated)
+                ++root_certified;
+            else if (separated)
+                ++refined_certified;
+            else
+                ++unresolved;
             all_range_evaluations += evaluations;
 
             const auto hull_probe = probe_hull_once(set, cell, procedures);
-            if (hull_probe.proved_empty) ++immediate_hull_rejections;
+            if (hull_probe.proved_empty)
+                ++immediate_hull_rejections;
 
             if (not options.audit_all_cells or options.audit_verbose)
                 std::cout << "SPRE22_CELL_WITNESS index=" << index
-                      << " sample=" << k+1u
-                      << " exact_cell_index=" << sample_position+1u
-                      << " cell_extent=" << cell.root_extent()
-                      << " cell_word=" << cell.word()
-                      << " box=" << cell.box()
-                      << " root_interval_disjoint=" << root_separated
-                      << " split_validated_disjoint=" << separated
-                      << " interval_evaluations=" << evaluations
-                      << " hull_one_sweep_empty=" << hull_probe.proved_empty
-                      << " hull_first_empty=" << hull_probe.first_empty_target
-                      << " hull_calls=" << hull_probe.calls
-                      << " narrowed_parameters=" << hull_probe.narrowed_parameters
-                      << "\n";
+                          << " sample=" << k + 1u
+                          << " exact_cell_index=" << sample_position + 1u
+                          << " cell_extent=" << cell.root_extent()
+                          << " cell_word=" << cell.word()
+                          << " box=" << cell.box()
+                          << " root_interval_disjoint=" << root_separated
+                          << " split_validated_disjoint=" << separated
+                          << " interval_evaluations=" << evaluations
+                          << " hull_one_sweep_empty=" << hull_probe.proved_empty
+                          << " hull_first_empty=" << hull_probe.first_empty_target
+                          << " hull_calls=" << hull_probe.calls
+                          << " narrowed_parameters=" << hull_probe.narrowed_parameters
+                          << "\n";
         }
         all_root_certified += root_certified;
         all_refined_certified += refined_certified;
@@ -647,13 +665,13 @@ int inspect_cell_differences(
     return 0;
 }
 
-
-
 // Input-only, cell-aware witness: the ordinary interval image overlaps a
 // real grid boundary, while a tight validated Bernstein bound excludes it.
 // This does NOT prove the two Pavers return different geometry.
 struct BoundaryPreflight {
-    enum class Decision { Witness, NoWitness, Unknown };
+    enum class Decision { Witness,
+                          NoWitness,
+                          Unknown };
     Decision decision = Decision::NoWitness;
     unsigned tested_faces = 0u;
     SizeType witness_axis = 0u;
@@ -662,11 +680,12 @@ struct BoundaryPreflight {
 };
 
 std::uint64_t preflight_binomial(unsigned n, unsigned k) {
-    if (k > n) return 0u;
-    k = std::min(k, n-k);
+    if (k > n)
+        return 0u;
+    k = std::min(k, n - k);
     std::uint64_t v = 1u;
     for (unsigned i = 1u; i <= k; ++i)
-        v = (v * (n-k+i)) / i;
+        v = (v * (n - k + i)) / i;
     return v;
 }
 
@@ -674,14 +693,15 @@ std::uint64_t preflight_binomial(unsigned n, unsigned k) {
 // at basis position b. Every rational division uses directed bounds.
 FloatDPBounds preflight_weight(unsigned exponent, unsigned d, unsigned b) {
     FloatDPBounds result(0u, dp);
-    for (unsigned k = 0u; k <= std::min(exponent,b); ++k) {
-        const std::uint64_t n = preflight_binomial(exponent,k)
-            * (std::uint64_t{1} << k) * preflight_binomial(b,k);
-        const std::uint64_t denominator = preflight_binomial(d,k);
+    for (unsigned k = 0u; k <= std::min(exponent, b); ++k) {
+        const std::uint64_t n = preflight_binomial(exponent, k) * (std::uint64_t{1} << k) * preflight_binomial(b, k);
+        const std::uint64_t denominator = preflight_binomial(d, k);
         const FloatDPBounds term =
             FloatDPBounds(n, dp) / FloatDPBounds(denominator, dp);
-        if ((exponent-k) % 2u) result -= term;
-        else result += term;
+        if ((exponent - k) % 2u)
+            result -= term;
+        else
+            result += term;
     }
     return result;
 }
@@ -698,22 +718,22 @@ std::optional<FloatDP> preflight_bernstein_lower(
     for (auto it = model.begin(); it != model.end(); ++it)
         for (SizeType j = 0u; j < dimensions; ++j)
             degrees[j] = std::max(degrees[j],
-                static_cast<unsigned>(it->index()[j]));
+                                  static_cast<unsigned>(it->index()[j]));
 
     SizeType count = 1u;
-    for (const unsigned d : degrees) {
-        if (d > 8u or count > max_basis / (d+1u))
+    for (const unsigned d: degrees) {
+        if (d > 8u or count > max_basis / (d + 1u))
             return std::nullopt;
-        count *= d+1u;
+        count *= d + 1u;
     }
     std::vector<std::vector<FloatDPBounds>> weights;
     weights.reserve(dimensions);
-    for (const unsigned d : degrees) {
+    for (const unsigned d: degrees) {
         std::vector<FloatDPBounds> table;
-        table.reserve(static_cast<std::size_t>(d+1u)*(d+1u));
+        table.reserve(static_cast<std::size_t>(d + 1u) * (d + 1u));
         for (unsigned p = 0u; p <= d; ++p)
             for (unsigned b = 0u; b <= d; ++b)
-                table.emplace_back(preflight_weight(p,d,b));
+                table.emplace_back(preflight_weight(p, d, b));
         weights.push_back(std::move(table));
     }
 
@@ -723,15 +743,15 @@ std::optional<FloatDP> preflight_bernstein_lower(
     for (SizeType position = 0u; position < count; ++position) {
         SizeType remaining = position;
         for (SizeType j = 0u; j < dimensions; ++j) {
-            indices[j] = static_cast<unsigned>(remaining % (degrees[j]+1u));
-            remaining /= degrees[j]+1u;
+            indices[j] = static_cast<unsigned>(remaining % (degrees[j] + 1u));
+            remaining /= degrees[j] + 1u;
         }
         FloatDPBounds coefficient(0u, dp);
         for (auto it = model.begin(); it != model.end(); ++it) {
             FloatDPBounds term(it->coefficient());
             for (SizeType j = 0u; j < dimensions; ++j) {
                 const unsigned p = static_cast<unsigned>(it->index()[j]);
-                term *= weights[j][p*(degrees[j]+1u)+indices[j]];
+                term *= weights[j][p * (degrees[j] + 1u) + indices[j]];
             }
             coefficient += term;
         }
@@ -740,7 +760,8 @@ std::optional<FloatDP> preflight_bernstein_lower(
             initialized = true;
         }
     }
-    if (not initialized) return std::nullopt;
+    if (not initialized)
+        return std::nullopt;
     return sub(down, minimum, model.error().raw());
 }
 
@@ -766,12 +787,12 @@ BoundaryPreflight inspect_boundary_witness(
         const double origin = grid.origin()[j].get_d();
         const double lower = range[j].lower_bound().raw().get_d();
         const double upper = range[j].upper_bound().raw().get_d();
-        if (not (std::isfinite(step) and step > 0.0 and
-                 std::isfinite(lower) and std::isfinite(upper))) {
+        if (not(std::isfinite(step) and step > 0.0 and
+                std::isfinite(lower) and std::isfinite(upper))) {
             result.decision = BoundaryPreflight::Decision::Unknown;
             return result;
         }
-        const double near_index = std::ceil((lower-origin)/step);
+        const double near_index = std::ceil((lower - origin) / step);
         if (not std::isfinite(near_index) or
             std::abs(near_index) > 1000000000.0) {
             result.decision = BoundaryPreflight::Decision::Unknown;
@@ -781,7 +802,7 @@ BoundaryPreflight inspect_boundary_witness(
         // is scaled by a power of two (exact in binary64 here).
         const FloatDP face = grid.subdivision_coordinate(
             j, std::ldexp(near_index, -static_cast<int>(fineness)));
-        if (not (face.get_d() > lower and face.get_d() < upper))
+        if (not(face.get_d() > lower and face.get_d() < upper))
             continue;
         ++result.tested_faces;
         const auto certified = preflight_bernstein_lower(patch->model(j));
@@ -793,7 +814,7 @@ BoundaryPreflight inspect_boundary_witness(
             result.decision = BoundaryPreflight::Decision::Witness;
             result.witness_axis = j;
             result.witness_face = face.get_d();
-            result.witness_margin = sub(down,*certified,face).get_d();
+            result.witness_margin = sub(down, *certified, face).get_d();
             return result;
         }
     }
@@ -801,11 +822,12 @@ BoundaryPreflight inspect_boundary_witness(
 }
 
 const char* preflight_name(BoundaryPreflight::Decision decision) {
-    if (decision == BoundaryPreflight::Decision::Witness) return "witness";
-    if (decision == BoundaryPreflight::Decision::NoWitness) return "no_witness";
+    if (decision == BoundaryPreflight::Decision::Witness)
+        return "witness";
+    if (decision == BoundaryPreflight::Decision::NoWitness)
+        return "no_witness";
     return "unknown";
 }
-
 
 int evaluate_preflight(const Options& options,
                        const std::vector<ValidatedConstrainedImageSet>& sets,
@@ -828,8 +850,10 @@ int evaluate_preflight(const Options& options,
             const auto result =
                 inspect_boundary_witness(sets[i], grid, options.fineness);
             times.push_back(std::chrono::duration<double, std::milli>(
-                std::chrono::steady_clock::now() - start).count());
-            if (sample == 0u) first_decision = result;
+                                std::chrono::steady_clock::now() - start)
+                                .count());
+            if (sample == 0u)
+                first_decision = result;
             else if (result.decision != first_decision.decision or
                      result.witness_axis != first_decision.witness_axis)
                 throw std::runtime_error("nondeterministic preflight decision");
@@ -842,17 +866,23 @@ int evaluate_preflight(const Options& options,
         hull.adjoin_outer_approximation(b, sets[i], options.fineness);
         a.recombine();
         b.recombine();
-        if (not contains(a,b))
+        if (not contains(a, b))
             throw std::runtime_error("HullOnly not contained in Constraint");
-        const bool tighter = not contains(b,a);
+        const bool tighter = not contains(b, a);
         if (first_decision.decision == BoundaryPreflight::Decision::Unknown) {
             ++unknown;
         } else if (first_decision.decision == BoundaryPreflight::Decision::Witness) {
-            if (tighter) ++tp; else ++fp;
+            if (tighter)
+                ++tp;
+            else
+                ++fp;
         } else {
-            if (tighter) ++fn; else ++tn;
+            if (tighter)
+                ++fn;
+            else
+                ++tn;
         }
-        std::cout << "SPRE22_PREFLIGHT index=" << i+1u
+        std::cout << "SPRE22_PREFLIGHT index=" << i + 1u
                   << " decision=" << preflight_name(first_decision.decision)
                   << " reference=" << (tighter ? "hull_tighter" : "equal")
                   << " tested_faces=" << first_decision.tested_faces
@@ -878,10 +908,9 @@ int evaluate_preflight(const Options& options,
     // Preflight and selected Paver are timed together. Full sequence
     // geometries are compared by bidirectional containment, separately.
     const std::string names[3]{
-        "constraint", "reduce-hull", "preflight-adaptive"
-    };
+        "constraint", "reduce-hull", "preflight-adaptive"};
     std::unique_ptr<BinaryTreePaving> references[3];
-    double medians[3]{0.0,0.0,0.0};
+    double medians[3]{0.0, 0.0, 0.0};
     for (unsigned strategy = 0u; strategy < 3u; ++strategy) {
         std::vector<double> samples;
         samples.reserve(options.samples);
@@ -898,11 +927,11 @@ int evaluate_preflight(const Options& options,
                     use_hull =
                         result.decision != BoundaryPreflight::Decision::NoWitness;
                 }
-                (use_hull ? hull : constraint).adjoin_outer_approximation(
-                    paving, sets[i], options.fineness);
+                (use_hull ? hull : constraint).adjoin_outer_approximation(paving, sets[i], options.fineness);
             }
-            samples.push_back(std::chrono::duration<double,std::milli>(
-                std::chrono::steady_clock::now() - start).count());
+            samples.push_back(std::chrono::duration<double, std::milli>(
+                                  std::chrono::steady_clock::now() - start)
+                                  .count());
             paving.recombine();
             if (not references[strategy])
                 references[strategy] = std::make_unique<BinaryTreePaving>(paving);
@@ -935,7 +964,8 @@ int evaluate_preflight(const Options& options,
 
 int run(int argc, const char* argv[]) {
     auto options = parse(argc, argv);
-    if (options.samples == 0u) return 0;
+    if (options.samples == 0u)
+        return 0;
     if (options.audit_verbose and not options.audit_all_cells)
         throw std::invalid_argument("--audit-verbose requires --audit-all-cells");
     if (options.preflight and
@@ -969,10 +999,10 @@ int run(int argc, const char* argv[]) {
         200.0 * options.spatial_grid_phase,
         -static_cast<int>(options.fineness));
     const Grid grid = options.spatial_grid_phase == 0.0
-        ? Grid(Vector<ApproximateDouble>{1.0, 200.0, 200.0, 20.0, 20.0})
-        : Grid(Vector<ApproximateDouble>{
-                   0.0, spatial_shift, spatial_shift, 0.0, 0.0},
-               Vector<ApproximateDouble>{1.0, 200.0, 200.0, 20.0, 20.0});
+                        ? Grid(Vector<ApproximateDouble>{1.0, 200.0, 200.0, 20.0, 20.0})
+                        : Grid(Vector<ApproximateDouble>{
+                                   0.0, spatial_shift, spatial_shift, 0.0, 0.0},
+                               Vector<ApproximateDouble>{1.0, 200.0, 200.0, 20.0, 20.0});
     if (options.preflight)
         return evaluate_preflight(options, sets, grid);
     if (options.analyze_enclosures) {
@@ -996,13 +1026,16 @@ int run(int argc, const char* argv[]) {
             for (unsigned i = 0u; i < options.max_enclosures; ++i) {
                 const Paver& selected =
                     strategy == 1u or (strategy == 2u and i >= options.switch_after)
-                    ? hull : constraint;
+                        ? hull
+                        : constraint;
                 selected.adjoin_outer_approximation(paving, sets[i], options.fineness);
             }
             samples.push_back(std::chrono::duration<double, std::milli>(
-                std::chrono::steady_clock::now() - start).count());
+                                  std::chrono::steady_clock::now() - start)
+                                  .count());
             paving.recombine(); // Untimed, as in ARCH.
-            if (not reference) reference = std::make_unique<BinaryTreePaving>(paving);
+            if (not reference)
+                reference = std::make_unique<BinaryTreePaving>(paving);
             else if (not contains(*reference, paving) or not contains(paving, *reference))
                 throw std::runtime_error("non-deterministic geometry for " + names[strategy]);
         }
@@ -1042,7 +1075,8 @@ int run(int argc, const char* argv[]) {
                      std::abs(results[2].paving->measure().raw().get_d() - 47561.645508) < 0.002;
         std::cout << "SPRE22_FIXTURE_REFERENCE counts_and_volumes_match=" << match
                   << " hybrid_equals_hull=" << (geometry == "equal") << "\n";
-        if (not match or geometry != "equal") return 2;
+        if (not match or geometry != "equal")
+            return 2;
     }
     return 0;
 }
@@ -1050,8 +1084,9 @@ int run(int argc, const char* argv[]) {
 } // namespace
 
 int main(int argc, const char* argv[]) {
-    try { return run(argc, argv); }
-    catch (const std::exception& e) {
+    try {
+        return run(argc, argv);
+    } catch (const std::exception& e) {
         std::cerr << "SPRE22_FIXTURE_ERROR: " << e.what() << "\n";
         return 1;
     }

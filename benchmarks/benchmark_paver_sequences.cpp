@@ -91,11 +91,13 @@ std::string relation(const BinaryTreePaving& a, const BinaryTreePaving& b) {
 std::vector<Strategy> parse_pavers(const String& selection) {
     const std::string input(selection);
     if (input == "all")
-        return {{"subdivision", Paver(SubdivisionPaver())},
-                {"constraint", Paver(ConstraintPaver())},
-                {"reduce", Paver(ReducePaver())},
-                {"reduce-box", Paver(ReducePaver(ReducePaverReductionMode::BoxOnly))},
-                {"reduce-hull", Paver(ReducePaver(ReducePaverReductionMode::HullOnly))}};
+        return {
+            {"subdivision",                              Paver(SubdivisionPaver())},
+            { "constraint",                               Paver(ConstraintPaver())},
+            {     "reduce",                                   Paver(ReducePaver())},
+            { "reduce-box",  Paver(ReducePaver(ReducePaverReductionMode::BoxOnly))},
+            {"reduce-hull", Paver(ReducePaver(ReducePaverReductionMode::HullOnly))}
+        };
     if (input.empty() or input.front() == ',' or input.back() == ',')
         throw std::invalid_argument("invalid paver selection");
     std::vector<Strategy> result;
@@ -135,7 +137,7 @@ Grid scaled_grid() {
 }
 
 std::vector<ValidatedConstrainedImageSet>
-make_enclosures(const std::string& scenario, unsigned steps) {
+    make_enclosures(const std::string& scenario, unsigned steps) {
     if (scenario != "overlap" and scenario != "sweep")
         throw std::invalid_argument("invalid scenario");
     if (steps == 0u or steps > 24u)
@@ -239,8 +241,8 @@ DifferenceProbe analyze_exclusive_cells(
     DifferenceProbe result;
     result.exclusive_cells = cells.size();
     const SizeType requested = maximum_cells == 0u
-        ? cells.size()
-        : std::min(cells.size(), static_cast<SizeType>(maximum_cells));
+                                 ? cells.size()
+                                 : std::min(cells.size(), static_cast<SizeType>(maximum_cells));
     result.tested_cells = requested;
     if (requested == 0u)
         return result;
@@ -248,16 +250,15 @@ DifferenceProbe analyze_exclusive_cells(
     std::vector<SeparationContext> contexts;
     contexts.reserve(sets.size());
     for (const auto& set: sets)
-        contexts.push_back({
-            set.reduced_domain(),
-            join(set.function(), set.constraint_function()),
-            set.constraint_bounds()});
+        contexts.push_back({set.reduced_domain(),
+                            join(set.function(), set.constraint_function()),
+                            set.constraint_bounds()});
 
     // Sample across the entire exact-depth cell stream (deterministic
     // systematic positions), not just its beginning. 0 means all cells.
     for (SizeType i = 0u; i != requested; ++i) {
         const SizeType index = requested == 1u ? 0u
-            : i * (cells.size() - 1u) / (requested - 1u);
+                                               : i * (cells.size() - 1u) / (requested - 1u);
         const auto& cell = cells[index];
         bool refined = false;
         bool all_excluded = true;
@@ -278,7 +279,8 @@ DifferenceProbe analyze_exclusive_cells(
             ++result.root_certified;
     }
     if (result.root_certified + result.refined_certified +
-        result.unresolved != result.tested_cells)
+            result.unresolved !=
+        result.tested_cells)
         throw std::runtime_error("difference-probe classification mismatch");
     return result;
 }
@@ -337,9 +339,7 @@ void run(const Bench::CommandLine& cli, const Bench::Matrix& matrix,
     Bench::Report report("Paver enclosure sequences: SPRE22-inspired surrogate",
                          fields);
     report.set_time_unit(Bench::ReportTimeUnit::Milliseconds);
-    report.set_dimension_columns({{"Scenario"}, {"Mode"}, {"Fineness"},
-                                  {"Steps"}, {"Paver"}, {"Cells"},
-                                  {"Outer volume"}, {"Samples"}, {"Budget"}});
+    report.set_dimension_columns({{"Scenario"}, {"Mode"}, {"Fineness"}, {"Steps"}, {"Paver"}, {"Cells"}, {"Outer volume"}, {"Samples"}, {"Budget"}});
     std::string header = matrix.header() + " | pavers=[";
     for (const auto& strategy: strategies) {
         if (&strategy != &strategies.front())
@@ -348,36 +348,19 @@ void run(const Bench::CommandLine& cli, const Bench::Matrix& matrix,
     }
     report.set_parameter_header(header + "]");
 
-    Bench::Table pairwise({{"Scenario"}, {"Mode"}, {"Fineness"}, {"Steps"},
-                           {"A"}, {"B"}, {"Geometric relation"}});
-    Bench::Table mode_geometry({{"Scenario"}, {"Fineness"}, {"Steps"}, {"Paver"},
-                                {"A (isolated)"}, {"B (accumulating)"}, {"Geometric relation"}});
-    Bench::Table per_step({{"Scenario"}, {"Mode"}, {"Fineness"}, {"Paver"},
-                           {"Step"}, {"Cells before"}, {"Cells after"},
-                           {"Visits"}, {"Covered"}, {"Param splits"},
-                           {"Map evals"}, {"Sensitivity"}, {"Paver (ms)"}});
+    Bench::Table pairwise({{"Scenario"}, {"Mode"}, {"Fineness"}, {"Steps"}, {"A"}, {"B"}, {"Geometric relation"}});
+    Bench::Table mode_geometry({{"Scenario"}, {"Fineness"}, {"Steps"}, {"Paver"}, {"A (isolated)"}, {"B (accumulating)"}, {"Geometric relation"}});
+    Bench::Table per_step({{"Scenario"}, {"Mode"}, {"Fineness"}, {"Paver"}, {"Step"}, {"Cells before"}, {"Cells after"}, {"Visits"}, {"Covered"}, {"Param splits"}, {"Map evals"}, {"Sensitivity"}, {"Paver (ms)"}});
     // Counterfactual diagnostics cannot alter the Paver result.
-    Bench::Table axis_split_diagnostics({{"Scenario"}, {"Mode"}, {"Fine"}, {"Step"},
-                                         {"Tests"}, {"Jac evals"}, {"Legacy splits"},
-                                         {"Axis suggests"}, {"Axis only"},
-                                         {"Axis only at cap"}, {"Legacy only"}});
+    Bench::Table axis_split_diagnostics({{"Scenario"}, {"Mode"}, {"Fine"}, {"Step"}, {"Tests"}, {"Jac evals"}, {"Legacy splits"}, {"Axis suggests"}, {"Axis only"}, {"Axis only at cap"}, {"Legacy only"}});
     // ReducePaver uses ConstraintSolver's box/hull contractors. Account
     // for their work only in the untimed instrumented replay.
-    Bench::Table reduction_diagnostics({{"Scenario"}, {"Mode"}, {"Fine"}, {"Step"},
-                                        {"Reduce calls"}, {"Box calls"}, {"Hull calls"},
-                                        {"Constraint calls"}, {"Disjoint"}, {"Adjoins"},
-                                        {"Box (ms)"}, {"Hull (ms)"}});
+    Bench::Table reduction_diagnostics({{"Scenario"}, {"Mode"}, {"Fine"}, {"Step"}, {"Reduce calls"}, {"Box calls"}, {"Hull calls"}, {"Constraint calls"}, {"Disjoint"}, {"Adjoins"}, {"Box (ms)"}, {"Hull (ms)"}});
     // Different finenesses must be compared geometrically, not only by
     // outer volume or equal numeric fineness settings.
-    Bench::Table across_fineness({{"Scenario"}, {"Mode"}, {"Steps"}, {"A"}, {"B"},
-                                  {"Geometric relation"}});
-    Bench::Table frontier({{"Scenario"}, {"Mode"}, {"Steps"}, {"Samples"},
-                           {"Fineness"}, {"Paver"}, {"Median (ms)"}, {"Cells"},
-                           {"Outer volume"}, {"Volume / tightest"}, {"Status"}});
-    Bench::Table exclusive_probe({{"Scenario"}, {"Mode"}, {"Fine"}, {"Steps"},
-                                  {"Extra cells"}, {"Probed"}, {"Root excluded"},
-                                  {"Refined excluded"}, {"Unresolved"},
-                                  {"Range evals"}, {"Max depth"}});
+    Bench::Table across_fineness({{"Scenario"}, {"Mode"}, {"Steps"}, {"A"}, {"B"}, {"Geometric relation"}});
+    Bench::Table frontier({{"Scenario"}, {"Mode"}, {"Steps"}, {"Samples"}, {"Fineness"}, {"Paver"}, {"Median (ms)"}, {"Cells"}, {"Outer volume"}, {"Volume / tightest"}, {"Status"}});
+    Bench::Table exclusive_probe({{"Scenario"}, {"Mode"}, {"Fine"}, {"Steps"}, {"Extra cells"}, {"Probed"}, {"Root excluded"}, {"Refined excluded"}, {"Unresolved"}, {"Range evals"}, {"Max depth"}});
 
     if (difference_probe) {
         const bool has_subdivision = std::any_of(
@@ -443,9 +426,9 @@ void run(const Bench::CommandLine& cli, const Bench::Matrix& matrix,
                 execute();
                 verify();
                 LOGGING_PRINTLN("SEQUENCE_VERIFY scenario=" << scenario
-                               << " mode=" << mode << " f=" << f
-                               << " steps=" << count << " paver=" << strategy.name
-                               << " cells=" << reference->size());
+                                                            << " mode=" << mode << " f=" << f
+                                                            << " steps=" << count << " paver=" << strategy.name
+                                                            << " cells=" << reference->size());
             } else {
                 for (unsigned warm = 0u; warm < cli.warmups(); ++warm) {
                     prepare();
@@ -508,8 +491,9 @@ void run(const Bench::CommandLine& cli, const Bench::Matrix& matrix,
                         ReducePaver(ReducePaverReductionMode::HullOnly)
                             .adjoin_outer_approximation(paving, sets[i], f, counts);
                     const auto elapsed = std::chrono::duration_cast<
-                        std::chrono::nanoseconds>(
-                            std::chrono::steady_clock::now() - begin).count();
+                                             std::chrono::nanoseconds>(
+                                             std::chrono::steady_clock::now() - begin)
+                                             .count();
                     per_step.add_row({scenario, mode, std::to_string(f),
                                       strategy.name, std::to_string(i),
                                       std::to_string(before),
@@ -522,30 +506,28 @@ void run(const Bench::CommandLine& cli, const Bench::Matrix& matrix,
                                       Bench::Table::number(
                                           static_cast<double>(elapsed) / 1e6, 3u)});
                     if (strategy.name == "constraint") {
-                        axis_split_diagnostics.add_row({
-                            scenario, mode, std::to_string(f), std::to_string(i),
-                            std::to_string(counts.axis_sensitivity_checks),
-                            std::to_string(counts.axis_jacobian_evaluations),
-                            std::to_string(counts.parameter_splits),
-                            std::to_string(counts.axis_split_suggestions),
-                            std::to_string(counts.axis_only_split_suggestions),
-                            std::to_string(counts.axis_only_at_depth_limit),
-                            std::to_string(counts.legacy_only_split_suggestions)});
+                        axis_split_diagnostics.add_row({scenario, mode, std::to_string(f), std::to_string(i),
+                                                        std::to_string(counts.axis_sensitivity_checks),
+                                                        std::to_string(counts.axis_jacobian_evaluations),
+                                                        std::to_string(counts.parameter_splits),
+                                                        std::to_string(counts.axis_split_suggestions),
+                                                        std::to_string(counts.axis_only_split_suggestions),
+                                                        std::to_string(counts.axis_only_at_depth_limit),
+                                                        std::to_string(counts.legacy_only_split_suggestions)});
                     } else if (strategy.name == "reduce" or
                                strategy.name == "reduce-box" or
                                strategy.name == "reduce-hull") {
-                        reduction_diagnostics.add_row({
-                            scenario, mode, std::to_string(f), std::to_string(i),
-                            std::to_string(counts.reduction_calls),
-                            std::to_string(counts.box_reduction_calls),
-                            std::to_string(counts.hull_reduction_calls),
-                            std::to_string(counts.constraint_reduction_calls),
-                            std::to_string(counts.disjoint_rejections),
-                            std::to_string(counts.adjoin_calls),
-                            Bench::Table::number(
-                                static_cast<double>(counts.box_reduction_ns) / 1e6, 3u),
-                            Bench::Table::number(
-                                static_cast<double>(counts.hull_reduction_ns) / 1e6, 3u)});
+                        reduction_diagnostics.add_row({scenario, mode, std::to_string(f), std::to_string(i),
+                                                       std::to_string(counts.reduction_calls),
+                                                       std::to_string(counts.box_reduction_calls),
+                                                       std::to_string(counts.hull_reduction_calls),
+                                                       std::to_string(counts.constraint_reduction_calls),
+                                                       std::to_string(counts.disjoint_rejections),
+                                                       std::to_string(counts.adjoin_calls),
+                                                       Bench::Table::number(
+                                                           static_cast<double>(counts.box_reduction_ns) / 1e6, 3u),
+                                                       Bench::Table::number(
+                                                           static_cast<double>(counts.hull_reduction_ns) / 1e6, 3u)});
                     }
                 }
                 const auto replay = instrumented.merged(grid);
@@ -588,15 +570,14 @@ void run(const Bench::CommandLine& cli, const Bench::Matrix& matrix,
             const auto probe = analyze_exclusive_cells(
                 *subdivision, *constraint, sets, f, difference_cells,
                 difference_depth);
-            exclusive_probe.add_row({
-                scenario, mode, std::to_string(f), std::to_string(count),
-                std::to_string(probe.exclusive_cells),
-                std::to_string(probe.tested_cells),
-                std::to_string(probe.root_certified),
-                std::to_string(probe.refined_certified),
-                std::to_string(probe.unresolved),
-                std::to_string(probe.range_evaluations),
-                std::to_string(difference_depth)});
+            exclusive_probe.add_row({scenario, mode, std::to_string(f), std::to_string(count),
+                                     std::to_string(probe.exclusive_cells),
+                                     std::to_string(probe.tested_cells),
+                                     std::to_string(probe.root_certified),
+                                     std::to_string(probe.refined_certified),
+                                     std::to_string(probe.unresolved),
+                                     std::to_string(probe.range_evaluations),
+                                     std::to_string(difference_depth)});
         }
 
         for (auto& outcome: case_outcomes)
@@ -649,11 +630,11 @@ void run(const Bench::CommandLine& cli, const Bench::Matrix& matrix,
             }
             const double volume = candidate.paving->measure().raw().get_d();
             const std::string status = not candidate.complete_samples
-                ? "incomplete (not ranked)"
-                : fastest_dominator == nullptr
-                    ? "frontier"
-                    : "dominated by " + fastest_dominator->strategy +
-                      " f=" + std::to_string(fastest_dominator->fineness);
+                                         ? "incomplete (not ranked)"
+                                     : fastest_dominator == nullptr
+                                         ? "frontier"
+                                         : "dominated by " + fastest_dominator->strategy +
+                                               " f=" + std::to_string(fastest_dominator->fineness);
             frontier.add_row({candidate.scenario, candidate.mode,
                               std::to_string(candidate.steps),
                               std::to_string(candidate.requested_samples),

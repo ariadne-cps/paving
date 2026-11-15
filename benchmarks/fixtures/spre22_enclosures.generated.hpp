@@ -6,8 +6,9 @@
 #include <cstdint>
 #include <utility>
 #include <vector>
-#include "function/taylor_function.hpp"
+
 #include "function/constraint.hpp"
+#include "function/taylor_function.hpp"
 #include "set/function_set.hpp"
 
 namespace Ariadne::SPRE22Fixture {

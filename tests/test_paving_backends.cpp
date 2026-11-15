@@ -31,10 +31,10 @@
 #include <type_traits>
 #include <vector>
 
-#include "paving/set_approximation.hpp"
 #include "paving/binary_tree_paving.hpp"
 #include "paving/paving_cell_operations.hpp"
 #include "paving/robdd_paving.hpp"
+#include "paving/set_approximation.hpp"
 #include "set/function_set.hpp"
 
 #include "ariadne-testing.hpp"

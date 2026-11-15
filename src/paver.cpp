@@ -135,10 +135,14 @@ OutputStream& AffinePaver::_write(OutputStream& os) const { return os << "Affine
 OutputStream& SubdivisionPaver::_write(OutputStream& os) const { return os << "SubdivisionPaver()"; }
 OutputStream& ReducePaver::_write(OutputStream& os) const {
     switch (_reduction_mode) {
-        case ReducePaverReductionMode::Full: return os << "ReducePaver()";
-        case ReducePaverReductionMode::BoxOnly: return os << "ReducePaver(BoxOnly)";
-        case ReducePaverReductionMode::HullOnly: return os << "ReducePaver(HullOnly)";
-        default: return os;
+        case ReducePaverReductionMode::Full:
+            return os << "ReducePaver()";
+        case ReducePaverReductionMode::BoxOnly:
+            return os << "ReducePaver(BoxOnly)";
+        case ReducePaverReductionMode::HullOnly:
+            return os << "ReducePaver(HullOnly)";
+        default:
+            return os;
     }
 }
 OutputStream& ConstraintPaver::_write(OutputStream& os) const { return os << "ConstraintPaver()"; }
@@ -589,7 +593,8 @@ Void interval_constraint_adjoin_outer_approximation_recursion(
     // fresh evaluations. Defer both computations until actually needed.
     ConstraintDomainEvaluation local_evaluation;
     ConstraintDomainEvaluation& evaluation = inherited_evaluation != nullptr
-                                                ? *inherited_evaluation : local_evaluation;
+                                               ? *inherited_evaluation
+                                               : local_evaluation;
     if (!evaluation.combined_range) {
         if (diagnostics != nullptr) {
             ++diagnostics->map_evaluations;

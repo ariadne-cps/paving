@@ -180,10 +180,7 @@ void run(const Bench::CommandLine& cli, const Bench::Matrix& matrix,
     Bench::Table timings({{"Case"}, {"Dim"}, {"Fine"}, {"Paver"}, {"Map (ms)"}, {"Constraints (ms)"}, {"Joint (ms)"}, {"Sensitivity (ms)"}, {"Box red. (ms)"}, {"Hull red. (ms)"}, {"Join (ms)"}, {"Adjoin (ms)"}, {"Other (ms)"}, {"Profiled (ms)"}});
     // ConstraintPaver-specific decomposition of the prior "Other" bucket.
     Bench::Table traversal({{"Case"}, {"Dim"}, {"Fine"}, {"Coverage"}, {"Cell boxes"}, {"Products"}, {"Disjoint tests"}, {"Superset (ms)"}, {"Cell box (ms)"}, {"Product (ms)"}, {"Disjoint (ms)"}});
-    Bench::Table axis_sensitivity({{"Case"}, {"Dim"}, {"Fine"},
-                                   {"Tests"}, {"Jac evals"}, {"Legacy splits"},
-                                   {"Axis suggests"}, {"Axis only"},
-                                   {"Axis only at cap"}, {"Legacy only"}});
+    Bench::Table axis_sensitivity({{"Case"}, {"Dim"}, {"Fine"}, {"Tests"}, {"Jac evals"}, {"Legacy splits"}, {"Axis suggests"}, {"Axis only"}, {"Axis only at cap"}, {"Legacy only"}});
 
     matrix.for_each([&](const Bench::Configuration& configuration) {
         const unsigned d = configuration.value(dimensions);
@@ -383,15 +380,14 @@ void run(const Bench::CommandLine& cli, const Bench::Matrix& matrix,
                                        std::to_string(counters.disjoint_checks),
                                        ms(counters.coverage_ns), ms(counters.cell_box_ns),
                                        ms(counters.product_box_ns), ms(counters.disjoint_ns)});
-                    axis_sensitivity.add_row({
-                        shape, std::to_string(d), std::to_string(f),
-                        std::to_string(counters.axis_sensitivity_checks),
-                        std::to_string(counters.axis_jacobian_evaluations),
-                        std::to_string(counters.parameter_splits),
-                        std::to_string(counters.axis_split_suggestions),
-                        std::to_string(counters.axis_only_split_suggestions),
-                        std::to_string(counters.axis_only_at_depth_limit),
-                        std::to_string(counters.legacy_only_split_suggestions)});
+                    axis_sensitivity.add_row({shape, std::to_string(d), std::to_string(f),
+                                              std::to_string(counters.axis_sensitivity_checks),
+                                              std::to_string(counters.axis_jacobian_evaluations),
+                                              std::to_string(counters.parameter_splits),
+                                              std::to_string(counters.axis_split_suggestions),
+                                              std::to_string(counters.axis_only_split_suggestions),
+                                              std::to_string(counters.axis_only_at_depth_limit),
+                                              std::to_string(counters.legacy_only_split_suggestions)});
                 }
             }
             outcomes.push_back({strategy.name, std::move(paving)});

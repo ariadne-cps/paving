@@ -693,7 +693,10 @@ class TestPaver : public Ariadne::Testing::ContextFixture {
         const auto v = EffectiveScalarMultivariateFunction::coordinate(2u, 1u);
         const ValidatedVectorMultivariateFunction mapping({u * v, u + v});
         const ValidatedConstrainedImageSet set(
-            ExactBoxType{{0.0_x, 1.0_x}, {0.0_x, 1.0_x}},
+            ExactBoxType{
+                {0.0_x, 1.0_x},
+                {0.0_x, 1.0_x}
+        },
             mapping, List<ValidatedConstraint>{u - v >= 0.75_x});
         const Grid grid(2u);
 
