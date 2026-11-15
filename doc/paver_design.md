@@ -2242,3 +2242,56 @@ one-sweep contractor was responsible for the production Paver's
 traversal unless the actual traversal is instrumented and checked
 independently.
 
+### Verified cell differences and hull witnesses (2026-11-15)
+
+The user built and executed the standalone C++ inspector on real SPRE22
+enclosures 1 and 17, fineness 4, inspect limit 12, split depth 6.
+This supersedes the "not yet executed" status of the inspection
+above.
+
+| Metric | Enclosure 1 | Enclosure 17 |
+| --- | ---: | ---: |
+| Constraint cells | 328 | 84 |
+| HullOnly cells | 328 | 30 |
+| Difference tree cells | 0 | 54 |
+| Difference exact-fineness cells | 0 | 150 |
+| Difference outer volume | 0 | 2288.818359 |
+| Constraint/Hull relation | equal | Constraint strictly contains HullOnly |
+
+Crucially, the previously proposed left-boundary candidate cell
+`[0,0.0625] x [-937.5,-925] x [-425,-412.5] x [1.25,2.5]^2`
+is covered by **both** pavings in enclosure 1, but is covered by
+Constraint, not intersected by HullOnly, and intersected by the
+exact Paver difference in enclosure 17. This confirms that the
+prior static geometric separation certificate points to a **real**
+output discrepancy, rather than a conjectured candidate.
+
+For 12 systematically distributed exact-depth difference cells
+in enclosure 17: none was rejected by the root combined interval
+range (0/12); **all 12** were proved disjoint by validated
+parameter-domain subdivision within 6 levels (12/12); and **five**
+were rejected by a single sweep of the compiled hull contractors
+(5/12). The other seven sweeps did not prove emptiness but narrowed
+four or five parameter intervals. Four of the five immediate
+rejections first emptied on state component 3 (vx), and one on
+component 4 (vy).
+
+**Interpretation.** This provides paired evidence of actual Paver
+output cells and mathematically certified image disjointness.
+The fundamental difference involves the relation between the
+parameterized image, its constraints and the **individual target
+grid cell**; a redundant global time constraint does not mean
+cell-specific constraints are redundant. The first sweep of hull
+propagation can prove emptiness directly in some cases, but these
+offline probes do not reconstruct the full production Paver decision
+path for the remaining cases. In particular, the other seven
+nonempty sweeps must not be described as direct hull rejections.
+
+No heuristic threshold, coefficient-count classifier, performance
+claim, production Paver change, or submodule gitlink change follows
+from this diagnostic result. A stronger causal study would trace the
+actual contractor decisions at the nodes leading to a handful of
+these witness cells and compare them with validated domain-splitting
+certificates; it should not be represented as a necessary benchmark
+for the already established geometry.
+
