@@ -31,6 +31,7 @@
 
 #include "function/taylor_function.hpp"
 #include "logging/logging.hpp"
+#include "logging/test_runner.hpp"
 #include "paving/binary_tree_paving.hpp"
 #include "paving/paver.hpp"
 #include "set/function_set.hpp"
@@ -834,5 +835,5 @@ int main(int argc, char** argv) {
     ARIADNE_TESTING_ADD_TEST(TestPaver, test_incremental_exact_box_classification);
     ARIADNE_TESTING_ADD_TEST(TestPaver, test_pruned_exact_box_subtrees);
     ARIADNE_TESTING_ADD_TEST(TestPaver, test_nonlinear_pavers);
-    return ARIADNE_TESTING_RUN_TESTS_WITH_ARGS(argc, argv);
+    return Ariadne::Testing::run_logging_suite(ariadne_test_suite, argc, argv);
 }

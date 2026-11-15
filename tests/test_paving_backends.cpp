@@ -31,6 +31,7 @@
 #include <type_traits>
 #include <vector>
 
+#include "logging/test_runner.hpp"
 #include "paving/binary_tree_paving.hpp"
 #include "paving/paving_cell_operations.hpp"
 #include "paving/robdd_paving.hpp"
@@ -3023,5 +3024,5 @@ int main(int argc, char** argv) {
     ARIADNE_TESTING_ADD_TEST(TestPavingBackends, test_uniform_cell_paving_contract);
     ARIADNE_TESTING_ADD_TEST(TestPavingBackends, test_polymorphic_handle_uniform_cell_enumeration);
     ARIADNE_TESTING_ADD_TEST(TestPavingBackends, test_exact_uniform_oracle_exhaustive_and_nested_views);
-    return ARIADNE_TESTING_RUN_TESTS_WITH_ARGS(argc, argv);
+    return Ariadne::Testing::run_logging_suite(ariadne_test_suite, argc, argv);
 }

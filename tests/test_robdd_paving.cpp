@@ -33,6 +33,7 @@
 #include <vector>
 
 #include "geometry/set_wrapper.hpp"
+#include "logging/test_runner.hpp"
 #include "paving/binary_tree_paving.hpp"
 #include "paving/paving_cell_operations.hpp"
 #include "paving/robdd_paving.hpp"
@@ -675,5 +676,5 @@ int main(int argc, char **argv) {
 
     ARIADNE_TESTING_ADD_TEST(TestRobddPaving, test_detached_subpaving_for_descendants);
 
-    return ARIADNE_TESTING_RUN_TESTS_WITH_ARGS(argc, argv);
+    return Ariadne::Testing::run_logging_suite(ariadne_test_suite, argc, argv);
 }

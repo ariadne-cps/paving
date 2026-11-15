@@ -26,6 +26,7 @@
  *  @brief Test paving geometry and backend behavior.
  */
 
+#include "logging/test_runner.hpp"
 #include "paving/binary_tree_paving.hpp"
 #include "tree/binary_tree.hpp"
 
@@ -160,5 +161,5 @@ int main(int argc, char **argv) {
     ARIADNE_TESTING_ADD_TEST(TestPavingLockReentrancy, test_self_set_operations);
     ARIADNE_TESTING_ADD_TEST(TestPavingLockReentrancy, test_nonrecursive_is_empty_queries);
     ARIADNE_TESTING_ADD_TEST(TestPavingLockReentrancy, test_restrict_to_extent_does_not_reenter_dimension_lock);
-    return ARIADNE_TESTING_RUN_TESTS_WITH_ARGS(argc, argv);
+    return Ariadne::Testing::run_logging_suite(ariadne_test_suite, argc, argv);
 }

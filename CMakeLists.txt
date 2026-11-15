@@ -24,6 +24,9 @@ require_same_dependency_commit(Build CHAINS
 require_same_dependency_commit(Foundation CHAINS
         "tree|foundation"
         "set|linear-programming|algebra|interval|numeric|foundation")
+require_same_dependency_commit(Threading CHAINS
+        "bdd|threading"
+        "tree|threading")
 require_same_dependency_commit(Logging CHAINS
         "set|linear-programming|logging"
         "bdd|threading|logging"

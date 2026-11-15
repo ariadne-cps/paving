@@ -26,6 +26,7 @@
  *  @brief Test paving functionality and backend invariants.
  */
 
+#include "logging/test_runner.hpp"
 #include "paving/grid_cell_alignment.hpp"
 
 #include "ariadne-testing.hpp"
@@ -119,5 +120,5 @@ int main(int argc, char** argv) {
     ARIADNE_TESTING_ADD_TEST(TestGridCellAlignment, test_cross_extent);
     ARIADNE_TESTING_ADD_TEST(
         TestGridCellAlignment, test_multiple_dimensions_and_preconditions);
-    return ARIADNE_TESTING_RUN_TESTS_WITH_ARGS(argc, argv);
+    return Ariadne::Testing::run_logging_suite(ariadne_test_suite, argc, argv);
 }

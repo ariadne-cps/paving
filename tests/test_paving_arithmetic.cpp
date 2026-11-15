@@ -30,6 +30,7 @@
 // exponentially large geometric sets described by those metadata.
 #include <limits>
 
+#include "logging/test_runner.hpp"
 #include "paving/paving_arithmetic.hpp"
 
 #include "ariadne-testing.hpp"
@@ -90,5 +91,5 @@ int main(int argc, char** argv) {
     ARIADNE_TESTING_SUITE("test_paving_arithmetic");
     ARIADNE_TESTING_ADD_TEST(TestPavingArithmetic, test_size_and_index_boundaries);
     ARIADNE_TESTING_ADD_TEST(TestPavingArithmetic, test_grid_word_depth_boundaries);
-    return ARIADNE_TESTING_RUN_TESTS_WITH_ARGS(argc, argv);
+    return Ariadne::Testing::run_logging_suite(ariadne_test_suite, argc, argv);
 }

@@ -32,6 +32,7 @@
 
 #include "function/function.hpp"
 #include "geometry/box.hpp"
+#include "logging/test_runner.hpp"
 #include "paving/binary_tree_paving.hpp"
 #include "paving/set_approximation.hpp"
 #include "set/affine_set.hpp"
@@ -245,5 +246,5 @@ int main(int argc, char** argv) {
     ARIADNE_TESTING_ADD_TEST(TestAffineSetPaving, test_uniform_error);
     ARIADNE_TESTING_ADD_TEST(TestAffineSetPaving, test_logging_branches);
     ARIADNE_TESTING_ADD_TEST(TestAffineSetPaving, test_invalid_paving);
-    return ARIADNE_TESTING_RUN_TESTS_WITH_ARGS(argc, argv);
+    return Ariadne::Testing::run_logging_suite(ariadne_test_suite, argc, argv);
 }

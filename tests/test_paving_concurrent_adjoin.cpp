@@ -34,6 +34,7 @@
 #include "algebra/vector.hpp"
 #include "function/projection.hpp"
 #include "geometry/set_wrapper.hpp"
+#include "logging/test_runner.hpp"
 #include "paving/binary_tree_paving.hpp"
 #include "paving/robdd_paving.hpp"
 #include "tree/binary_tree.hpp"
@@ -812,5 +813,5 @@ int main(int argc, char** argv) {
     ARIADNE_TESTING_ADD_TEST(TestPavingConcurrentAdjoin, test_tree_owner_projection_and_enclosing_query_during_writes);
     ARIADNE_TESTING_ADD_TEST(TestPavingConcurrentAdjoin, test_robdd_concurrent_root_mutations);
     ARIADNE_TESTING_ADD_TEST(TestPavingConcurrentAdjoin, test_robdd_reader_writer_adjoin);
-    return ARIADNE_TESTING_RUN_TESTS_WITH_ARGS(argc, argv);
+    return Ariadne::Testing::run_logging_suite(ariadne_test_suite, argc, argv);
 }

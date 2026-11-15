@@ -29,6 +29,7 @@
 #include <type_traits>
 #include <utility>
 
+#include "logging/test_runner.hpp"
 #include "paving/binary_tree_paving.hpp"
 #include "paving/set_approximation.hpp"
 #include "set/affine_set.hpp"
@@ -84,5 +85,5 @@ int main(int argc, char** argv) {
     ARIADNE_TESTING_SUITE("test_set_approximation");
     ARIADNE_TESTING_ADD_TEST(TestSetApproximation, test_effective_set_approximation);
     ARIADNE_TESTING_ADD_TEST(TestSetApproximation, test_validated_set_approximation);
-    return ARIADNE_TESTING_RUN_TESTS_WITH_ARGS(argc, argv);
+    return Ariadne::Testing::run_logging_suite(ariadne_test_suite, argc, argv);
 }

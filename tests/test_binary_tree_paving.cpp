@@ -40,6 +40,7 @@
 #include "function/projection.hpp"
 #include "geometry/set_interface.hpp"
 #include "geometry/set_wrapper.hpp"
+#include "logging/test_runner.hpp"
 #include "numeric/numeric.hpp"
 #include "paving/binary_tree_paving.hpp"
 #include "set/function_set.hpp"
@@ -3507,5 +3508,5 @@ int main(int argc, char** argv) {
     ARIADNE_TESTING_ADD_TEST(TestBinaryTreePaving, test_queries_cursors_and_constructors);
     ARIADNE_TESTING_ADD_TEST(TestBinaryTreePaving, test_approximation_apis);
     ARIADNE_TESTING_ADD_TEST(TestBinaryTreePaving, test_products_and_drawing);
-    return ARIADNE_TESTING_RUN_TESTS_WITH_ARGS(argc, argv);
+    return Ariadne::Testing::run_logging_suite(ariadne_test_suite, argc, argv);
 }
