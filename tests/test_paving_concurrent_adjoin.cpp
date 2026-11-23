@@ -141,6 +141,42 @@ class TestPavingConcurrentAdjoin : public Ariadne::Testing::ContextFixture {
         }
     }
 
+    Void test_tree_grid_identity_during_root_updates() {
+        // Regression for grid() readers during root realignment, clear and
+        // same-grid assignment. Only root-cell geometry may be modified.
+        const Grid grid(1u);
+        const Grid equal_grid(1u);
+        const GridCell distant(equal_grid, 5u, BinaryWord{});
+        BinaryTreePaving paving(grid, false);
+        const BinaryTreePaving replacement(equal_grid, false);
+
+        std::atomic<bool> started{false};
+        std::atomic<bool> finished{false};
+        std::atomic<bool> coherent{true};
+        std::thread reader([&] {
+            started.store(true, std::memory_order_release);
+            while (not finished.load(std::memory_order_acquire)) {
+                if (paving.grid().lengths().size() != 1u)
+                    coherent.store(false, std::memory_order_relaxed);
+            }
+        });
+        while (not started.load(std::memory_order_acquire))
+            std::this_thread::yield();
+
+        for (unsigned i = 0u; i < 256u; ++i) {
+            paving.adjoin(distant);
+            paving.clear();
+            paving = replacement;
+        }
+        finished.store(true, std::memory_order_release);
+        reader.join();
+        ARIADNE_TESTING_PROVE(coherent.load(std::memory_order_acquire));
+        ARIADNE_TESTING_PROVE(paving.grid() == grid);
+        ARIADNE_TESTING_EXPECT_EQUAL(paving.root_cell().root_extent(), 0u);
+        paving.adjoin(distant);
+        ARIADNE_TESTING_PROVE(paving.superset(distant));
+    }
+
     Void test_tree_reader_writer_adjoin() {
         Grid grid(1u);
         auto cells = make_cells(grid);
@@ -797,6 +833,7 @@ int main(int argc, char** argv) {
     ARIADNE_TESTING_SUITE("test_paving_concurrent_adjoin");
     ARIADNE_TESTING_ADD_TEST(TestPavingConcurrentAdjoin, test_grid_tree_concurrent_adjoin);
     ARIADNE_TESTING_ADD_TEST(TestPavingConcurrentAdjoin, test_robdd_concurrent_adjoin);
+    ARIADNE_TESTING_ADD_TEST(TestPavingConcurrentAdjoin, test_tree_grid_identity_during_root_updates);
     ARIADNE_TESTING_ADD_TEST(TestPavingConcurrentAdjoin, test_tree_reader_writer_adjoin);
     ARIADNE_TESTING_ADD_TEST(TestPavingConcurrentAdjoin, test_tree_concurrent_root_mutations);
     ARIADNE_TESTING_ADD_TEST(TestPavingConcurrentAdjoin, test_tree_concurrent_set_mutations);

@@ -2102,7 +2102,7 @@ BinaryTreePaving& BinaryTreePaving::operator=(const BinaryTreePaving& other) {
         GridCell cell = other._theGridCell;
         delete this->_pRootTreeNode;
         this->_pRootTreeNode = root.release();
-        this->_theGridCell = cell;
+        this->_theGridCell.assign_on_same_grid(cell);
     }
     return *this;
 }
@@ -2126,7 +2126,9 @@ Void BinaryTreePaving::up_to_primary_cell(const Nat toPCellExtent) {
     // 2. Substitute the root node of the paiving with the extended tree
     this->_pRootTreeNode = BinaryTreeNode::prepend_tree(primaryCellPath, this->_pRootTreeNode);
     // 3. Update the GridCell that corresponds to the root of this BinaryTreeSubpaving
-    this->_theGridCell = GridCell(this->_theGridCell.grid(), toPCellExtent, BinaryWord());
+    // The owning paving retains its Grid; only root-cell geometry may change.
+    this->_theGridCell.assign_on_same_grid(
+        GridCell(this->_theGridCell.grid(), toPCellExtent, BinaryWord()));
 }
 
 BinaryTreeNode* BinaryTreePaving::align_with_cell(const Nat otherPavingPCellExtent, const Bool stop_on_enabled,
@@ -2850,7 +2852,7 @@ Void BinaryTreePaving::clear() {
     // owner and assigning it read the current grid before acquiring the lock.
     GridCell emptyRoot(_theGridCell.grid(), 0u, BinaryWord());
     _pRootTreeNode->make_leaf(false);
-    _theGridCell = std::move(emptyRoot);
+    _theGridCell.assign_on_same_grid(emptyRoot);
 }
 
 Void BinaryTreePaving::restrict(const BinaryTreeSubpaving& theOtherSubPaving) {
